@@ -12,7 +12,7 @@ RUN npm ci
 
 # Build static assets
 COPY frontend/ ./
-RUN npm run build
+RUN npx svelte-kit sync && npm run build
 
 
 # =============================================================================

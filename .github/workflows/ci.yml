@@ -79,6 +79,10 @@ jobs:
         working-directory: ./frontend
         run: npm run lint
 
+      - name: Sync SvelteKit
+        working-directory: ./frontend
+        run: npx svelte-kit sync
+
       - name: Type-check frontend
         working-directory: ./frontend
         run: npm run check

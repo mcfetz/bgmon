@@ -66,3 +66,8 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-q --strict-markers"
+
+# flask_sqlalchemy exposes `db.Model` as `type[_FSAModel]`, a placeholder
+# ty can't resolve into a class — safe to ignore on every model.
+[tool.ty.rules]
+unsupported-base = "ignore"
