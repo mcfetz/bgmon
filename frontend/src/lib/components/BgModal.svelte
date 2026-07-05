@@ -335,7 +335,9 @@
 		white-space: nowrap;
 		cursor: pointer;
 		border: none;
-		transition: color 0.15s, transform 0.1s;
+		transition:
+			color 0.15s,
+			transform 0.1s;
 	}
 
 	.snooze-display:hover {
