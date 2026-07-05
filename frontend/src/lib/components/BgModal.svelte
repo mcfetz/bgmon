@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { apiFetch } from '$lib/auth';
+	import SnoozeModal from './SnoozeModal.svelte';
 
 	let {
 		open = $bindable(false),
@@ -38,6 +40,46 @@
 		return `vor ${d} Tag${d === 1 ? '' : 'en'}`;
 	}
 
+	type SnoozeState = {
+		active: boolean;
+		snooze_until: string | null;
+		reason: string | null;
+	};
+
+	let snooze = $state<SnoozeState>({ active: false, snooze_until: null, reason: null });
+	let snoozeRemaining = $state(0);
+	let snoozeModalOpen = $state(false);
+	let snoozeTimer: ReturnType<typeof setInterval> | null = null;
+	let snoozePollTimer: ReturnType<typeof setInterval> | null = null;
+
+	async function fetchSnooze() {
+		try {
+			const res = await apiFetch('/api/notifications/snooze');
+			if (!res.ok) return;
+			snooze = await res.json();
+			updateSnoozeRemaining();
+		} catch {}
+	}
+
+	function updateSnoozeRemaining() {
+		if (snooze.active && snooze.snooze_until) {
+			const end = new Date(snooze.snooze_until).getTime();
+			snoozeRemaining = Math.max(0, Math.floor((end - Date.now()) / 1000));
+		} else {
+			snoozeRemaining = 0;
+		}
+	}
+
+	function formatSnoozeTime(secs: number): string {
+		const m = Math.floor(secs / 60);
+		const s = secs % 60;
+		return `${m}:${s.toString().padStart(2, '0')}`;
+	}
+
+	function handleSnoozeModalUpdate() {
+		fetchSnooze();
+	}
+
 	let wakeLock: WakeLockSentinel | null = null;
 
 	function trendArrow(dir: string | null): string {
@@ -72,8 +114,19 @@
 	$effect(() => {
 		if (open) {
 			requestWakeLock();
+			fetchSnooze();
+			snoozePollTimer = setInterval(fetchSnooze, 30000);
+			snoozeTimer = setInterval(updateSnoozeRemaining, 1000);
 		} else {
 			releaseWakeLock();
+			if (snoozePollTimer) {
+				clearInterval(snoozePollTimer);
+				snoozePollTimer = null;
+			}
+			if (snoozeTimer) {
+				clearInterval(snoozeTimer);
+				snoozeTimer = null;
+			}
 		}
 	});
 
@@ -87,7 +140,11 @@
 		return () => document.removeEventListener('visibilitychange', handler);
 	});
 
-	onDestroy(releaseWakeLock);
+	onDestroy(() => {
+		releaseWakeLock();
+		if (snoozePollTimer) clearInterval(snoozePollTimer);
+		if (snoozeTimer) clearInterval(snoozeTimer);
+	});
 
 	function close() {
 		open = false;
@@ -101,6 +158,29 @@
 			<button class="close-btn" type="button" onclick={close} aria-label="Schließen">×</button>
 		</header>
 		<div class="bg-content">
+			{#if snooze.active && snoozeRemaining > 0}
+				<button
+					class="snooze-display"
+					type="button"
+					onclick={() => (snoozeModalOpen = true)}
+					title={snooze.reason ?? 'Snooze anpassen'}
+				>
+					<svg
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+					</svg>
+					<span class="snooze-label">Stumm</span>
+					<span class="snooze-timer">{formatSnoozeTime(snoozeRemaining)}</span>
+				</button>
+			{/if}
 			<div class="bg-value" style="color: {color}">{sgv}</div>
 			<div class="bg-unit">mg/dL</div>
 			{#if delta !== null}
@@ -112,6 +192,8 @@
 			<div class="bg-time">{timeAgo(lastUpdate)}</div>
 		</div>
 	</div>
+
+	<SnoozeModal bind:open={snoozeModalOpen} onUpdate={handleSnoozeModalUpdate} />
 {/if}
 
 <style>
@@ -238,5 +320,36 @@
 		color: var(--color-text-muted);
 		font-weight: 500;
 		font-variant-numeric: tabular-nums;
+	}
+
+	.snooze-display {
+		display: inline-flex;
+		align-items: center;
+		gap: 12px;
+		padding: 16px 24px;
+		border-radius: 999px;
+		background: #f0a000;
+		color: #1a1a1a;
+		font-size: clamp(1.2rem, 3vw, 2rem);
+		font-weight: 600;
+		white-space: nowrap;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+		cursor: pointer;
+		border: none;
+		transition: background 0.15s, transform 0.1s;
+	}
+
+	.snooze-display:hover {
+		background: #ffb820;
+		transform: scale(1.05);
+	}
+
+	.snooze-label {
+		letter-spacing: 0.02em;
+	}
+
+	.snooze-timer {
+		font-variant-numeric: tabular-nums;
+		font-weight: 700;
 	}
 </style>
