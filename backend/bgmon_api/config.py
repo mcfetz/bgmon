@@ -36,7 +36,9 @@ class Config:
     TWILIO_ACCOUNT_SID = os.getenv("BGMON_TWILIO_ACCOUNT_SID", "")
     TWILIO_AUTH_TOKEN = os.getenv("BGMON_TWILIO_AUTH_TOKEN", "")
     TWILIO_FROM_NUMBER = os.getenv("BGMON_TWILIO_FROM_NUMBER", "")
-    TWILIO_NUMBERS = [n.strip() for n in os.getenv("BGMON_TWILIO_NUMBERS", "").split(",") if n.strip()]
+    TWILIO_NUMBERS = [
+        n.strip() for n in os.getenv("BGMON_TWILIO_NUMBERS", "").split(",") if n.strip()
+    ]
     TWILIO_RETRY_COUNT = int(os.getenv("BGMON_TWILIO_RETRY_COUNT", "3"))
     TWILIO_RETRY_DELAY_S = int(os.getenv("BGMON_TWILIO_RETRY_DELAY_S", "90"))
 

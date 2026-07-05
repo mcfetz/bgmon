@@ -36,13 +36,19 @@ def _parse_assignments(raw):
     normalized: dict[str, str] = {}
     for item in raw:
         if not isinstance(item, dict):
-            return None, (jsonify({"error": "each assignment must be an object"}), HTTPStatus.BAD_REQUEST)
+            return None, (
+                jsonify({"error": "each assignment must be an object"}),
+                HTTPStatus.BAD_REQUEST,
+            )
         area = item.get("area", "").strip()
         threshold = item.get("threshold", "").strip()
         if area not in _VALID_AREAS:
             return None, (jsonify({"error": f"invalid area: {area}"}), HTTPStatus.BAD_REQUEST)
         if threshold not in _VALID_THRESHOLDS:
-            return None, (jsonify({"error": f"invalid threshold: {threshold}"}), HTTPStatus.BAD_REQUEST)
+            return None, (
+                jsonify({"error": f"invalid threshold: {threshold}"}),
+                HTTPStatus.BAD_REQUEST,
+            )
         if threshold in seen_thresholds:
             return None, (
                 jsonify({"error": f"threshold {threshold} assigned multiple times"}),

@@ -6,7 +6,7 @@ self.addEventListener('push', (event) => {
 		icon: data.icon || '/icon-192.png',
 		badge: data.badge || '/icon-192.png',
 		tag: data.tag || 'bgmon-alarm',
-		requireInteraction: data.requireInteraction ?? true,
+		requireInteraction: data.requireInteraction ?? true
 	};
 	event.waitUntil(self.registration.showNotification(title, options));
 });

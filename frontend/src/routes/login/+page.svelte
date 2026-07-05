@@ -14,7 +14,7 @@
 			const res = await fetch('/api/auth/login', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password }),
+				body: JSON.stringify({ email, password })
 			});
 			if (res.ok) {
 				const data = await res.json();
@@ -33,7 +33,12 @@
 
 <div class="login">
 	<h1>bgmon</h1>
-	<form onsubmit={(e) => { e.preventDefault(); login(); }}>
+	<form
+		onsubmit={(e) => {
+			e.preventDefault();
+			login();
+		}}
+	>
 		<div class="field">
 			<label for="email">E-Mail</label>
 			<input id="email" type="email" bind:value={email} required />

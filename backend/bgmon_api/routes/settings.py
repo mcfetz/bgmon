@@ -40,19 +40,21 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     insulin_hours = data.get("insulin_action_hours")
     correction_factor = data.get("correction_factor")
 
-    if insulin_hours is not None:
-        if not isinstance(insulin_hours, (int, float)) or insulin_hours <= 0:
-            return (
-                jsonify({"error": "insulin_action_hours must be positive number"}),
-                HTTPStatus.BAD_REQUEST,
-            )
+    if insulin_hours is not None and (
+        not isinstance(insulin_hours, (int, float)) or insulin_hours <= 0
+    ):
+        return (
+            jsonify({"error": "insulin_action_hours must be positive number"}),
+            HTTPStatus.BAD_REQUEST,
+        )
 
-    if correction_factor is not None:
-        if not isinstance(correction_factor, (int, float)) or correction_factor <= 0:
-            return (
-                jsonify({"error": "correction_factor must be positive number"}),
-                HTTPStatus.BAD_REQUEST,
-            )
+    if correction_factor is not None and (
+        not isinstance(correction_factor, (int, float)) or correction_factor <= 0
+    ):
+        return (
+            jsonify({"error": "correction_factor must be positive number"}),
+            HTTPStatus.BAD_REQUEST,
+        )
 
     settings = GlobalSettings.query.first()
     if not settings:
@@ -207,7 +209,10 @@ def update_twilio() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     effective_phone = new_phone if new_phone is not None else (user.phone_number or "")
     if from_number == effective_phone:
-        return jsonify({"error": "from_number and phone_number must differ"}), HTTPStatus.BAD_REQUEST
+        return (
+            jsonify({"error": "from_number and phone_number must differ"}),
+            HTTPStatus.BAD_REQUEST,
+        )
 
     if new_phone is not None:
         user.phone_number = new_phone
@@ -239,17 +244,27 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         return jsonify({"error": "no from_number configured"}), HTTPStatus.BAD_REQUEST
 
     if from_number == user.phone_number:
-        return jsonify({"error": "from_number and phone_number must differ"}), HTTPStatus.BAD_REQUEST
+        return (
+            jsonify({"error": "from_number and phone_number must differ"}),
+            HTTPStatus.BAD_REQUEST,
+        )
 
     try:
         call = client.calls.create(
             to=user.phone_number,
             from_=from_number,
-            twiml='<Response><Say voice="alice" language="de-DE">Dies ist ein Testanruf von bgmon. Die Twilio Anbindung funktioniert.</Say></Response>',
+            twiml=(
+                '<Response><Say voice="alice" language="de-DE">'
+                "Dies ist ein Testanruf von bgmon. Die Twilio Anbindung funktioniert."
+                "</Say></Response>"
+            ),
         )
 
         from bgmon_api.models import LogEntry, LogEntryType
-        note = f"Testanruf an {user.display_name} ({user.email}) via Twilio: from={from_number} to={user.phone_number}, status={call.status}"
+        note = (
+            f"Testanruf an {user.display_name} ({user.email}) via Twilio: "
+            f"from={from_number} to={user.phone_number}, status={call.status}"
+        )
         db.session.add(LogEntry(
             user_id=user.id,
             entry_type=LogEntryType.ALARM,
@@ -259,7 +274,12 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         ))
         db.session.commit()
 
-        return jsonify({"message": "Test call initiated", "sid": call.sid, "to": user.phone_number, "from": from_number})
+        return jsonify({
+            "message": "Test call initiated",
+            "sid": call.sid,
+            "to": user.phone_number,
+            "from": from_number,
+        })
     except Exception as exc:
         from bgmon_api.models import LogEntry, LogEntryType
         note = f"Testanruf an {user.display_name} ({user.email}) via Twilio FEHLGESCHLAGEN: {exc}"

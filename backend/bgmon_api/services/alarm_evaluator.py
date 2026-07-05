@@ -209,7 +209,11 @@ def _dispatch_to_user(
 
     snooze = m["UserSnooze"].query.get(user_id)
     if snooze and snooze.is_active and current_level:
-        snooze_level = snooze.reason.removeprefix("alarm:") if snooze.reason and snooze.reason.startswith("alarm:") else None
+        snooze_level = (
+            snooze.reason.removeprefix("alarm:")
+            if snooze.reason and snooze.reason.startswith("alarm:")
+            else None
+        )
         if snooze_level == current_level:
             logger.info(
                 "User %d is snoozed at level %s, skipping notification", user_id, current_level
@@ -232,7 +236,7 @@ def _dispatch_to_user(
 
     if threshold is None:
         if reason:
-            _log_notification(user, "no-data", reason, sgv)
+            _log_notification(user, reason, sgv)
         return
 
     profile = m["NotificationProfile"].query.get(active.profile_id)
@@ -273,7 +277,7 @@ def _dispatch_call(user: User, title: str, sgv: int | None) -> None:
 def _dispatch_push(user: User, title: str, sgv: int | None) -> None:
     body = f"Aktueller Wert: {sgv} mg/dL" if sgv is not None else ""
     send_push_to_user(user.id, title, body)
-    _log_notification(user, "push", title, sgv)
+    _log_notification(user, title, sgv)
 
 
 def _set_snooze(user_id: int, reason: str | None = None) -> None:
@@ -287,7 +291,7 @@ def _set_snooze(user_id: int, reason: str | None = None) -> None:
     logger.info("User %d snoozed until %s", user_id, snooze.snooze_until)
 
 
-def _log_notification(user: User, channel: str, title: str, sgv: int | None) -> None:
+def _log_notification(user: User, title: str, sgv: int | None) -> None:
     m = _models()
     patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
     if not patient:

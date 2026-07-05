@@ -9,7 +9,14 @@
 	import SnoozeIndicator from '$lib/components/SnoozeIndicator.svelte';
 	import BgModal from '$lib/components/BgModal.svelte';
 	import StatsCard from '$lib/components/StatsCard.svelte';
-	import { fetchCurrent, fetchHistoryRange, fetchLogsRange, fetchStatsRange, fetchThresholds, fetchGlobalSettings } from '$lib/api/dashboard';
+	import {
+		fetchCurrent,
+		fetchHistoryRange,
+		fetchLogsRange,
+		fetchStatsRange,
+		fetchThresholds,
+		fetchGlobalSettings
+	} from '$lib/api/dashboard';
 	import type { GlucoseReading, LogEntryReading, StatsData } from '$lib/api/dashboard';
 
 	let current = $state<{ sgv: number | null; direction: string | null } | null>(null);
@@ -23,11 +30,16 @@
 	let pulsing = $state(false);
 	let now = $state(Date.now());
 	let health = $state<{ libre: boolean }>({ libre: false });
-	let thresholds = $state<{ critical_low: number; low: number; high: number; critical_high: number }>({
+	let thresholds = $state<{
+		critical_low: number;
+		low: number;
+		high: number;
+		critical_high: number;
+	}>({
 		critical_low: 54,
 		low: 70,
 		high: 180,
-		critical_high: 250,
+		critical_high: 250
 	});
 	let insulinActionHours = $state(4);
 	let logRefreshTrigger = $state(0);
@@ -35,16 +47,17 @@
 	let highlightedTimestamp = $state<string | null>(null);
 
 	// Time window state
-	let windowDurationMs = $state(3600 * 1000); // default 1h
+	const initialWindowDurationMs = 3600 * 1000; // default 1h
+	let windowDurationMs = $state(initialWindowDurationMs);
 	let windowEnd = $state<Date>(new Date());
-	let windowStart = $state<Date>(new Date(Date.now() - windowDurationMs));
+	let windowStart = $state<Date>(new Date(Date.now() - initialWindowDurationMs));
 
 	const durationButtons = [
 		{ label: '-1h', ms: 3600 * 1000 },
 		{ label: '-6h', ms: 6 * 3600 * 1000 },
 		{ label: '-12h', ms: 12 * 3600 * 1000 },
 		{ label: '-1t', ms: 24 * 3600 * 1000 },
-		{ label: '-1w', ms: 7 * 24 * 3600 * 1000 },
+		{ label: '-1w', ms: 7 * 24 * 3600 * 1000 }
 	];
 
 	function setDuration(ms: number) {
@@ -84,7 +97,7 @@
 				fetchLogsRange(startIso, endIso),
 				fetchStatsRange(startIso, endIso),
 				fetchThresholds(),
-				fetchGlobalSettings(),
+				fetchGlobalSettings()
 			]);
 			if (cur) {
 				if (current?.sgv != null && current.sgv !== cur.sgv) {
@@ -114,7 +127,9 @@
 	}
 
 	async function checkAuth() {
-		const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${localStorage.getItem('bgmon_token') || ''}` } });
+		const res = await fetch('/api/auth/me', {
+			headers: { Authorization: `Bearer ${localStorage.getItem('bgmon_token') || ''}` }
+		});
 		if (!res.ok) {
 			goto('/login');
 		}
@@ -127,10 +142,10 @@
 				const data = await res.json();
 				const libreOk = data.last_libre_fetch_status === 'ok';
 				const libreRecent = data.last_libre_fetch_at
-					? (Date.now() - new Date(data.last_libre_fetch_at).getTime()) < 6 * 60 * 1000
+					? Date.now() - new Date(data.last_libre_fetch_at).getTime() < 6 * 60 * 1000
 					: false;
 				health = {
-					libre: libreOk && libreRecent,
+					libre: libreOk && libreRecent
 				};
 			}
 		} catch (e) {
@@ -166,8 +181,13 @@
 
 	function trendArrow(direction: string | null): string {
 		const arrows: Record<string, string> = {
-			DoubleDown: '↓↓', SingleDown: '↓', FortyFiveDown: '↘',
-			Flat: '→', FortyFiveUp: '↗', SingleUp: '↑', DoubleUp: '↑↑',
+			DoubleDown: '↓↓',
+			SingleDown: '↓',
+			FortyFiveDown: '↘',
+			Flat: '→',
+			FortyFiveUp: '↗',
+			SingleUp: '↑',
+			DoubleUp: '↑↑'
 		};
 		return arrows[direction ?? ''] ?? '';
 	}
@@ -204,7 +224,7 @@
 			day: '2-digit',
 			month: '2-digit',
 			hour: '2-digit',
-			minute: '2-digit',
+			minute: '2-digit'
 		};
 		const startStr = windowStart.toLocaleString('de-DE', fullFmt);
 		const endStr = windowEnd.toLocaleString('de-DE', fullFmt);
@@ -213,20 +233,31 @@
 </script>
 
 <div class="sticky-top">
-<header class="app-header">
-	<div class="header-pill">
-		<div class="header-left">
-			<button class="header-logo" type="button">
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-				</svg>
-				<span class="logo-text">bgmon</span>
-			</button>
+	<header class="app-header">
+		<div class="header-pill">
+			<div class="header-left">
+				<button class="header-logo" type="button">
+					<svg
+						width="20"
+						height="20"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+					</svg>
+					<span class="logo-text">bgmon</span>
+				</button>
 
-			{#if current}
+				{#if current}
 					<div class="header-sgv-block">
 						<button class="sgv-btn" type="button" onclick={() => (bgModalOpen = true)}>
-							<span class="sgv {pulsing ? 'pulse' : ''}" style="color: {glucoseColor(current.sgv)}">{current.sgv}</span>
+							<span class="sgv {pulsing ? 'pulse' : ''}" style="color: {glucoseColor(current.sgv)}"
+								>{current.sgv}</span
+							>
 							<span class="sgv-label">mg/dL</span>
 						</button>
 					</div>
@@ -241,11 +272,16 @@
 				{#if current}
 					<div class="header-info-block">
 						{#if previousSgv !== null && current.sgv !== previousSgv}
-							<span class="header-delta" style="color: {current.sgv > previousSgv ? '#f97316' : '#22c55e'}">
+							<span
+								class="header-delta"
+								style="color: {current.sgv > previousSgv ? '#f97316' : '#22c55e'}"
+							>
 								{current.sgv > previousSgv ? '+' : ''}{current.sgv - previousSgv}
 							</span>
 						{/if}
-						<span class="sgv-trend" style="color: {glucoseColor(current.sgv)}">{trendArrow(current.direction)}</span>
+						<span class="sgv-trend" style="color: {glucoseColor(current.sgv)}"
+							>{trendArrow(current.direction)}</span
+						>
 						{#if lastUpdate}
 							<span class="header-time">{timeAgo(lastUpdate)}</span>
 						{/if}
@@ -261,19 +297,47 @@
 	</div>
 </div>
 
-<BgModal bind:open={bgModalOpen} sgv={current?.sgv ?? 0} direction={current?.direction ?? null} color={glucoseColor(current?.sgv ?? null)} lastUpdate={lastUpdate} previousSgv={previousSgv} />
+<BgModal
+	bind:open={bgModalOpen}
+	sgv={current?.sgv ?? 0}
+	direction={current?.direction ?? null}
+	color={glucoseColor(current?.sgv ?? null)}
+	{lastUpdate}
+	{previousSgv}
+/>
 
 <div class="dashboard">
 	<div class="time-controls">
 		<div class="duration-buttons">
-			<button class="range-btn now-btn" onclick={jumpToNow} title="Zur aktuellen Zeit springen">Jetzt</button>
+			<button class="range-btn now-btn" onclick={jumpToNow} title="Zur aktuellen Zeit springen"
+				>Jetzt</button
+			>
 			{#each durationButtons as btn}
-				<button class="range-btn" class:active={windowDurationMs === btn.ms} onclick={() => setDuration(btn.ms)}>{btn.label}</button>
+				<button
+					class="range-btn"
+					class:active={windowDurationMs === btn.ms}
+					onclick={() => setDuration(btn.ms)}>{btn.label}</button
+				>
 			{/each}
 		</div>
 		<div class="window-label">{formatWindowLabel()}</div>
-		<button class="refresh-btn" onclick={loadDashboard} disabled={loading} title={loading ? 'Lade...' : 'Aktualisieren'}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class:spinning={loading}>
+		<button
+			class="refresh-btn"
+			onclick={loadDashboard}
+			disabled={loading}
+			title={loading ? 'Lade...' : 'Aktualisieren'}
+		>
+			<svg
+				width="16"
+				height="16"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2.5"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class:spinning={loading}
+			>
 				<path d="M21 12a9 9 0 1 1-3.36-7"></path>
 				<polyline points="21 4 21 10 15 10"></polyline>
 			</svg>
@@ -285,8 +349,24 @@
 	{/if}
 
 	<div class="content">
-				<GlucoseGraph {readings} {logs} criticalLow={thresholds.critical_low} low={thresholds.low} high={thresholds.high} criticalHigh={thresholds.critical_high} insulinActionHours={insulinActionHours} onswipe={shiftWindow} {highlightedTimestamp} />
-				<LogHistory refreshTrigger={logRefreshTrigger} {windowStart} {windowEnd} {highlightedTimestamp} onHighlight={(ts) => highlightedTimestamp = ts} />
+		<GlucoseGraph
+			{readings}
+			{logs}
+			criticalLow={thresholds.critical_low}
+			low={thresholds.low}
+			high={thresholds.high}
+			criticalHigh={thresholds.critical_high}
+			{insulinActionHours}
+			onswipe={shiftWindow}
+			{highlightedTimestamp}
+		/>
+		<LogHistory
+			refreshTrigger={logRefreshTrigger}
+			{windowStart}
+			{windowEnd}
+			{highlightedTimestamp}
+			onHighlight={(ts) => (highlightedTimestamp = ts)}
+		/>
 		<StatsCard {stats} />
 	</div>
 </div>
@@ -311,7 +391,8 @@
 	}
 
 	.app-header {
-		padding: calc(env(safe-area-inset-top, 0px) + var(--spacing-md)) var(--spacing-md) var(--spacing-sm);
+		padding: calc(env(safe-area-inset-top, 0px) + var(--spacing-md)) var(--spacing-md)
+			var(--spacing-sm);
 		background: transparent;
 	}
 
@@ -544,7 +625,9 @@
 	}
 
 	@keyframes spin {
-		to { transform: rotate(360deg); }
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.spinning {

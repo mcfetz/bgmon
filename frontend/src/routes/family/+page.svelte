@@ -56,8 +56,13 @@
 
 	function trendArrow(direction: string | null): string {
 		const arrows: Record<string, string> = {
-			DoubleDown: '↓↓', SingleDown: '↓', FortyFiveDown: '↘',
-			Flat: '→', FortyFiveUp: '↗', SingleUp: '↑', DoubleUp: '↑↑',
+			DoubleDown: '↓↓',
+			SingleDown: '↓',
+			FortyFiveDown: '↘',
+			Flat: '→',
+			FortyFiveUp: '↗',
+			SingleUp: '↑',
+			DoubleUp: '↑↑'
 		};
 		return arrows[direction ?? ''] ?? '';
 	}

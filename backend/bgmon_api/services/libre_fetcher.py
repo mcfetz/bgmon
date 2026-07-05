@@ -52,13 +52,23 @@ def _login(session: requests.Session) -> tuple[str, str, str] | None:
     for region in regions:
         base_url = f"https://api-{region}.libreview.io"
         try:
-            r = session.post(f"{base_url}/llu/auth/login", json=login_data, headers=headers, timeout=30)
+            r = session.post(
+                f"{base_url}/llu/auth/login",
+                json=login_data,
+                headers=headers,
+                timeout=30,
+            )
             if r.status_code == 200:
                 data = r.json()
                 if data.get("data", {}).get("redirect"):
                     redirect_region = data["data"]["region"]
                     base_url = f"https://api-{redirect_region}.libreview.io"
-                    r = session.post(f"{base_url}/llu/auth/login", json=login_data, headers=headers, timeout=30)
+                    r = session.post(
+                        f"{base_url}/llu/auth/login",
+                        json=login_data,
+                        headers=headers,
+                        timeout=30,
+                    )
                     data = r.json()
 
                 token = data.get("data", {}).get("authTicket", {}).get("token")
@@ -73,7 +83,12 @@ def _login(session: requests.Session) -> tuple[str, str, str] | None:
     return None
 
 
-def _get_patients(session: requests.Session, token: str, base_url: str, account_id_hash: str) -> list[dict]:
+def _get_patients(
+    session: requests.Session,
+    token: str,
+    base_url: str,
+    account_id_hash: str,
+) -> list[dict]:
     """Get list of patients from LibreLinkUp."""
     headers = {
         "Authorization": f"Bearer {token}",
@@ -99,7 +114,13 @@ def _get_patients(session: requests.Session, token: str, base_url: str, account_
     return []
 
 
-def _get_latest_sgv(session: requests.Session, token: str, base_url: str, account_id_hash: str, patient_id: str) -> dict | None:
+def _get_latest_sgv(
+    session: requests.Session,
+    token: str,
+    base_url: str,
+    account_id_hash: str,
+    patient_id: str,
+) -> dict | None:
     """Get latest glucose reading for a patient."""
     headers = {
         "Authorization": f"Bearer {token}",
@@ -113,7 +134,11 @@ def _get_latest_sgv(session: requests.Session, token: str, base_url: str, accoun
     }
 
     try:
-        r = session.get(f"{base_url}/llu/connections/{patient_id}/graph", headers=headers, timeout=30)
+        r = session.get(
+            f"{base_url}/llu/connections/{patient_id}/graph",
+            headers=headers,
+            timeout=30,
+        )
         if r.status_code == 200:
             data = r.json()
             graph_data = data.get("data", {})

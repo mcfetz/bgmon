@@ -24,7 +24,10 @@ def _log_call(user: User, to_number: str, status: str, title: str, sgv: int | No
     if not patient:
         return
     sgv_str = f"{sgv} mg/dL" if sgv is not None else "keine Daten"
-    note = f"Twilio Anruf an {user.display_name}. Status: {status}. Alarm: {title}. {sgv_str}."
+    note = (
+        f"Twilio Anruf an {user.display_name} ({to_number}). "
+        f"Status: {status}. Alarm: {title}. {sgv_str}."
+    )
     entry = LogEntry(
         user_id=patient.id,
         entry_type=LogEntryType.ALARM,

@@ -3,8 +3,6 @@
 import logging
 import signal
 import sys
-
-logger = logging.getLogger(__name__)
 from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -12,6 +10,8 @@ from flask import Flask, Response, jsonify, send_from_directory
 
 from bgmon_api.config import Config
 from bgmon_api.extensions import db, migrate
+
+logger = logging.getLogger(__name__)
 
 leader = None
 scheduler = None
@@ -63,10 +63,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     with app.app_context():
         bootstrap_admin()
 
+    from bgmon_api.routes.dashboard import check_and_log_streak
     from bgmon_api.services.alarm_evaluator import check_profile_schedules, evaluate_alarms
     from bgmon_api.services.leader import RowLeaseLeader
     from bgmon_api.services.libre_fetcher import fetch_and_store, get_last_fetch_info
-    from bgmon_api.routes.dashboard import check_and_log_streak
 
     leader = RowLeaseLeader()
     scheduler = BackgroundScheduler(daemon=True)

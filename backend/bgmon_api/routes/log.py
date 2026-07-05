@@ -1,5 +1,6 @@
 """Patient logging blueprint — carbs, insulin, basal + history."""
 
+import contextlib
 from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request
@@ -35,15 +36,15 @@ def list_logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     start = request.args.get("start")
     end = request.args.get("end")
     if start:
-        try:
-            query = query.filter(LogEntry.created_at >= datetime.fromisoformat(start.replace("Z", "+00:00")))
-        except ValueError:
-            pass
+        with contextlib.suppress(ValueError):
+            query = query.filter(
+                LogEntry.created_at >= datetime.fromisoformat(start.replace("Z", "+00:00"))
+            )
     if end:
-        try:
-            query = query.filter(LogEntry.created_at <= datetime.fromisoformat(end.replace("Z", "+00:00")))
-        except ValueError:
-            pass
+        with contextlib.suppress(ValueError):
+            query = query.filter(
+                LogEntry.created_at <= datetime.fromisoformat(end.replace("Z", "+00:00"))
+            )
 
     logs = query.order_by(LogEntry.created_at.desc()).limit(100).all()
     return jsonify([log.to_dict() for log in logs])
@@ -77,7 +78,6 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     except ValueError:
         return jsonify({"error": "invalid entry_type"}), HTTPStatus.BAD_REQUEST
 
-    import contextlib
     from datetime import UTC, datetime, timedelta
     from zoneinfo import ZoneInfo
 
@@ -186,7 +186,10 @@ def update_basal_rate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     if prev_rate is None or prev_rate != new_rate:
         if prev_rate is not None:
-            note = f"Basalrate von {prev_rate} auf {new_rate} {unit} geändert. ({user.display_name})"
+            note = (
+                f"Basalrate von {prev_rate} auf {new_rate} {unit} geändert. "
+                f"({user.display_name})"
+            )
         else:
             note = f"Basalrate auf {new_rate} {unit} gesetzt. ({user.display_name})"
         log_entry = LogEntry(
@@ -273,7 +276,10 @@ def update_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     if prev_factor is None or prev_factor != new_factor:
         if prev_factor is not None:
-            note = f"KE-Faktor von {prev_factor} auf {new_factor} {unit} geändert. ({user.display_name})"
+            note = (
+                f"KE-Faktor von {prev_factor} auf {new_factor} {unit} geändert. "
+                f"({user.display_name})"
+            )
         else:
             note = f"KE-Faktor auf {new_factor} {unit} gesetzt. ({user.display_name})"
         log_entry = LogEntry(

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fetchCurrent } from '$lib/api/dashboard';
+	import { fetchCurrent } from '$lib/api/dashboard.ts';
 
 	let current = $state<{ sgv: number | null; direction: string | null } | null>(null);
 	let lastUpdate = $state<string | null>(null);
@@ -34,8 +34,13 @@
 
 	function trendArrow(direction: string | null): string {
 		const arrows: Record<string, string> = {
-			DoubleDown: '↓↓', SingleDown: '↓', FortyFiveDown: '↘',
-			Flat: '→', FortyFiveUp: '↗', SingleUp: '↑', DoubleUp: '↑↑',
+			DoubleDown: '↓↓',
+			SingleDown: '↓',
+			FortyFiveDown: '↘',
+			Flat: '→',
+			FortyFiveUp: '↗',
+			SingleUp: '↑',
+			DoubleUp: '↑↑'
 		};
 		return arrows[direction ?? ''] ?? '';
 	}

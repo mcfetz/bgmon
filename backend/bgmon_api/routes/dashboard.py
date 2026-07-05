@@ -304,7 +304,7 @@ def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict]:
     max_consecutive = 0
     early_entry = False
 
-    for i, (day, day_start) in enumerate(day_boundaries):
+    for _i, (_day, day_start) in enumerate(day_boundaries):
         day_end = day_start + timedelta(days=1)
 
         day_logs = (
