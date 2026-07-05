@@ -328,19 +328,18 @@
 		gap: 12px;
 		padding: 16px 24px;
 		border-radius: 999px;
-		background: #f0a000;
-		color: #1a1a1a;
+		background: transparent;
+		color: var(--color-text-muted);
 		font-size: clamp(1.2rem, 3vw, 2rem);
 		font-weight: 600;
 		white-space: nowrap;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 		cursor: pointer;
 		border: none;
-		transition: background 0.15s, transform 0.1s;
+		transition: color 0.15s, transform 0.1s;
 	}
 
 	.snooze-display:hover {
-		background: #ffb820;
+		color: var(--color-text);
 		transform: scale(1.05);
 	}
 
