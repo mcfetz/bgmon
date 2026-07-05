@@ -220,7 +220,7 @@ def set_active_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 def webhook_activate_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     profile = NotificationProfile.query.get(profile_id)
     if not profile:
-        return "Profile not found", HTTPStatus.NOT_FOUND
+        return jsonify({"error": "profile not found"}), HTTPStatus.NOT_FOUND
 
     owner_id = profile.user_id
     active = UserActiveProfile.query.get(owner_id)
@@ -231,7 +231,9 @@ def webhook_activate_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResp
         active.profile_id = profile_id
     db.session.commit()
 
-    return f"Active profile set to '{profile.name}' (id={profile_id}) for user {owner_id}."
+    return jsonify({
+        "message": f"Active profile set to '{profile.name}' (id={profile_id}) for user {owner_id}."
+    })
 
 
 @notifications_bp.route("/snooze", methods=["GET"])

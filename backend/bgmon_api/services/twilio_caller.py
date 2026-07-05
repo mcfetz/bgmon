@@ -80,14 +80,15 @@ def place_call(user: User, sgv: int | None, title: str) -> bool:
             twiml=twiml,
         )
 
+        call_status = str(call.status) if call.status else "unknown"
         log = TwilioCallLog(
             alarm_id=None,
             to_number=user.phone_number,
-            status=call.status,
+            status=call_status,
             twilio_sid=call.sid,
         )
         db.session.add(log)
-        _log_call(user, user.phone_number, call.status, title, sgv)
+        _log_call(user, user.phone_number, call_status, title, sgv)
         db.session.commit()
 
         logger.info("Twilio call initiated to %s for user %d", user.phone_number, user.id)

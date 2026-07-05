@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fetchCurrent } from '$lib/api/dashboard.ts';
+	import { fetchCurrent } from '$lib/api/dashboard';
 
 	let current = $state<{ sgv: number | null; direction: string | null } | null>(null);
 	let lastUpdate = $state<string | null>(null);

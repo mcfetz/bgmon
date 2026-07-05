@@ -6,6 +6,7 @@ InfluxDB is kept as legacy passthrough only.
 
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
@@ -145,7 +146,7 @@ def logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 def _calculate_weekly_scores(
     patient_id: int, low: int, high: int, days: int = 7
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Calculate daily scores for the last N days (oldest first)."""
     from datetime import date as date_cls
     from datetime import timedelta
@@ -154,7 +155,7 @@ def _calculate_weekly_scores(
     from bgmon_api.models import LogEntry, LogEntryType
 
     today = date_cls.today()
-    result: list[dict] = []
+    result: list[dict[str, Any]] = []
     for i in range(days - 1, -1, -1):
         day = today - timedelta(days=i)
         day_start = datetime.combine(day, datetime.min.time()).replace(tzinfo=UTC)
@@ -226,7 +227,7 @@ def _calculate_weekly_scores(
     return result
 
 
-def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict]:
+def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict[str, Any]]:
     """Check which achievements are unlocked based on patient data."""
     from datetime import date as date_cls
     from datetime import timedelta
@@ -234,7 +235,7 @@ def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict]:
     from bgmon_api.extensions import db
     from bgmon_api.models import GlobalSettings, LogEntry, LogEntryType
 
-    achievements = [
+    achievements: list[dict[str, Any]] = [
         {
             "id": "bronze_streak",
             "name": "Bronze-Streak",
@@ -374,7 +375,7 @@ def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict]:
 
 def _calculate_daily_score(
     patient_id: int, low: int, high: int, today_values: list[float], tir_percent: float | None
-) -> dict:
+) -> dict[str, Any]:
     from datetime import date as date_cls
 
     from bgmon_api.extensions import db
@@ -395,7 +396,7 @@ def _calculate_daily_score(
         .all()
     )
 
-    breakdown: list[dict] = []
+    breakdown: list[dict[str, Any]] = []
     total = 0
 
     entry_count = len(today_logs)
@@ -506,6 +507,7 @@ def stats() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         )
 
     values = [r.sgv for r in readings if r.sgv is not None]
+    data: dict[str, Any]
     if not values:
         data = {
             "mean": None,

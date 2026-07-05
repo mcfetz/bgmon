@@ -271,7 +271,7 @@
 			<div class="header-right">
 				{#if current}
 					<div class="header-info-block">
-						{#if previousSgv !== null && current.sgv !== previousSgv}
+						{#if previousSgv !== null && current.sgv !== null && current.sgv !== previousSgv}
 							<span
 								class="header-delta"
 								style="color: {current.sgv > previousSgv ? '#f97316' : '#22c55e'}"
@@ -365,7 +365,7 @@
 			{windowStart}
 			{windowEnd}
 			{highlightedTimestamp}
-			onHighlight={(ts) => (highlightedTimestamp = ts)}
+			onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
 		/>
 		<StatsCard {stats} />
 	</div>
