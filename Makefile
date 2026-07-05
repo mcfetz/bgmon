@@ -23,9 +23,9 @@ lint: ## Run all linters
 	$(MAKE) lint-backend
 	$(MAKE) lint-frontend
 
-lint-backend: ## Lint backend with ruff and type-check with mypy
+lint-backend: ## Lint backend with ruff and type-check with ty
 	cd backend && ruff check .
-	cd backend && mypy bgmon_api
+	cd backend && ty check bgmon_api
 
 lint-frontend: ## Lint frontend
 	cd frontend && npm run lint

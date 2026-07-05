@@ -278,7 +278,7 @@ Alle Endpoints sind unter `/api/*` gemountet. Session-Cookie erforderlich, auße
 ```bash
 make lint
 # oder einzeln:
-cd backend && ruff check . && mypy bgmon_api
+cd backend && ruff check . && ty check bgmon_api
 cd frontend && npm run lint && npx tsc --noEmit
 ```
 

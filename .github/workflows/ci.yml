@@ -29,7 +29,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install backend dependencies
         working-directory: ./backend
@@ -43,7 +43,14 @@ jobs:
 
       - name: Type-check backend
         working-directory: ./backend
-        run: mypy bgmon_api
+        run: ty check bgmon_api
+
+      - name: Run database migrations
+        working-directory: ./backend
+        env:
+          BGMON_DATABASE_URL: postgresql://bgmon:bgmon@localhost:5432/bgmon_test
+          BGMON_SECRET_KEY: test-secret
+        run: flask --app bgmon_api.app db upgrade
 
       - name: Run backend tests
         working-directory: ./backend
