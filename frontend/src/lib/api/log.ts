@@ -2,11 +2,12 @@ import { apiFetch } from '$lib/auth';
 
 export interface LogEntry {
 	id: number;
-	entry_type: 'carbs' | 'insulin' | 'basal';
+	entry_type: 'carbs' | 'insulin' | 'basal' | 'note' | 'alarm' | 'success';
 	value: number;
 	unit: string;
 	notes: string | null;
 	created_at: string;
+	created_by?: string | null;
 }
 
 export interface BasalRate {

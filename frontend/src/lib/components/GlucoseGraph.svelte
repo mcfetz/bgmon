@@ -9,8 +9,8 @@
 		high = 180,
 		criticalHigh = 250,
 		insulinActionHours = 4,
-		onswipe = (_ratio: number) => {},
-		highlightedTimestamp = null as string | null
+		onswipe = ((_ratio: number) => {}) as (ratio: number) => void,
+		highlightedTimestamp = null as string | null,
 	} = $props();
 
 	const width = 600;

@@ -214,9 +214,10 @@
 		pushError = '';
 		try {
 			const reg = await navigator.serviceWorker.ready;
+			const key = urlBase64ToUint8Array(pushPublicKey);
 			const sub = await reg.pushManager.subscribe({
 				userVisibleOnly: true,
-				applicationServerKey: urlBase64ToUint8Array(pushPublicKey)
+				applicationServerKey: key
 			});
 			const res = await apiFetch('/api/alarms/subscribe', {
 				method: 'POST',
@@ -275,11 +276,15 @@
 		pushTesting = false;
 	}
 
-	function urlBase64ToUint8Array(base64String: string): Uint8Array {
+	function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 		const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
 		const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
 		const rawData = window.atob(base64);
-		return Uint8Array.from(rawData.split('').map((c) => c.charCodeAt(0)));
+		const arr = new Uint8Array(rawData.length);
+		for (let i = 0; i < rawData.length; i++) {
+			arr[i] = rawData.charCodeAt(i);
+		}
+		return arr.buffer;
 	}
 
 	function arrayBufferToBase64(buffer: ArrayBuffer | null): string {
@@ -887,7 +892,7 @@
 														<button
 															type="button"
 															class="icon-suggestion"
-															onclick={() => (editingProfile.icon = emoji)}>{emoji}</button
+															onclick={() => editingProfile && (editingProfile.icon = emoji)}>{emoji}</button
 														>
 													{/each}
 												</div>

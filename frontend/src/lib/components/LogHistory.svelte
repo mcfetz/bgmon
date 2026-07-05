@@ -52,12 +52,7 @@
 		return icons[type] ?? '•';
 	}
 
-	function formatEntry(log: {
-		entry_type: string;
-		value: number;
-		unit: string;
-		created_by: string | null;
-	}): string {
+	function formatEntry(log: LogEntry): string {
 		let text: string;
 		if (log.entry_type === 'carbs') {
 			text = `${log.value} ${log.unit} Kohlenhydrate gegessen.`;

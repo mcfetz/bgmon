@@ -202,7 +202,7 @@
 	const expectedBgAfterCorrection = $derived.by(() => {
 		if (currentBg === null || correctionFactor <= 0) return null;
 		const dose = correctionValue === '' ? 0 : Number(correctionValue);
-		return Math.round(currentBg - dose * correctionFactor);
+		return Math.round((currentBg as number) - dose * correctionFactor);
 	});
 
 	function applyCorrection() {
@@ -322,10 +322,10 @@
 			onsaved?.();
 			// Reset all
 			tabValues = {
-				carbs: { value: '', notes: '' },
-				insulin: { value: '', notes: '' },
-				basal: { value: '', notes: '' },
-				note: { value: '', notes: '' }
+				carbs: { value: '', correctionValue: '', notes: '' },
+				insulin: { value: '', correctionValue: '', notes: '' },
+				basal: { value: '', correctionValue: '', notes: '' },
+				note: { value: '', correctionValue: '', notes: '' }
 			};
 			value = '';
 			notes = '';
@@ -498,12 +498,12 @@
 								? 0
 								: Number(value)})
 						</button>
-						{#if expectedBgAfterCorrection !== null}
+						{#if expectedBgAfterCorrection !== null && currentBg !== null}
 							<p class="correction-target">
 								Erwarteter BG: <strong>{expectedBgAfterCorrection} mg/dL</strong>
 								<span class="correction-diff"
 									>({currentBg > expectedBgAfterCorrection ? '−' : '+'}{Math.abs(
-										Math.round((currentBg! - expectedBgAfterCorrection) * 10) / 10
+										Math.round((currentBg - expectedBgAfterCorrection) * 10) / 10
 									)})</span
 								>
 							</p>
