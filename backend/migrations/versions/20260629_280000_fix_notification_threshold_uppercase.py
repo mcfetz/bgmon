@@ -10,6 +10,7 @@ Create Date: 2026-06-29 28:00:00
 """
 
 from alembic import op
+import sqlalchemy as sa
 
 
 revision = '20260629_280000'
@@ -19,6 +20,12 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    existing = {row[0] for row in bind.execute(sa.text("SELECT typname FROM pg_type WHERE typname IN ('notification_threshold', 'notification_threshold_old')"))}
+    if 'notification_threshold' not in existing:
+        return
+    if 'notification_threshold_old' in existing:
+        op.execute("DROP TYPE IF EXISTS notification_threshold_old")
     op.execute("ALTER TYPE notification_threshold RENAME TO notification_threshold_old")
     op.execute("CREATE TYPE notification_threshold AS ENUM ('CRITICAL_LOW', 'LOW', 'HIGH', 'CRITICAL_HIGH')")
     op.execute("""

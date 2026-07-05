@@ -10,6 +10,7 @@ Create Date: 2026-06-29 27:00:00
 """
 
 from alembic import op
+import sqlalchemy as sa
 
 
 revision = '20260629_270000'
@@ -19,6 +20,12 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    existing = {row[0] for row in bind.execute(sa.text("SELECT typname FROM pg_type WHERE typname IN ('notification_area', 'notification_area_old')"))}
+    if 'notification_area' not in existing:
+        return
+    if 'notification_area_old' in existing:
+        op.execute("DROP TYPE IF EXISTS notification_area_old")
     op.execute("ALTER TYPE notification_area RENAME TO notification_area_old")
     op.execute("CREATE TYPE notification_area AS ENUM ('PUSH', 'CALL')")
     op.execute("""
