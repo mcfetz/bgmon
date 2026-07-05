@@ -892,7 +892,8 @@
 														<button
 															type="button"
 															class="icon-suggestion"
-															onclick={() => editingProfile && (editingProfile.icon = emoji)}>{emoji}</button
+															onclick={() => editingProfile && (editingProfile.icon = emoji)}
+															>{emoji}</button
 														>
 													{/each}
 												</div>
