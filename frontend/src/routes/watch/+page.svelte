@@ -20,7 +20,7 @@
 				lastUpdate = cur.timestamp;
 			}
 			error = '';
-		} catch (e) {
+		} catch {
 			error = 'Fehler';
 		}
 	}

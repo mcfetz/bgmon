@@ -24,7 +24,7 @@
 				const err = await res.json();
 				error = err.error || 'Login fehlgeschlagen';
 			}
-		} catch (e) {
+		} catch {
 			error = 'Netzwerkfehler';
 		}
 		loading = false;

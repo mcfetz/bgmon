@@ -47,7 +47,7 @@
 			current = data.current;
 			stats = data.stats;
 			error = '';
-		} catch (e) {
+		} catch {
 			error = 'Daten konnten nicht geladen werden.';
 		} finally {
 			loading = false;
