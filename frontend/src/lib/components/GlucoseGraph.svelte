@@ -1,0 +1,649 @@
+<script lang="ts">
+	import type { GlucoseReading, LogEntryReading } from '$lib/api/dashboard';
+
+	let {
+		readings = [] as GlucoseReading[],
+		logs = [] as LogEntryReading[],
+		criticalLow = 54,
+		low = 70,
+		high = 180,
+		criticalHigh = 250,
+		insulinActionHours = 4,
+		onswipe = (_ratio: number) => {},
+		highlightedTimestamp = null as string | null
+	} = $props();
+
+	const width = 600;
+	const height = 250;
+	const pad = { top: 20, right: 20, bottom: 40, left: 45 };
+
+	function zoneColor(value: number): string {
+		if (value <= criticalLow) return '#ef4444';
+		if (value <= low) return '#f97316';
+		if (value >= criticalHigh) return '#ef4444';
+		if (value >= high) return '#eab308';
+		return '#22c55e';
+	}
+
+	// Parse timestamps
+	const timePoints = $derived(
+		readings
+			.filter((r) => r.sgv != null && r.timestamp)
+			.map((r) => ({
+				sgv: r.sgv!,
+				trend: r.trend,
+				direction: r.direction,
+				ts: new Date(r.timestamp!).getTime(),
+				timestamp: r.timestamp
+			}))
+			.sort((a, b) => a.ts - b.ts)
+	);
+
+	const plotWidth = $derived(width - pad.left - pad.right);
+	const plotHeight = $derived(height - pad.top - pad.bottom);
+
+	const timeRange = $derived(
+		timePoints.length > 1
+			? { min: timePoints[0].ts, max: timePoints[timePoints.length - 1].ts }
+			: null
+	);
+
+	const minY = $derived(
+		timePoints.length > 0 ? Math.min(low - 20, ...timePoints.map((p) => p.sgv), 40) : 40
+	);
+	const maxY = $derived(
+		timePoints.length > 0 ? Math.max(high + 20, ...timePoints.map((p) => p.sgv)) : 250
+	);
+
+	function xPos(ts: number): number {
+		if (!timeRange) return pad.left;
+		const ratio = (ts - timeRange.min) / (timeRange.max - timeRange.min);
+		return pad.left + ratio * plotWidth;
+	}
+
+	function yPos(v: number): number {
+		return pad.top + plotHeight - ((v - minY) / (maxY - minY)) * plotHeight;
+	}
+
+	// X-axis ticks
+	const xTicks = $derived(() => {
+		if (!timeRange) return [];
+		const spanMs = timeRange.max - timeRange.min;
+		const spanHours = spanMs / (3600 * 1000);
+
+		let intervalMs: number;
+		if (spanHours <= 2) intervalMs = 30 * 60 * 1000;
+		else if (spanHours <= 6) intervalMs = 60 * 60 * 1000;
+		else if (spanHours <= 12) intervalMs = 2 * 60 * 60 * 1000;
+		else if (spanHours <= 24) intervalMs = 3 * 60 * 60 * 1000;
+		else intervalMs = 6 * 60 * 60 * 1000;
+
+		const ticks = [];
+		const startTick = Math.floor(timeRange.min / intervalMs) * intervalMs;
+		for (let t = startTick; t <= timeRange.max; t += intervalMs) {
+			if (t >= timeRange.min) {
+				ticks.push({
+					x: xPos(t),
+					label: new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+					isDayStart: new Date(t).getHours() === 0 && new Date(t).getMinutes() === 0
+				});
+			}
+		}
+		return ticks;
+	});
+
+	// Day boundary lines
+	const dayBoundaries = $derived(() => {
+		if (!timeRange || timePoints.length < 2) return [];
+		const boundaries = [];
+		let prevDate = new Date(timePoints[0].ts).toDateString();
+		for (let i = 1; i < timePoints.length; i++) {
+			const currDate = new Date(timePoints[i].ts).toDateString();
+			if (currDate !== prevDate) {
+				const boundaryTs = timePoints[i].ts;
+				boundaries.push(xPos(boundaryTs));
+				prevDate = currDate;
+			}
+		}
+		return boundaries;
+	});
+
+	// Line path using time-based x positions
+	const linePath = $derived(
+		timePoints.length > 0
+			? timePoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ')
+			: ''
+	);
+
+	const dots = $derived(
+		timePoints.map((p) => ({
+			cx: xPos(p.ts),
+			cy: yPos(p.sgv),
+			color: zoneColor(p.sgv),
+			value: p.sgv,
+			timestamp: p.timestamp
+		}))
+	);
+
+	const highlightX = $derived.by(() => {
+		if (!highlightedTimestamp || !timeRange) return null;
+		const ts = new Date(highlightedTimestamp).getTime();
+		if (ts < timeRange.min || ts > timeRange.max) return null;
+		return xPos(ts);
+	});
+
+	// Log markers positioned just above x-axis
+	const logMarkers = $derived(() => {
+		if (!timeRange || logs.length === 0) return [];
+		const markerY = height - pad.bottom - 10;
+		return logs
+			.filter((l) => l.created_at)
+			.map((l) => {
+				const ts = new Date(l.created_at).getTime();
+				if (ts < timeRange.min || ts > timeRange.max) return null;
+				return {
+					x: xPos(ts),
+					y: markerY,
+					type: l.entry_type,
+					value: l.value,
+					unit: l.unit,
+					notes: l.notes,
+					timestamp: l.created_at
+				};
+			})
+			.filter((m): m is NonNullable<typeof m> => m !== null);
+	});
+
+	// Insulin action windows (4h after each insulin entry)
+	const insulinWindows = $derived(() => {
+		if (!timeRange || logs.length === 0) return [];
+		const windows = logs
+			.filter((l) => l.entry_type === 'insulin' && l.created_at)
+			.map((l) => {
+				const startTs = new Date(l.created_at).getTime();
+				const endTs = startTs + insulinActionHours * 60 * 60 * 1000;
+				console.log('Insulin window:', {
+					startTs,
+					endTs,
+					timeRange,
+					diff: (endTs - startTs) / 3600000
+				});
+				// Only show if window overlaps with visible time range
+				if (endTs < timeRange.min || startTs > timeRange.max) return null;
+				const x1 = Math.max(xPos(startTs), pad.left);
+				const x2 = Math.min(xPos(endTs), width - pad.right);
+				return {
+					x: x1,
+					width: x2 - x1,
+					value: l.value,
+					unit: l.unit,
+					timestamp: l.created_at
+				};
+			})
+			.filter((w): w is NonNullable<typeof w> => w !== null && w.width > 0);
+		console.log('Insulin windows:', windows);
+		return windows;
+	});
+
+	// Tooltip
+	let tooltip = $state<{
+		clientX: number;
+		clientY: number;
+		value: number;
+		timestamp: string | null;
+		label?: string;
+	} | null>(null);
+	let containerEl: HTMLDivElement | null = null;
+
+	function showTooltip(dot: (typeof dots)[0], event: MouseEvent) {
+		tooltip = {
+			clientX: event.clientX,
+			clientY: event.clientY,
+			value: dot.value,
+			timestamp: dot.timestamp
+		};
+	}
+
+	function showLogTooltip(marker: ReturnType<typeof logMarkers>[number], event: MouseEvent) {
+		const typeLabels: Record<string, string> = { carbs: 'KE', insulin: 'Insulin', basal: 'Basal' };
+		tooltip = {
+			clientX: event.clientX,
+			clientY: event.clientY,
+			value: marker.value,
+			timestamp: marker.timestamp,
+			label: `${typeLabels[marker.type] ?? marker.type}: ${marker.value} ${marker.unit}`
+		};
+	}
+
+	function hideTooltip() {
+		tooltip = null;
+	}
+
+	function formatTime(timestamp: string | null): string {
+		if (!timestamp) return '';
+		const d = new Date(timestamp);
+		return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function tooltipStyle(): string {
+		if (!tooltip || !containerEl) return 'display: none;';
+		const rect = containerEl.getBoundingClientRect();
+		const tooltipWidth = 140;
+		const tooltipHeight = 50;
+		let left = tooltip.clientX - rect.left + 12;
+		let top = tooltip.clientY - rect.top - tooltipHeight - 8;
+		if (left + tooltipWidth > rect.width) left = tooltip.clientX - rect.left - tooltipWidth - 12;
+		if (top < 0) top = tooltip.clientY - rect.top + 12;
+		return `left: ${left}px; top: ${top}px;`;
+	}
+
+	function onMouseMove(event: MouseEvent) {
+		if (tooltip) {
+			tooltip = {
+				clientX: event.clientX,
+				clientY: event.clientY,
+				value: tooltip.value,
+				timestamp: tooltip.timestamp,
+				label: tooltip.label
+			};
+		}
+	}
+
+	// Touch swipe support
+	let touchStartX = $state<number | null>(null);
+	let touchStartY = $state<number | null>(null);
+	let touchCurrentX = $state<number | null>(null);
+	let swipeOffset = $derived(
+		touchStartX !== null && touchCurrentX !== null ? touchCurrentX - touchStartX : 0
+	);
+
+	function onTouchStart(event: TouchEvent) {
+		if (event.touches.length !== 1) return;
+		touchStartX = event.touches[0].clientX;
+		touchStartY = event.touches[0].clientY;
+		touchCurrentX = touchStartX;
+	}
+
+	function onTouchMove(event: TouchEvent) {
+		if (touchStartX === null || event.touches.length !== 1) return;
+		touchCurrentX = event.touches[0].clientX;
+		const dy = Math.abs(event.touches[0].clientY - (touchStartY ?? 0));
+		if (dy < 30) event.preventDefault();
+	}
+
+	function onTouchEnd() {
+		if (touchStartX === null || touchCurrentX === null) return;
+		const dx = touchCurrentX - touchStartX;
+		const threshold = containerEl ? containerEl.clientWidth * 0.15 : 50;
+		if (Math.abs(dx) >= threshold && containerEl) {
+			const ratio = Math.min(Math.abs(dx) / containerEl.clientWidth, 1);
+			onswipe(dx < 0 ? ratio : -ratio);
+		}
+		touchStartX = null;
+		touchStartY = null;
+		touchCurrentX = null;
+	}
+
+	function markerColor(type: string): string {
+		const colors: Record<string, string> = {
+			carbs: '#3b82f6',
+			insulin: '#a855f7',
+			basal: '#f97316'
+		};
+		return colors[type] ?? '#94a3b8';
+	}
+</script>
+
+<div class="graph-wrapper" bind:this={containerEl} role="img" aria-label="Glucose chart">
+	<button
+		class="nav-zone nav-zone-left"
+		type="button"
+		onclick={() => onswipe(-1)}
+		aria-label="Zurück in der Zeit">‹</button
+	>
+	<button
+		class="nav-zone nav-zone-right"
+		type="button"
+		onclick={() => onswipe(1)}
+		aria-label="Vor in der Zeit">›</button
+	>
+	<div
+		class="graph-container"
+		class:swiping={touchStartX !== null}
+		style="transform: translateX({swipeOffset * 0.3}px)"
+		onmousemove={onMouseMove}
+		ontouchstart={onTouchStart}
+		ontouchmove={onTouchMove}
+		ontouchend={onTouchEnd}
+		ontouchcancel={onTouchEnd}
+	>
+		<svg {width} {height} viewBox="0 0 {width} {height}">
+			<!-- Threshold zones -->
+			<rect
+				x={pad.left}
+				y={yPos(criticalHigh)}
+				width={plotWidth}
+				height={yPos(high) - yPos(criticalHigh)}
+				fill="#ef4444"
+				opacity="0.06"
+			/>
+			<rect
+				x={pad.left}
+				y={yPos(high)}
+				width={plotWidth}
+				height={yPos(low) - yPos(high)}
+				fill="#22c55e"
+				opacity="0.06"
+			/>
+			<rect
+				x={pad.left}
+				y={yPos(low)}
+				width={plotWidth}
+				height={yPos(criticalLow) - yPos(low)}
+				fill="#f97316"
+				opacity="0.06"
+			/>
+			<rect
+				x={pad.left}
+				y={yPos(criticalLow)}
+				width={plotWidth}
+				height={yPos(minY) - yPos(criticalLow)}
+				fill="#ef4444"
+				opacity="0.06"
+			/>
+
+			<!-- Insulin action windows (4h) -->
+			{#each insulinWindows() as window}
+				<rect
+					x={window.x}
+					y={pad.top}
+					width={window.width}
+					height={plotHeight}
+					fill="#a855f7"
+					opacity="0.12"
+					rx="4"
+				/>
+			{/each}
+
+			<!-- Day boundary lines -->
+			{#each dayBoundaries() as x}
+				<line
+					x1={x}
+					y1={pad.top}
+					x2={x}
+					y2={height - pad.bottom}
+					stroke="#94a3b8"
+					stroke-dasharray="2,4"
+					stroke-width="1"
+					opacity="0.3"
+				/>
+			{/each}
+
+			<!-- Threshold lines -->
+			{#each [{ y: criticalHigh, color: '#ef4444' }, { y: high, color: '#eab308' }, { y: low, color: '#f97316' }, { y: criticalLow, color: '#ef4444' }] as line}
+				<line
+					x1={pad.left}
+					y1={yPos(line.y)}
+					x2={width - pad.right}
+					y2={yPos(line.y)}
+					stroke={line.color}
+					stroke-dasharray="4,3"
+					stroke-width="1"
+					opacity="0.4"
+				/>
+				<text
+					x={width - pad.right + 4}
+					y={yPos(line.y) + 4}
+					fill={line.color}
+					font-size="10"
+					opacity="0.7">{line.y}</text
+				>
+			{/each}
+
+			{#if highlightX !== null}
+				<line
+					x1={highlightX}
+					y1={pad.top}
+					x2={highlightX}
+					y2={height - pad.bottom}
+					stroke="#0f766e"
+					stroke-width="2"
+					stroke-dasharray="3,3"
+					opacity="0.7"
+				/>
+			{/if}
+
+			<!-- Glucose line -->
+			{#if linePath}
+				<path d={linePath} fill="none" stroke="#14b8a6" stroke-width="2" />
+			{/if}
+
+			<!-- Data dots -->
+			{#each dots as dot, i}
+				<circle
+					cx={dot.cx}
+					cy={dot.cy}
+					r={i === dots.length - 1 ? 6 : 3}
+					fill={dot.color}
+					opacity={i === dots.length - 1 ? 1 : 0.7}
+					class="data-dot"
+					onmouseenter={(e) => showTooltip(dot, e)}
+					onmouseleave={hideTooltip}
+				/>
+			{/each}
+
+			<!-- Log markers -->
+			{#each logMarkers() as marker}
+				{#if marker.type === 'carbs'}
+					<!-- Triangle pointing up -->
+					<polygon
+						points="{marker.x},{marker.y - 6} {marker.x - 5},{marker.y + 4} {marker.x +
+							5},{marker.y + 4}"
+						fill={markerColor(marker.type)}
+						class="log-marker"
+						onmouseenter={(e) => showLogTooltip(marker, e)}
+						onmouseleave={hideTooltip}
+					/>
+				{:else if marker.type === 'insulin'}
+					<!-- Diamond -->
+					<polygon
+						points="{marker.x},{marker.y - 5} {marker.x + 5},{marker.y} {marker.x},{marker.y +
+							5} {marker.x - 5},{marker.y}"
+						fill={markerColor(marker.type)}
+						class="log-marker"
+						onmouseenter={(e) => showLogTooltip(marker, e)}
+						onmouseleave={hideTooltip}
+					/>
+				{:else}
+					<!-- Square for basal -->
+					<rect
+						x={marker.x - 4}
+						y={marker.y - 4}
+						width="8"
+						height="8"
+						fill={markerColor(marker.type)}
+						class="log-marker"
+						onmouseenter={(e) => showLogTooltip(marker, e)}
+						onmouseleave={hideTooltip}
+					/>
+				{/if}
+			{/each}
+
+			<!-- X-axis line -->
+			<line
+				x1={pad.left}
+				y1={height - pad.bottom}
+				x2={width - pad.right}
+				y2={height - pad.bottom}
+				stroke="#475569"
+				stroke-width="1"
+			/>
+
+			<!-- X-axis ticks and labels -->
+			{#each xTicks() as tick}
+				<line
+					x1={tick.x}
+					y1={height - pad.bottom}
+					x2={tick.x}
+					y2={height - pad.bottom + 4}
+					stroke="#475569"
+					stroke-width="1"
+				/>
+				<text
+					x={tick.x}
+					y={height - pad.bottom + 16}
+					text-anchor="middle"
+					fill="#94a3b8"
+					font-size="9"
+				>
+					{tick.label}
+				</text>
+			{/each}
+
+			<!-- Y-axis labels -->
+			<text x={pad.left - 8} y={yPos(minY) + 4} text-anchor="end" fill="#94a3b8" font-size="10">
+				{minY.toFixed(0)}
+			</text>
+			<text x={pad.left - 8} y={yPos(maxY) + 4} text-anchor="end" fill="#94a3b8" font-size="10">
+				{maxY.toFixed(0)}
+			</text>
+		</svg>
+
+		<!-- Tooltip -->
+		{#if tooltip}
+			<div class="tooltip" style={tooltipStyle()}>
+				{#if tooltip.label}
+					<div class="tooltip-label">{tooltip.label}</div>
+				{:else}
+					<div class="tooltip-value">{tooltip.value} mg/dL</div>
+				{/if}
+				<div class="tooltip-time">{formatTime(tooltip.timestamp)}</div>
+			</div>
+		{/if}
+	</div>
+</div>
+
+<style>
+	.graph-wrapper {
+		position: relative;
+		width: 100%;
+	}
+
+	.nav-zone {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 2rem;
+		font-weight: 300;
+		color: var(--color-text-muted);
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		z-index: 2;
+		opacity: 0;
+		transition:
+			opacity 0.2s,
+			background 0.15s;
+		-webkit-appearance: none;
+		appearance: none;
+		outline: none;
+		padding: 0;
+	}
+
+	.nav-zone:hover,
+	.nav-zone:focus-visible {
+		opacity: 0.6;
+		background: rgba(15, 118, 110, 0.1);
+		outline: none;
+	}
+
+	.nav-zone:active {
+		background: rgba(15, 118, 110, 0.2);
+	}
+
+	.nav-zone-left {
+		left: 0;
+		border-radius: var(--radius) 0 0 var(--radius);
+	}
+
+	.nav-zone-right {
+		right: 0;
+		border-radius: 0 var(--radius) var(--radius) 0;
+	}
+
+	.graph-container {
+		width: 100%;
+		overflow-x: auto;
+		overscroll-behavior-x: none;
+		background: var(--color-surface);
+		border-radius: var(--radius);
+		padding: var(--spacing-md);
+		position: relative;
+	}
+
+	.graph-container.swiping {
+		transition: none;
+	}
+
+	svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+
+	.data-dot {
+		cursor: crosshair;
+		transition: r 0.15s ease;
+	}
+
+	.data-dot:hover {
+		r: 7;
+		stroke: white;
+		stroke-width: 2;
+	}
+
+	.log-marker {
+		cursor: pointer;
+		transition: opacity 0.15s ease;
+		opacity: 0.85;
+	}
+
+	.log-marker:hover {
+		opacity: 1;
+		stroke: white;
+		stroke-width: 1.5;
+	}
+
+	.tooltip {
+		position: absolute;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		pointer-events: none;
+		z-index: 10;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		white-space: nowrap;
+	}
+
+	.tooltip-value {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.tooltip-label {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.tooltip-time {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+</style>
