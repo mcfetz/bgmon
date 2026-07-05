@@ -1,0 +1,91 @@
+[project]
+name = "bgmon-api"
+version = "0.1.0"
+description = "Backend API for bgmon blood glucose monitoring PWA"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0.0",
+    "flask-sqlalchemy>=3.1.0",
+    "flask-migrate>=4.0.0",
+    "psycopg2-binary>=2.9.9",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "bcrypt>=4.1.0",
+    "apscheduler>=3.10.0",
+    "influxdb-client>=1.39.0",
+    "pylibrelinkup>=0.1.0",
+    "pywebpush>=1.14.0",
+    "twilio>=8.0.0",
+    "python-dotenv>=1.0.0",
+    "gunicorn>=21.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-flask>=1.3.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "types-flask>=1.1.0",
+    "types-psycopg2>=2.9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bgmon_api"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "N", "D", "UP", "B", "C4", "SIM", "ARG", "PIE",
+]
+ignore = [
+    "D100", "D104", "D107", "D203", "D213",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/*" = ["D", "E501", "W291", "I001", "SIM105", "ARG001"]
+"tests/*" = ["D103"]
+"bgmon_api/routes/*" = ["D103"]
+"bgmon_api/models.py" = ["D102"]
+"bgmon_api/services/leader.py" = ["D102"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+disable_error_code = ["untyped-decorator", "attr-defined", "no-untyped-call"]
+
+# Flask jsonify() returns Any per type stubs
+[[tool.mypy.overrides]]
+module = "bgmon_api.routes.*"
+warn_return_any = false
+
+# SQLAlchemy creates db.Model dynamically; no static type
+[[tool.mypy.overrides]]
+module = "bgmon_api.models"
+ignore_errors = true
+
+# influxdb_client type stubs are incomplete
+[[tool.mypy.overrides]]
+module = "influxdb_client"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-q --strict-markers"

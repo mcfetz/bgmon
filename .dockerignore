@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/.venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+frontend/.vite/
+vite.config.ts.timestamp-*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+secrets/
+
+# VCS
+.git/
+.gitignore
+.github/
+
+# Omo / agent state
+.omo/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Core dumps
+core
+core.*
+
+# Backups from caveman-compress
+*.original.md
+
+# Tests / coverage
+.coverage
+htmlcov/
+.tox/
+.cache
+
+# Build artifacts
+build/
+dist/

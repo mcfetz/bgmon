@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: bgmon
+      POSTGRES_USER: bgmon
+      POSTGRES_PASSWORD: bgmon
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bgmon -d bgmon"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      BGMON_SECRET_KEY: dev-secret-key-change-in-production
+      BGMON_DATABASE_URL: postgresql://bgmon:bgmon@db:5432/bgmon
+      BGMON_PUBLIC_BASE_URL: http://localhost:5000
+      BGMON_INFLUXDB_URL: ${BGMON_INFLUXDB_URL:-}
+      BGMON_INFLUXDB_TOKEN: ${BGMON_INFLUXDB_TOKEN:-}
+      BGMON_INFLUXDB_ORG: ${BGMON_INFLUXDB_ORG:-familie-heise.de}
+      BGMON_INFLUXDB_BUCKET: ${BGMON_INFLUXDB_BUCKET:-gluroo}
+      BGMON_LIBRE_EMAIL: ${BGMON_LIBRE_EMAIL:-}
+      BGMON_LIBRE_PASSWORD: ${BGMON_LIBRE_PASSWORD:-}
+      BGMON_LIBRE_REGION: ${BGMON_LIBRE_REGION:-EU2}
+      BGMON_BOOTSTRAP_ADMIN_EMAIL: ${BGMON_BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BGMON_BOOTSTRAP_ADMIN_PASSWORD: ${BGMON_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      BGMON_LEASE_TTL_S: "30"
+      BGMON_LEADER_RENEW_S: "10"
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+    command: >
+      sh -c "cd /app/backend &&
+             flask --app bgmon_api.app db upgrade &&
+             python -m bgmon_api.app"
+    stop_grace_period: 60s
+
+volumes:
+  pgdata:

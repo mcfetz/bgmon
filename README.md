@@ -1,0 +1,349 @@
+# bgmon — Blutzucker-Monitoring-System
+
+> Ein selbstgehostetes Echtzeit-Monitoring für kontinuierliche Glukosemessung (CGM) mit Alarmen, Push-Notifications, Telefonanrufen und Gamification für Patient & Pflegende.
+
+![Dashboard](docs/screenshots/dashboard.png)
+*Platzhalter — Screenshot des Dashboards folgt*
+
+---
+
+## Features
+
+### Kern
+- **Live-Dashboard** mit Verlaufsgraph (mg/dL / mmol/L), TIR-Stats und aktueller Glukosewert
+- **CGM-Integration** via [LibreLinkUp](https://www.librelinkup.com/) — automatischer Polling im 30-Sekunden-Takt
+- **Persistenz** in PostgreSQL (Schwellwerte, Logs, Alarme, Konfiguration)
+- **InfluxDB** als optionaler sekundärer Storage für historische Auswertungen
+- **Authentifizierung** mit Session-Cookies, bcrypt-gehashte Passwörter, Admin-Rollen
+
+### Alarme
+- **Vierstufige Schwellwerte** pro User: `critical_low` / `low` / `high` / `critical_high`
+- **Twilio-Telefonanrufe** mit deutschem Sprachtext, automatischer Retry (konfigurierbar)
+- **Web-Push** via VAPID — funktioniert auch wenn das PWA geschlossen ist
+- **Snooze-System** (15 min) verhindert Alarm-Spam
+- **Notification-Profile** mit eigenem Routing pro Schwellwert (Push vs. Anruf)
+
+### Pflege & Übergabe
+- **Schicht-Management** für Nachtdienste
+- **Familie-Dashboard** mit eigenem Zugriffstoken (read-only, öffentlich teilbar)
+- **Logbuch** für Kohlenhydrate, Insulin, Basal und Notizen
+- **Nachtprofil** mit reduzierter UI-Helligkeit und vereinfachter Bedienung
+
+### Gamification
+- **Streak-Tracking** für konsequente Eintragungen
+- **TIR-Statistik** (Time-in-Range) auf Wochen-/Monatsbasis
+
+### PWA
+- **Offline-fähig** via Service Worker
+- **Installierbar** auf iOS, Android, Desktop
+
+---
+
+## Tech-Stack
+
+| Komponente  | Technologie                              |
+|-------------|------------------------------------------|
+| Backend     | Python 3.14, Flask 3, SQLAlchemy 2       |
+| Frontend    | Svelte 5, Vite 5, TypeScript             |
+| Datenbank   | PostgreSQL 16                            |
+| Time-Series | InfluxDB 2 (optional)                    |
+| Telefonie   | Twilio Voice API                         |
+| Push        | VAPID / Web-Push (`pywebpush`)           |
+| Scheduler   | APScheduler mit Leader-Election          |
+| WSGI        | Gunicorn (Produktion)                    |
+| Container   | Docker, Docker Compose, Docker Swarm     |
+
+---
+
+## Installation
+
+### Voraussetzungen
+- Python ≥ 3.11 (3.14 empfohlen)
+- Node.js ≥ 20
+- PostgreSQL ≥ 14
+- Optional: InfluxDB 2, Twilio-Account
+
+---
+
+### Variante A — Lokal (Entwicklung)
+
+#### 1. Repository klonen
+```bash
+git clone https://github.com/mcfetz/bgmon.git
+cd bgmon
+```
+
+#### 2. PostgreSQL & InfluxDB starten (am einfachsten via Docker)
+```bash
+docker compose up -d db influxdb
+```
+
+#### 3. Backend einrichten
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+cp ../.env.example ../.env
+# .env bearbeiten — mindestens SECRET_KEY, DATABASE_URL, ggf. InfluxDB-Credentials
+
+# Datenbank-Migrationen anwenden
+flask --app bgmon_api.app db upgrade
+
+# Dev-Server starten
+flask --app bgmon_api.app run --debug --port 5000
+```
+
+#### 4. Frontend einrichten (zweites Terminal)
+```bash
+cd frontend
+npm install
+npm run dev -- --host 0.0.0.0
+```
+
+Frontend: <http://localhost:5173>  
+Backend:  <http://localhost:5000>
+
+#### 5. Bootstrap-Admin
+
+Beim ersten Start wird automatisch ein Admin-User angelegt, falls `BGMON_BOOTSTRAP_ADMIN_EMAIL` und `BGMON_BOOTSTRAP_ADMIN_PASSWORD` gesetzt sind.
+
+---
+
+### Variante B — Docker (Produktion)
+
+#### 1. `.env` anlegen
+```bash
+cp .env.example .env
+# Alle Platzhalter durch echte Werte ersetzen
+```
+
+#### 2. Container starten
+```bash
+docker compose up -d --build
+```
+
+Die App ist unter <http://localhost:5000> erreichbar.
+
+#### 3. VAPID-Keys generieren (einmalig)
+```bash
+./scripts/generate-vapid-keys.sh
+# Ausgabe in .env eintragen
+```
+
+#### 4. Docker Swarm (Hochverfügbarkeit)
+```bash
+make swarm-deploy
+make swarm-ps
+make swarm-logs
+```
+
+---
+
+## Konfiguration
+
+Alle Einstellungen werden über Umgebungsvariablen konfiguriert (siehe `.env.example`).
+
+### Pflicht-Felder
+| Variable                    | Beschreibung                                       |
+|-----------------------------|----------------------------------------------------|
+| `BGMON_SECRET_KEY`          | Flask-Session-Key. **In Produktion kryptisch generieren!** |
+| `BGMON_DATABASE_URL`        | PostgreSQL-URL, z. B. `postgresql://user:pw@host/db` |
+| `BGMON_PUBLIC_BASE_URL`     | Externe URL der App, z. B. `https://bgmon.example.com` |
+
+### Optional — InfluxDB
+| Variable                    | Beschreibung                                       |
+|-----------------------------|----------------------------------------------------|
+| `BGMON_INFLUXDB_URL`        | z. B. `https://influx.example.com`                 |
+| `BGMON_INFLUXDB_TOKEN`      | API-Token mit Lese-Rechten auf den Bucket          |
+| `BGMON_INFLUXDB_ORG`        | Organisation                                       |
+| `BGMON_INFLUXDB_BUCKET`     | Bucket-Name (Standard: `gluroo`)                   |
+
+### Optional — LibreLinkUp (CGM-Quelle)
+| Variable                    | Beschreibung                                       |
+|-----------------------------|----------------------------------------------------|
+| `BGMON_LIBRE_EMAIL`         | LibreLinkUp-Login                                  |
+| `BGMON_LIBRE_PASSWORD`      | LibreLinkUp-Passwort                               |
+| `BGMON_LIBRE_REGION`        | `EU2`, `US`, `AU` etc.                             |
+
+### Optional — Twilio (Anrufe)
+| Variable                       | Beschreibung                                    |
+|--------------------------------|-------------------------------------------------|
+| `BGMON_TWILIO_ACCOUNT_SID`     | Twilio Account SID                              |
+| `BGMON_TWILIO_AUTH_TOKEN`      | Twilio Auth Token                               |
+| `BGMON_TWILIO_FROM_NUMBER`     | Absender-Nummer im E.164-Format                 |
+| `BGMON_TWILIO_NUMBERS`         | Komma-getrennte Liste erlaubter Caller-IDs      |
+| `BGMON_TWILIO_RETRY_COUNT`     | Wiederholungsversuche bei Fehler (Default: 3)   |
+| `BGMON_TWILIO_RETRY_DELAY_S`   | Pause zwischen Versuchen in Sekunden (Default: 90) |
+
+### Web-Push (VAPID)
+| Variable            | Beschreibung                                          |
+|---------------------|-------------------------------------------------------|
+| `VAPID_PUBLIC_KEY`  | Wird im Frontend verwendet                            |
+| `VAPID_PRIVATE_KEY` | Serverseitig zum Signieren                            |
+| `VAPID_SUBJECT`     | `mailto:admin@example.com` oder `https://example.com` |
+
+### Sonstige
+| Variable                       | Beschreibung                                       |
+|--------------------------------|----------------------------------------------------|
+| `BGMON_BOOTSTRAP_ADMIN_EMAIL`  | Initiales Admin-Konto (nur beim ersten Start)      |
+| `BGMON_BOOTSTRAP_ADMIN_PASSWORD` | Initiales Passwort                                |
+| `BGMON_LEASE_TTL_S`            | Leader-Election TTL (Default: 30)                 |
+| `BGMON_LEADER_RENEW_S`         | Leader-Renew-Intervall (Default: 10)               |
+
+---
+
+## API-Endpoints
+
+Alle Endpoints sind unter `/api/*` gemountet. Session-Cookie erforderlich, außer bei `/auth/login` und `/health`.
+
+### Auth
+| Method | Endpoint              | Beschreibung                          |
+|--------|-----------------------|---------------------------------------|
+| POST   | `/api/auth/login`     | Login mit E-Mail + Passwort           |
+| POST   | `/api/auth/logout`    | Session beenden                       |
+| GET    | `/api/auth/me`        | Aktueller User                        |
+
+### Dashboard
+| Method | Endpoint                          | Beschreibung                                |
+|--------|-----------------------------------|---------------------------------------------|
+| GET    | `/api/dashboard/current`          | Aktueller Glukosewert + Trend               |
+| GET    | `/api/dashboard/history?hours=24`  | Historische Werte                           |
+| GET    | `/api/dashboard/stats`            | TIR / Statistik                             |
+| GET    | `/api/dashboard/logs`             | Letzte Log-Einträge                         |
+| GET    | `/api/dashboard/thresholds`       | Aktuelle Schwellwerte                       |
+
+### Logbuch
+| Method | Endpoint                | Beschreibung                          |
+|--------|-------------------------|---------------------------------------|
+| GET    | `/api/log/`             | Eigene Log-Einträge                   |
+| POST   | `/api/log/`             | Neuen Eintrag erstellen               |
+| PUT    | `/api/log/<id>`         | Eintrag bearbeiten                    |
+| DELETE | `/api/log/<id>`         | Eintrag löschen                       |
+
+### Nachtprofil & Schichten
+| Method | Endpoint                  | Beschreibung                       |
+|--------|---------------------------|------------------------------------|
+| GET    | `/api/night/`             | Aktuelles Nachtprofil              |
+| POST   | `/api/shifts/`            | Schicht starten                    |
+| DELETE | `/api/shifts/<id>`        | Schicht beenden                    |
+
+### Alarme & Push
+| Method | Endpoint                          | Beschreibung                       |
+|--------|-----------------------------------|------------------------------------|
+| GET    | `/api/alarms/`                    | Alarm-Historie                     |
+| POST   | `/api/alarms/push/subscribe`      | Push-Subscription speichern        |
+| GET    | `/api/alarms/snooze`              | Aktueller Snooze                   |
+| POST   | `/api/alarms/snooze`              | Snooze setzen                      |
+| DELETE | `/api/alarms/snooze`              | Snooze aufheben                    |
+
+### Familie-Dashboard
+| Method | Endpoint                    | Beschreibung                          |
+|--------|-----------------------------|---------------------------------------|
+| GET    | `/api/family/<token>`       | Read-only-Snapshot (kein Login)       |
+
+### Settings
+| Method | Endpoint                          | Beschreibung                       |
+|--------|-----------------------------------|------------------------------------|
+| GET    | `/api/settings/global`            | Globale Einstellungen              |
+| POST   | `/api/settings/thresholds`        | Schwellwerte aktualisieren         |
+| POST   | `/api/settings/email`             | E-Mail ändern                      |
+| POST   | `/api/settings/password`          | Passwort ändern                    |
+| POST   | `/api/settings/twilio/test`       | Testanruf auslösen                 |
+
+### Notifications (Profile)
+| Method | Endpoint                            | Beschreibung                     |
+|--------|-------------------------------------|----------------------------------|
+| GET    | `/api/notifications/profiles`       | Alle Profile                     |
+| POST   | `/api/notifications/profiles`       | Neues Profil                     |
+| PUT    | `/api/notifications/profiles/<id>`  | Profil bearbeiten                |
+| DELETE | `/api/notifications/profiles/<id>`  | Profil löschen                   |
+| GET    | `/api/notifications/active`         | Aktives Profil                   |
+| PUT    | `/api/notifications/active`         | Profil aktivieren                |
+
+### User-Verwaltung (Admin)
+| Method | Endpoint                | Beschreibung                          |
+|--------|-------------------------|---------------------------------------|
+| GET    | `/api/users/`           | Alle User                             |
+| POST   | `/api/users/`           | User anlegen                          |
+| PUT    | `/api/users/<id>`       | User bearbeiten                       |
+| DELETE | `/api/users/<id>`       | User deaktivieren                     |
+
+---
+
+## Entwicklung
+
+### Lint & Type-Check
+```bash
+make lint
+# oder einzeln:
+cd backend && ruff check . && mypy bgmon_api
+cd frontend && npm run lint && npx tsc --noEmit
+```
+
+### Tests
+```bash
+make test
+# CI nutzt PostgreSQL-Service-Container (siehe .github/workflows/ci.yml)
+```
+
+### VAPID-Keys generieren
+```bash
+./scripts/generate-vapid-keys.sh
+```
+
+### Code-Health-Check (eigener Wrapper)
+```bash
+./scripts/check.sh backend
+./scripts/check.sh frontend
+```
+
+---
+
+## Architektur-Highlights
+
+- **Lazy Imports** in `models.py` und `auth_utils.py` vermeiden zirkuläre Imports zwischen Modellen und App-Factory
+- **Leader-Election** via `scheduler_leader`-Tabelle — verhindert doppelte Alarm-Jobs in Multi-Instance-Setups
+- **Per-User Schwellwerte** — Patient und Pflegende können unabhängige Alarmschwellen haben
+- **Notification-Profile** entkoppeln *wer* alarmiert wird vom eigentlichen Schwellwert
+- **Service Worker** im Frontend ermöglicht Offline-Nutzung und Background-Push
+
+Siehe `AGENTS.md` für tieferes Architektur-Onboarding.
+
+---
+
+## Sicherheit
+
+- **Passwörter**: bcrypt mit Default-Rounds
+- **Sessions**: Flask sichere Cookies, `HttpOnly`, `SameSite=Lax`
+- **CSRF**: Session-basierte Auth, SameSite-Cookies
+- **Push**: VAPID-Signaturen, Subscription-IDs serverseitig gehasht
+- **Secrets**: ausschließlich via `.env` (siehe `.env.example`)
+- **DB-Migrations**: Alembic, idempotent
+
+> **Wichtig**: `BGMON_SECRET_KEY` und alle Twilio-/InfluxDB-Credentials MÜSSEN in Produktion rotiert und über einen Secrets-Manager (z. B. Docker Swarm Secrets, HashiCorp Vault) bereitgestellt werden.
+
+---
+
+## Screenshots
+
+| Dashboard | Alarm-Modal | Logbuch |
+|---|---|---|
+| ![](docs/screenshots/dashboard.png) | ![](docs/screenshots/alarm.png) | ![](docs/screenshots/log.png) |
+
+*Platzhalter — Screenshots folgen*
+
+---
+
+## Lizenz
+
+MIT — siehe [LICENSE](LICENSE).
+
+---
+
+## Mitwirkende
+
+Entwickelt von [mcfetz](https://github.com/mcfetz) für den familiären Einsatz.
+
+Pull Requests willkommen. Bitte zuerst `make lint && make test` ausführen.
