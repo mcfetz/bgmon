@@ -3,7 +3,7 @@
 # =============================================================================
 # Stage 1: Build frontend (Svelte 5 + Vite)
 # =============================================================================
-FROM node:20-slim AS frontend-build
+FROM node:22-slim AS frontend-build
 WORKDIR /app/frontend
 
 # Install deps first for better layer caching
