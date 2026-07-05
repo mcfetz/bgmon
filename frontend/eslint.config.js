@@ -25,6 +25,13 @@ export default [
 		}
 	},
 	{
+		rules: {
+			'jsx-a11y/label-has-associated-control': 'off',
+			'no-empty': 'off',
+			'@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }]
+		}
+	},
+	{
 		ignores: ['dist/', '.svelte-kit/', 'node_modules/']
 	}
 ];
