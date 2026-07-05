@@ -25,9 +25,10 @@
 	}
 
 	$effect(() => {
-		refreshTrigger;
-		windowStart;
-		windowEnd;
+		// Read reactive deps so $effect tracks them, then reload.
+		void refreshTrigger;
+		void windowStart;
+		void windowEnd;
 		loadLogs();
 	});
 

@@ -39,7 +39,7 @@
 
 		if (
 			!earned.has('Einträge erfasst') ||
-			score.breakdown.find((b) => b.label === 'Einträge erfasst')?.count! < 5
+			(score.breakdown.find((b) => b.label === 'Einträge erfasst')?.count ?? 0) < 5
 		) {
 			out.push({
 				icon: '🥪',

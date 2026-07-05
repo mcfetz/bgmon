@@ -22,10 +22,14 @@ export default [
 			parserOptions: {
 				parser: ts.parser
 			}
-		}
-	},
-	{
+		},
+		settings: {
+			svelte: {
+				ignoreWarnings: ['a11y_label_has_associated_control', 'a11y_no_static_element_interactions']
+			}
+		},
 		rules: {
+			'svelte/valid-compile': 'off',
 			'jsx-a11y/label-has-associated-control': 'off',
 			'no-empty': 'off',
 			'@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }]
