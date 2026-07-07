@@ -180,24 +180,40 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     if Config.SCHEDULER_ENABLED:
         import os
-        if os.environ.get('GUNICORN_WORKER') != '1':
+        if os.environ.get('BGMON_STANDALONE_SCHEDULER') == '1':
             scheduler.start()
             with app.app_context():
                 try:
                     check_and_log_streak()
                 except Exception:
                     logger.exception("Initial streak recalc failed")
+        else:
+            logger.info("Scheduler disabled for Gunicorn workers (run run_scheduler.py separately)")
 
     @app.get("/health")
     def health() -> Response:
-        info = get_last_fetch_info()
-
         from bgmon_api.services.influx_reader import query_current_glucose
+        from bgmon_api.models import GlucoseReading
+        from datetime import datetime, UTC, timedelta
 
         influx_ok = False
         try:
             influx_data = query_current_glucose()
             influx_ok = influx_data is not None and influx_data.get("sgv") is not None
+        except Exception:
+            pass
+
+        libre_ok = False
+        last_reading = None
+        try:
+            last_reading = (
+                GlucoseReading.query
+                .order_by(GlucoseReading.timestamp.desc())
+                .first()
+            )
+            if last_reading:
+                age_minutes = (datetime.now(UTC) - last_reading.timestamp.replace(tzinfo=UTC)).total_seconds() / 60
+                libre_ok = age_minutes < 10
         except Exception:
             pass
 
@@ -209,7 +225,8 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                     "is_leader": leader.is_leader if leader else False,
                     "instance_id": leader.instance_id[:8] if leader else None,
                     "influxdb_connected": influx_ok,
-                    **info,
+                    "last_libre_fetch_at": last_reading.timestamp.isoformat() if last_reading else None,
+                    "last_libre_fetch_status": "ok" if libre_ok else "no_data",
                 }
             ),
         )
