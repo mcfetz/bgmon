@@ -74,24 +74,39 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     def _libre_job() -> None:
         if leader is not None and leader.is_leader:
             with app.app_context():
-                fetch_and_store()
+                try:
+                    fetch_and_store()
+                finally:
+                    db.session.remove()
 
     def _leader_heartbeat() -> None:
         if leader is not None:
             with app.app_context():
-                leader.daemon_renew_loop()
+                try:
+                    leader.daemon_renew_loop()
+                finally:
+                    db.session.remove()
 
     def _alarm_job() -> None:
         with app.app_context():
-            evaluate_alarms()
+            try:
+                evaluate_alarms()
+            finally:
+                db.session.remove()
 
     def _profile_schedule_job() -> None:
         with app.app_context():
-            check_profile_schedules()
+            try:
+                check_profile_schedules()
+            finally:
+                db.session.remove()
 
     def _streak_job() -> None:
         with app.app_context():
-            check_and_log_streak()
+            try:
+                check_and_log_streak()
+            finally:
+                db.session.remove()
 
     scheduler.add_job(
         _leader_heartbeat,
