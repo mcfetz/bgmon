@@ -101,6 +101,10 @@
 	let message = $state('');
 	let error = $state('');
 
+	let libreHistoryLoading = $state(false);
+	let libreHistoryMessage = $state('');
+	let libreHistoryError = $state('');
+
 	let pushSubscribed = $state(false);
 	let pushLoading = $state(false);
 	let pushError = $state('');
@@ -130,6 +134,28 @@
 		const res = await apiFetch('/api/users');
 		if (res.ok) {
 			users = await res.json();
+		}
+	}
+
+	async function reloadLibreHistory() {
+		libreHistoryLoading = true;
+		libreHistoryMessage = '';
+		libreHistoryError = '';
+		try {
+			const res = await apiFetch('/api/settings/libre/reload-history', {
+				method: 'POST'
+			});
+			if (res.ok) {
+				const data = await res.json();
+				libreHistoryMessage = data.message || 'Historische Daten erfolgreich geladen';
+			} else {
+				const data = await res.json();
+				libreHistoryError = data.error || 'Fehler beim Laden der historischen Daten';
+			}
+		} catch (e) {
+			libreHistoryError = 'Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e));
+		} finally {
+			libreHistoryLoading = false;
 		}
 	}
 
@@ -769,6 +795,23 @@
 					</div>
 
 					<button class="submit-btn" onclick={saveTreatment}>Speichern</button>
+
+					<div class="field">
+						<label>LibreLinkUp Historische Daten</label>
+						<p class="hint">
+							Lade die letzten 12 Stunden historische Daten von LibreLinkUp um Lücken im Graph zu
+							füllen.
+						</p>
+						<button class="submit-btn" onclick={reloadLibreHistory} disabled={libreHistoryLoading}>
+							{libreHistoryLoading ? 'Lade...' : 'Historische Daten laden'}
+						</button>
+						{#if libreHistoryMessage}
+							<p class="success">{libreHistoryMessage}</p>
+						{/if}
+						{#if libreHistoryError}
+							<p class="error">{libreHistoryError}</p>
+						{/if}
+					</div>
 				{:else if currentView === 'twilio'}
 					<div class="field">
 						<label>Telefonnummer (für eingehende Anrufe)</label>

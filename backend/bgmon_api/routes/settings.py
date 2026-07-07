@@ -13,6 +13,23 @@ from bgmon_api.models import GlobalSettings, Threshold, User, UserRole
 settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")
 
 
+@settings_bp.route("/libre/reload-history", methods=["POST"])
+def reload_libre_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+    if user.role == UserRole.PATIENT:
+        return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+
+    from bgmon_api.services.libre_fetcher import fetch_and_store
+
+    try:
+        fetch_and_store(fetch_history=True)
+        return jsonify({"message": "Historische Daten erfolgreich geladen"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
 @settings_bp.route("/global", methods=["GET"])
 def get_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
