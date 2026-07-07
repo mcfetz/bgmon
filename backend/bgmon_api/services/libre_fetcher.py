@@ -245,8 +245,7 @@ def _store_historical_data(graph_data: list[dict]) -> int:
         )
 
         if not influx_ok:
-            logger.debug("Historical: InfluxDB write failed for ts=%s, skipping PG", ts)
-            continue
+            logger.warning("Historical: InfluxDB write failed for ts=%s, continuing with PG", ts)
 
         try:
             reading = GlucoseReading(
@@ -334,22 +333,24 @@ def fetch_and_store(fetch_history: bool = False) -> None:
             glucose_id=None,
         )
 
-        if ok:
-            try:
-                reading = GlucoseReading(
-                    timestamp=ts,
-                    sgv=measurement["sgv"],
-                    trend=measurement["trend"],
-                    direction=measurement["direction"],
-                    source="librelinkup",
-                )
-                db.session.add(reading)
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-                logger.debug("Current reading at %s already in DB", ts)
-            except Exception:
-                db.session.rollback()
+        if not ok:
+            logger.warning("InfluxDB write failed for current reading, continuing with PG")
+
+        try:
+            reading = GlucoseReading(
+                timestamp=ts,
+                sgv=measurement["sgv"],
+                trend=measurement["trend"],
+                direction=measurement["direction"],
+                source="librelinkup",
+            )
+            db.session.add(reading)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            logger.debug("Current reading at %s already in DB", ts)
+        except Exception:
+            db.session.rollback()
 
         if fetch_history:
             graph_data = measurement.get("graphData", []) or []
@@ -357,14 +358,13 @@ def fetch_and_store(fetch_history: bool = False) -> None:
             historical_written = _store_historical_data(graph_data)
             logger.info("Historical backfill wrote %d new entries", historical_written)
 
-        _last_fetch_status = "ok" if ok else "write_failed"
-        if ok:
-            logger.info(
-                "Fetched glucose: %s mg/dL, trend=%s, direction=%s",
-                measurement["sgv"],
-                measurement["trend"],
-                measurement["direction"],
-            )
+        _last_fetch_status = "ok" if ok else "ok_influx_failed"
+        logger.info(
+            "Fetched glucose: %s mg/dL, trend=%s, direction=%s",
+            measurement["sgv"],
+            measurement["trend"],
+            measurement["direction"],
+        )
 
     except Exception as exc:
         logger.error("LibreLinkUp fetch failed: %s", exc)
