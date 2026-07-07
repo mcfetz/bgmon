@@ -69,7 +69,21 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     from bgmon_api.services.libre_fetcher import fetch_and_store, get_last_fetch_info
 
     leader = RowLeaseLeader()
-    scheduler = BackgroundScheduler(daemon=True)
+    
+    from apscheduler.executors.pool import ThreadPoolExecutor
+    executors = {
+        'default': ThreadPoolExecutor(max_workers=3)
+    }
+    job_defaults = {
+        'coalesce': True,
+        'max_instances': 1,
+        'misfire_grace_time': 30
+    }
+    scheduler = BackgroundScheduler(
+        daemon=True,
+        executors=executors,
+        job_defaults=job_defaults
+    )
 
     def _libre_job() -> None:
         if leader is not None and leader.is_leader:

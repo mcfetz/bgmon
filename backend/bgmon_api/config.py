@@ -21,6 +21,10 @@ class Config:
         "postgresql://bgmon:bgmon@localhost:5432/bgmon",
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_POOL_SIZE = 5
+    SQLALCHEMY_MAX_OVERFLOW = 10
+    SQLALCHEMY_POOL_RECYCLE = 300
+    SQLALCHEMY_POOL_PRE_PING = True
 
     PUBLIC_BASE_URL = os.getenv("BGMON_PUBLIC_BASE_URL", "http://localhost:5000")
 
