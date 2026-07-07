@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 from dateutil import parser as date_parser
+from sqlalchemy.exc import IntegrityError
 
 from bgmon_api.app import db
 from bgmon_api.config import Config
@@ -144,6 +145,7 @@ def _get_latest_sgv(
             graph_data = data.get("data", {})
             connection = graph_data.get("connection", {})
             glucose_measurement = connection.get("glucoseMeasurement", {})
+            historical = graph_data.get("graphData", []) or []
 
             if glucose_measurement:
                 value = glucose_measurement.get("ValueInMgPerDl", 0)
@@ -156,6 +158,7 @@ def _get_latest_sgv(
                     "trend": trend_num,
                     "direction": direction,
                     "timestamp": timestamp_str,
+                    "graphData": historical,
                 }
     except requests.RequestException:
         pass
@@ -163,8 +166,120 @@ def _get_latest_sgv(
     return None
 
 
-def fetch_and_store() -> None:
-    """Fetch latest glucose from LibreLinkUp and write to InfluxDB."""
+def _store_historical_data(graph_data: list[dict]) -> int:
+    """Write historical glucose readings from graphData to InfluxDB + PostgreSQL.
+
+    Idempotency strategy:
+    - Query existing timestamps in the graphData range once (uses the unique
+      index on ``glucose_readings.timestamp``).
+    - Skip any entry whose timestamp is already present.
+    - The unique constraint on ``GlucoseReading.timestamp`` is the ultimate
+      safety net — a race between concurrent fetchers is caught and the
+      conflicting row is rolled back instead of raising.
+
+    Returns the number of new entries successfully written to PostgreSQL.
+    """
+    if not graph_data:
+        logger.info("Historical: graphData is empty, nothing to store")
+        return 0
+
+    # Parse + validate all entries first so we can compute the query range
+    parsed: list[tuple[datetime, int, str]] = []
+    for item in graph_data:
+        try:
+            ts_str = item.get("Timestamp", "")
+            value = int(item.get("ValueInMgPerDl", 0))
+            if not ts_str or not value:
+                continue
+            ts = date_parser.parse(ts_str)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            trend_arrow = item.get("TrendArrow", "")
+            parsed.append((ts, value, trend_arrow))
+        except (ValueError, KeyError, TypeError):
+            continue
+
+    if not parsed:
+        logger.warning("Historical: no valid entries after parsing (%d raw items)", len(graph_data))
+        return 0
+
+    min_ts = min(p[0] for p in parsed)
+    max_ts = max(p[0] for p in parsed)
+
+    # Single ranged query — uses the index on glucose_readings.timestamp
+    existing_ts: set[datetime] = {
+        row.timestamp
+        for row in GlucoseReading.query
+        .filter(GlucoseReading.timestamp >= min_ts)
+        .filter(GlucoseReading.timestamp <= max_ts)
+        .all()
+    }
+
+    to_write = [(ts, v, t) for ts, v, t in parsed if ts not in existing_ts]
+
+    if not to_write:
+        logger.info(
+            "Historical: all %d entries already in DB (range %s → %s)",
+            len(parsed), min_ts.isoformat(), max_ts.isoformat(),
+        )
+        return 0
+
+    logger.info(
+        "Historical: %d/%d new entries (range %s → %s, %d already in DB)",
+        len(to_write), len(parsed),
+        min_ts.isoformat(), max_ts.isoformat(),
+        len(parsed) - len(to_write),
+    )
+
+    written = 0
+    for ts, value, trend_arrow in to_write:
+        trend_num, direction = _TREND_MAP.get(trend_arrow, (4, "Flat"))
+        date_string = str(int(ts.timestamp() * 1_000_000_000))
+
+        influx_ok = write_glucose_to_influx(
+            sgv=value,
+            trend=trend_num,
+            direction=direction,
+            date_string=date_string,
+            glucose_id=None,
+        )
+
+        if not influx_ok:
+            logger.debug("Historical: InfluxDB write failed for ts=%s, skipping PG", ts)
+            continue
+
+        try:
+            reading = GlucoseReading(
+                timestamp=ts,
+                sgv=value,
+                trend=trend_num,
+                direction=direction,
+                source="librelinkup",
+            )
+            db.session.add(reading)
+            db.session.commit()
+            written += 1
+        except IntegrityError:
+            db.session.rollback()
+            logger.debug("Historical: duplicate timestamp %s caught by unique constraint", ts)
+        except Exception as exc:
+            db.session.rollback()
+            logger.error("Historical: failed to write reading at %s: %s", ts, exc)
+
+    logger.info(
+        "Historical: wrote %d/%d new entries to InfluxDB + PostgreSQL",
+        written, len(to_write),
+    )
+    return written
+
+
+def fetch_and_store(fetch_history: bool = False) -> None:
+    """Fetch latest glucose from LibreLinkUp and write to InfluxDB.
+
+    When ``fetch_history`` is True, the ~12h of historical 15-min averages
+    delivered in ``graphData`` are also persisted (idempotent — duplicates
+    are skipped via timestamp lookup and the unique constraint).
+    """
     global _last_fetch_at, _last_fetch_status
 
     if not Config.LIBRE_EMAIL or not Config.LIBRE_PASSWORD:
@@ -230,8 +345,17 @@ def fetch_and_store() -> None:
                 )
                 db.session.add(reading)
                 db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                logger.debug("Current reading at %s already in DB", ts)
             except Exception:
                 db.session.rollback()
+
+        if fetch_history:
+            graph_data = measurement.get("graphData", []) or []
+            logger.info("Fetched %d historical entries from graphData", len(graph_data))
+            historical_written = _store_historical_data(graph_data)
+            logger.info("Historical backfill wrote %d new entries", historical_written)
 
         _last_fetch_status = "ok" if ok else "write_failed"
         if ok:
