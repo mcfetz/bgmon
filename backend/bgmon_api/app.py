@@ -72,7 +72,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     from apscheduler.executors.pool import ThreadPoolExecutor
     executors = {
-        'default': ThreadPoolExecutor(max_workers=3)
+        'default': ThreadPoolExecutor(max_workers=1)
     }
     job_defaults = {
         'coalesce': True,
