@@ -126,9 +126,9 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     leader = RowLeaseLeader()
 
-    from apscheduler.executors.pool import ProcessPoolExecutor
+    from apscheduler.executors.pool import ThreadPoolExecutor
     executors = {
-        'default': ProcessPoolExecutor(max_workers=1)
+        'default': ThreadPoolExecutor(max_workers=2)
     }
     job_defaults = {
         'coalesce': True,
