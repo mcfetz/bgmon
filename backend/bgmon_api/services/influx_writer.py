@@ -10,17 +10,22 @@ from bgmon_api.config import Config
 
 logger = logging.getLogger(__name__)
 
+_influx_client: InfluxDBClient | None = None
+
 
 def get_influx_client() -> InfluxDBClient | None:
     """Return a configured InfluxDB client or None if not configured."""
+    global _influx_client
     if not Config.INFLUXDB_URL:
         logger.warning("INFLUXDB_URL not set — skipping InfluxDB writes")
         return None
-    return InfluxDBClient(
-        url=Config.INFLUXDB_URL,
-        token=Config.INFLUXDB_TOKEN,
-        org=Config.INFLUXDB_ORG,
-    )
+    if _influx_client is None:
+        _influx_client = InfluxDBClient(
+            url=Config.INFLUXDB_URL,
+            token=Config.INFLUXDB_TOKEN,
+            org=Config.INFLUXDB_ORG,
+        )
+    return _influx_client
 
 
 def write_glucose_to_influx(
@@ -87,5 +92,3 @@ def write_glucose_to_influx(
     except Exception as exc:
         logger.error("Failed to write glucose to InfluxDB: %s", exc)
         return False
-    finally:
-        client.close()
