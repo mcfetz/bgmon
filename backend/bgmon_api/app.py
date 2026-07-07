@@ -77,7 +77,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     job_defaults = {
         'coalesce': True,
         'max_instances': 1,
-        'misfire_grace_time': 60,
+        'misfire_grace_time': 120,
         'executor': 'default'
     }
     scheduler = BackgroundScheduler(
