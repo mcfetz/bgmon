@@ -69,7 +69,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     from bgmon_api.services.libre_fetcher import fetch_and_store, get_last_fetch_info
 
     leader = RowLeaseLeader()
-    
+
     from apscheduler.executors.pool import ThreadPoolExecutor
     executors = {
         'default': ThreadPoolExecutor(max_workers=3)
