@@ -68,11 +68,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl --fail --silent http://localhost:5000/health || exit 1
 
 # Production WSGI server (gunicorn is in pyproject deps)
-CMD ["gunicorn", \
-     "--bind", "0.0.0.0:5000", \
-     "--workers", "2", \
-     "--threads", "4", \
-     "--timeout", "120", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
-     "bgmon_api.app:app"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "bgmon_api.app:app"]
