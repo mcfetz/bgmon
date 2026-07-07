@@ -159,12 +159,14 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     )
 
     if Config.SCHEDULER_ENABLED:
-        scheduler.start()
-        with app.app_context():
-            try:
-                check_and_log_streak()
-            except Exception:
-                logger.exception("Initial streak recalc failed")
+        import os
+        if os.environ.get('GUNICORN_WORKER') != '1':
+            scheduler.start()
+            with app.app_context():
+                try:
+                    check_and_log_streak()
+                except Exception:
+                    logger.exception("Initial streak recalc failed")
 
     @app.get("/health")
     def health() -> Response:

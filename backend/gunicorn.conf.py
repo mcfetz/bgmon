@@ -1,5 +1,7 @@
 """Gunicorn configuration for production deployment."""
 
+import os
+
 bind = "0.0.0.0:5000"
 workers = 2
 worker_class = "sync"
@@ -12,3 +14,13 @@ accesslog = "-"
 errorlog = "-"
 loglevel = "info"
 preload_app = True
+
+
+def on_starting(server):
+    """Called just before the master process is initialized."""
+    os.environ['GUNICORN_WORKER'] = '0'
+
+
+def post_fork(server, worker):
+    """Called just after a worker has been forked."""
+    os.environ['GUNICORN_WORKER'] = '1'
