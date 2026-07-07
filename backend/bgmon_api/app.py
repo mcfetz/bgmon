@@ -18,6 +18,62 @@ scheduler = None
 _app: Flask | None = None
 
 
+def _libre_job() -> None:
+    """Fetch Libre data (runs in scheduler)."""
+    global leader
+    if leader is not None and leader.is_leader and _app is not None:
+        with _app.app_context():
+            try:
+                from bgmon_api.services.libre_fetcher import fetch_and_store
+                fetch_and_store()
+            finally:
+                db.session.remove()
+
+
+def _leader_heartbeat() -> None:
+    """Renew leader lease (runs in scheduler)."""
+    global leader
+    if leader is not None and _app is not None:
+        with _app.app_context():
+            try:
+                leader.daemon_renew_loop()
+            finally:
+                db.session.remove()
+
+
+def _alarm_job() -> None:
+    """Evaluate alarms (runs in scheduler)."""
+    if _app is not None:
+        with _app.app_context():
+            try:
+                from bgmon_api.services.alarm_evaluator import evaluate_alarms
+                evaluate_alarms()
+            finally:
+                db.session.remove()
+
+
+def _profile_schedule_job() -> None:
+    """Check profile schedules (runs in scheduler)."""
+    if _app is not None:
+        with _app.app_context():
+            try:
+                from bgmon_api.services.alarm_evaluator import check_profile_schedules
+                check_profile_schedules()
+            finally:
+                db.session.remove()
+
+
+def _streak_job() -> None:
+    """Check and log streak (runs in scheduler)."""
+    if _app is not None:
+        with _app.app_context():
+            try:
+                from bgmon_api.routes.dashboard import check_and_log_streak
+                check_and_log_streak()
+            finally:
+                db.session.remove()
+
+
 def create_app(config_class: type[Config] = Config) -> Flask:
     """Create and configure the Flask application."""
     global leader, scheduler, _app
@@ -85,43 +141,6 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         executors=executors,
         job_defaults=job_defaults
     )
-
-    def _libre_job() -> None:
-        if leader is not None and leader.is_leader:
-            with app.app_context():
-                try:
-                    fetch_and_store()
-                finally:
-                    db.session.remove()
-
-    def _leader_heartbeat() -> None:
-        if leader is not None:
-            with app.app_context():
-                try:
-                    leader.daemon_renew_loop()
-                finally:
-                    db.session.remove()
-
-    def _alarm_job() -> None:
-        with app.app_context():
-            try:
-                evaluate_alarms()
-            finally:
-                db.session.remove()
-
-    def _profile_schedule_job() -> None:
-        with app.app_context():
-            try:
-                check_profile_schedules()
-            finally:
-                db.session.remove()
-
-    def _streak_job() -> None:
-        with app.app_context():
-            try:
-                check_and_log_streak()
-            finally:
-                db.session.remove()
 
     scheduler.add_job(
         _leader_heartbeat,
