@@ -10,15 +10,20 @@ from bgmon_api.config import Config
 
 logger = logging.getLogger(__name__)
 
+_influx_client: InfluxDBClient | None = None
+
 
 def _get_client() -> InfluxDBClient | None:
+    global _influx_client
     if not Config.INFLUXDB_URL:
         return None
-    return InfluxDBClient(
-        url=Config.INFLUXDB_URL,
-        token=Config.INFLUXDB_TOKEN,
-        org=Config.INFLUXDB_ORG,
-    )
+    if _influx_client is None:
+        _influx_client = InfluxDBClient(
+            url=Config.INFLUXDB_URL,
+            token=Config.INFLUXDB_TOKEN,
+            org=Config.INFLUXDB_ORG,
+        )
+    return _influx_client
 
 
 def _range_to_flux(range_key: str) -> str:
@@ -67,8 +72,6 @@ def query_glucose_range(start: str, end: str) -> list[dict[str, Any]]:
     except Exception as exc:
         logger.error("InfluxDB range query failed: %s", exc)
         return []
-    finally:
-        client.close()
 
 
 def query_glucose_history(range_key: str = "today") -> list[dict[str, Any]]:
@@ -111,8 +114,6 @@ def query_glucose_history(range_key: str = "today") -> list[dict[str, Any]]:
     except Exception as exc:
         logger.error("InfluxDB query failed: %s", exc)
         return []
-    finally:
-        client.close()
 
 
 def query_current_glucose() -> dict[str, Any] | None:
@@ -144,8 +145,6 @@ def query_current_glucose() -> dict[str, Any] | None:
     except Exception as exc:
         logger.error("InfluxDB current query failed: %s", exc)
         return None
-    finally:
-        client.close()
 
 
 def query_stats(range_key: str = "today") -> dict[str, Any]:

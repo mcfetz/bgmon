@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from bgmon_api.extensions import db
-from bgmon_api.services.influx_reader import query_current_glucose
+from bgmon_api.services.influx_reader import query_current_glucose as query_influx
 from bgmon_api.services.twilio_caller import place_call
 from bgmon_api.services.web_push import send_push_to_user
 
@@ -53,11 +53,35 @@ def _models():
     }
 
 
+def _query_current_glucose() -> dict | None:
+    """Get current glucose from InfluxDB, fallback to PostgreSQL."""
+    result = query_influx()
+    if result is not None:
+        return result
+    try:
+        from bgmon_api.models import GlucoseReading
+        row = (
+            GlucoseReading.query
+            .order_by(GlucoseReading.timestamp.desc())
+            .first()
+        )
+        if row is not None:
+            return {
+                "sgv": row.sgv,
+                "trend": row.trend,
+                "direction": row.direction,
+                "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+            }
+    except Exception:
+        logger.exception("PostgreSQL fallback query failed")
+    return None
+
+
 def evaluate_alarms() -> None:
     """Check glucose against each user's thresholds and dispatch notifications."""
     m = _models()
     logger.info("evaluate_alarms() called")
-    current = query_current_glucose()
+    current = _query_current_glucose()
     logger.info("Glucose query result: %s", current)
     if current is None:
         logger.info("No glucose data available for alarm evaluation")

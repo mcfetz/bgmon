@@ -20,6 +20,8 @@ _app: Flask | None = None
 
 def _libre_job() -> None:
     """Fetch Libre data (runs in scheduler)."""
+    from bgmon_api.thread_tracer import snapshot
+    snapshot("libre_fetch", "before")
     global leader
     if leader is not None and leader.is_leader and _app is not None:
         with _app.app_context():
@@ -28,10 +30,13 @@ def _libre_job() -> None:
                 fetch_and_store()
             finally:
                 db.session.remove()
+    snapshot("libre_fetch", "after")
 
 
 def _leader_heartbeat() -> None:
     """Renew leader lease (runs in scheduler)."""
+    from bgmon_api.thread_tracer import snapshot
+    snapshot("leader_heartbeat", "before")
     global leader
     if leader is not None and _app is not None:
         with _app.app_context():
@@ -39,10 +44,13 @@ def _leader_heartbeat() -> None:
                 leader.daemon_renew_loop()
             finally:
                 db.session.remove()
+    snapshot("leader_heartbeat", "after")
 
 
 def _alarm_job() -> None:
     """Evaluate alarms (runs in scheduler)."""
+    from bgmon_api.thread_tracer import snapshot
+    snapshot("alarm_eval", "before")
     if _app is not None:
         with _app.app_context():
             try:
@@ -50,10 +58,13 @@ def _alarm_job() -> None:
                 evaluate_alarms()
             finally:
                 db.session.remove()
+    snapshot("alarm_eval", "after")
 
 
 def _profile_schedule_job() -> None:
     """Check profile schedules (runs in scheduler)."""
+    from bgmon_api.thread_tracer import snapshot
+    snapshot("profile_schedule", "before")
     if _app is not None:
         with _app.app_context():
             try:
@@ -61,10 +72,13 @@ def _profile_schedule_job() -> None:
                 check_profile_schedules()
             finally:
                 db.session.remove()
+    snapshot("profile_schedule", "after")
 
 
 def _streak_job() -> None:
     """Check and log streak (runs in scheduler)."""
+    from bgmon_api.thread_tracer import snapshot
+    snapshot("streak_check", "before")
     if _app is not None:
         with _app.app_context():
             try:
@@ -72,6 +86,7 @@ def _streak_job() -> None:
                 check_and_log_streak()
             finally:
                 db.session.remove()
+    snapshot("streak_check", "after")
 
 
 def create_app(config_class: type[Config] = Config) -> Flask:
@@ -120,9 +135,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         bootstrap_admin()
 
     from bgmon_api.routes.dashboard import check_and_log_streak
-    from bgmon_api.services.alarm_evaluator import check_profile_schedules, evaluate_alarms
     from bgmon_api.services.leader import RowLeaseLeader
-    from bgmon_api.services.libre_fetcher import fetch_and_store, get_last_fetch_info
 
     leader = RowLeaseLeader()
 
@@ -192,9 +205,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     @app.get("/health")
     def health() -> Response:
-        from bgmon_api.services.influx_reader import query_current_glucose
+        from datetime import UTC, datetime
+
         from bgmon_api.models import GlucoseReading
-        from datetime import datetime, UTC, timedelta
+        from bgmon_api.services.influx_reader import query_current_glucose
 
         influx_ok = False
         try:

@@ -260,7 +260,7 @@ def _store_historical_data(graph_data: list[dict]) -> int:
             written += 1
         except IntegrityError:
             db.session.rollback()
-            logger.debug("Historical: duplicate timestamp %s caught by unique constraint", ts)
+            logger.warning("Historical: duplicate timestamp %s (sgv=%s), skipping", ts, value)
         except Exception as exc:
             db.session.rollback()
             logger.error("Historical: failed to write reading at %s: %s", ts, exc)
@@ -337,20 +337,30 @@ def fetch_and_store(fetch_history: bool = False) -> None:
             logger.warning("InfluxDB write failed for current reading, continuing with PG")
 
         try:
-            reading = GlucoseReading(
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            stmt = pg_insert(GlucoseReading).values(
                 timestamp=ts,
                 sgv=measurement["sgv"],
                 trend=measurement["trend"],
                 direction=measurement["direction"],
                 source="librelinkup",
+            ).on_conflict_do_update(
+                index_elements=["timestamp"],
+                set_={
+                    "sgv": measurement["sgv"],
+                    "trend": measurement["trend"],
+                    "direction": measurement["direction"],
+                    "source": "librelinkup",
+                },
             )
-            db.session.add(reading)
+            db.session.execute(stmt)
             db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            logger.debug("Current reading at %s already in DB", ts)
         except Exception:
             db.session.rollback()
+            logger.warning(
+                "Failed to upsert current reading at %s (sgv=%s)",
+                ts, measurement["sgv"],
+            )
 
         if fetch_history:
             graph_data = measurement.get("graphData", []) or []
@@ -360,10 +370,11 @@ def fetch_and_store(fetch_history: bool = False) -> None:
 
         _last_fetch_status = "ok" if ok else "ok_influx_failed"
         logger.info(
-            "Fetched glucose: %s mg/dL, trend=%s, direction=%s",
+            "Fetched glucose: %s mg/dL, trend=%s, direction=%s, ts=%s",
             measurement["sgv"],
             measurement["trend"],
             measurement["direction"],
+            ts,
         )
 
     except Exception as exc:

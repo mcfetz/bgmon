@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime
+from typing import Any
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -11,11 +12,11 @@ from bgmon_api.config import Config
 logger = logging.getLogger(__name__)
 
 _influx_client: InfluxDBClient | None = None
+_write_api: Any = None
 
 
-def get_influx_client() -> InfluxDBClient | None:
-    """Return a configured InfluxDB client or None if not configured."""
-    global _influx_client
+def _ensure_client() -> InfluxDBClient | None:
+    global _influx_client, _write_api
     if not Config.INFLUXDB_URL:
         logger.warning("INFLUXDB_URL not set — skipping InfluxDB writes")
         return None
@@ -25,6 +26,7 @@ def get_influx_client() -> InfluxDBClient | None:
             token=Config.INFLUXDB_TOKEN,
             org=Config.INFLUXDB_ORG,
         )
+        _write_api = _influx_client.write_api(write_type=SYNCHRONOUS)
     return _influx_client
 
 
@@ -44,13 +46,12 @@ def write_glucose_to_influx(
 
     Returns True on success.
     """
-    client = get_influx_client()
+    global _write_api
+    client = _ensure_client()
     if client is None:
         return False
 
     try:
-        write_api = client.write_api(write_type=SYNCHRONOUS)
-
         if glucose_id:
             # Interpret date_string as a nanosecond timestamp (legacy format)
             try:
@@ -85,7 +86,7 @@ def write_glucose_to_influx(
                 .time(ts_ns)
             )
 
-        write_api.write(bucket=Config.INFLUXDB_BUCKET, record=point)
+        _write_api.write(bucket=Config.INFLUXDB_BUCKET, record=point)
         logger.debug("Wrote glucose sgv=%s to InfluxDB", sgv)
         return True
 

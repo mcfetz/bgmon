@@ -1,7 +1,7 @@
 """Standalone scheduler process — runs outside Gunicorn."""
 import logging
-import sys
 import os
+import sys
 
 os.environ['BGMON_STANDALONE_SCHEDULER'] = '1'
 
@@ -32,14 +32,21 @@ def main():
     if not _check_pid():
         sys.exit(1)
 
-    from bgmon_api.app import create_app, scheduler, leader, _libre_job, _leader_heartbeat, _alarm_job, _profile_schedule_job, _streak_job
-    from bgmon_api.config import Config
+    from bgmon_api.app import (
+        create_app,
+        leader,
+        scheduler,
+    )
 
     app = create_app()
 
+    # Start thread tracing (logs thread count to /tmp/bgmon-threads.log)
+    from bgmon_api.thread_tracer import start_periodic_snapshot
+    start_periodic_snapshot(interval_s=300)
+
     with app.app_context():
         leader.try_acquire()
-        scheduler.start()
+        # scheduler is already started by create_app() (called during import)
         logger.info("Standalone scheduler started (leader=%s)", leader.is_leader)
 
     import signal
