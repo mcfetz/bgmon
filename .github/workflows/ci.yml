@@ -46,14 +46,6 @@ jobs:
         continue-on-error: true
         run: ty check bgmon_api
 
-      - name: Run database migrations
-        working-directory: ./backend
-        env:
-          BGMON_DATABASE_URL: postgresql://bgmon:bgmon@localhost:5432/bgmon_test
-          BGMON_SECRET_KEY: test-secret
-          BGMON_DISABLE_SCHEDULER: "true"
-        run: flask --app bgmon_api.app db upgrade
-
       - name: Run backend tests
         working-directory: ./backend
         env:
