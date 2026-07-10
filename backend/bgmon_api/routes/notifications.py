@@ -17,6 +17,7 @@ from bgmon_api.models import (
     UserActiveProfile,
     UserSnooze,
 )
+from bgmon_api.utils import transactional_session
 
 notifications_bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
 
@@ -104,7 +105,8 @@ def create_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             )
         )
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(profile.to_dict()), HTTPStatus.CREATED
 
 
@@ -156,7 +158,8 @@ def update_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTP
                 )
             )
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(profile.to_dict())
 
 
@@ -171,7 +174,8 @@ def delete_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTP
         return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
 
     db.session.delete(profile)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"deleted": profile_id})
 
 
@@ -212,7 +216,8 @@ def set_active_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         db.session.add(active)
     else:
         active.profile_id = profile_id
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(active.to_dict())
 
 
@@ -229,7 +234,8 @@ def webhook_activate_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResp
         db.session.add(active)
     else:
         active.profile_id = profile_id
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
 
     return jsonify({
         "message": f"Active profile set to '{profile.name}' (id={profile_id}) for user {owner_id}."
@@ -263,7 +269,8 @@ def set_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     snooze.reason = reason
     if snooze not in db.session:
         db.session.add(snooze)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({**snooze.to_dict(), "active": True})
 
 
@@ -276,7 +283,8 @@ def clear_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     snooze = UserSnooze.query.get(user.id)
     if snooze:
         db.session.delete(snooze)
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
     return jsonify({"cleared": True})
 
 
@@ -299,5 +307,6 @@ def adjust_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         new_until = datetime.now(UTC) + timedelta(minutes=1)
 
     snooze.snooze_until = new_until
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({**snooze.to_dict(), "active": True})

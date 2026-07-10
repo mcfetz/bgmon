@@ -12,6 +12,7 @@ from bgmon_api.extensions import db
 from bgmon_api.services.influx_reader import query_current_glucose as query_influx
 from bgmon_api.services.twilio_caller import place_call
 from bgmon_api.services.web_push import send_push_to_user
+from bgmon_api.utils import transactional_session
 
 if TYPE_CHECKING:
     from bgmon_api.models import AlarmType, NightProfile, User
@@ -118,7 +119,8 @@ def _evaluate_for_user(user_id: int, sgv: int) -> None:
     if threshold is None:
         threshold = m["Threshold"](user_id=user_id)
         db.session.add(threshold)
-        db.session.commit()
+        with transactional_session():
+            pass  # auto-commit
 
     active_low = threshold.low
     active_high = threshold.high
@@ -158,7 +160,8 @@ def _check_no_data_alarm() -> None:
     if open_no_data is None:
         alarm = m["Alarm"](user_id=patient.id, alarm_type=m["AlarmType"].NO_DATA, sgv=None)
         db.session.add(alarm)
-        db.session.commit()
+        with transactional_session():
+            pass  # auto-commit
 
     active_profiles = m["UserActiveProfile"].query.all()
     for active in active_profiles:
@@ -194,7 +197,8 @@ def check_profile_schedules() -> None:
         )
 
     if profiles:
-        db.session.commit()
+        with transactional_session():
+            pass  # auto-commit
 
 
 def _create_or_update_alarm(user_id: int, threshold, sgv: int) -> None:
@@ -209,14 +213,16 @@ def _create_or_update_alarm(user_id: int, threshold, sgv: int) -> None:
         minutes_since_created = (datetime.now(UTC) - open_alarm.created_at).total_seconds() / 60
         if minutes_since_created > 5 * (open_alarm.escalation_count + 1):
             open_alarm.escalation_count += 1
-            db.session.commit()
+            with transactional_session():
+                pass  # auto-commit
             logger.info(
                 "Alarm %d escalated to level %d", open_alarm.id, open_alarm.escalation_count
             )
         return
     alarm = m["Alarm"](user_id=user_id, alarm_type=alarm_type, sgv=sgv)
     db.session.add(alarm)
-    db.session.commit()
+    with transactional_session():
+        pass  # auto-commit
 
 
 def _resolve_open_alarms(user_id: int) -> None:
@@ -229,7 +235,8 @@ def _resolve_open_alarms(user_id: int) -> None:
     for alarm in open_alarms:
         alarm.acknowledged_at = datetime.now(UTC)
     if open_alarms:
-        db.session.commit()
+        with transactional_session():
+            pass  # auto-commit
         logger.info("Resolved %d open alarms for user %d", len(open_alarms), user_id)
 
 
@@ -257,7 +264,8 @@ def _dispatch_to_user(
             user_id, snooze_level, current_level,
         )
         db.session.delete(snooze)
-        db.session.commit()
+        with transactional_session():
+            pass  # auto-commit
 
     active = m["UserActiveProfile"].query.get(user_id)
     if not active:
@@ -325,7 +333,8 @@ def _set_snooze(user_id: int, reason: str | None = None) -> None:
     snooze.reason = reason
     if snooze not in db.session:
         db.session.add(snooze)
-    db.session.commit()
+    with transactional_session():
+        pass  # auto-commit
     logger.info("User %d snoozed until %s", user_id, snooze.snooze_until)
 
 
@@ -344,7 +353,8 @@ def _log_notification(user: User, title: str, sgv: int | None) -> None:
         notes=note,
     )
     db.session.add(entry)
-    db.session.commit()
+    with transactional_session():
+        pass  # auto-commit
 
 
 def _threshold_to_alarm_type(threshold) -> AlarmType:

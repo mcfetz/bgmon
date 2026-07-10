@@ -8,6 +8,7 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import NightProfile, Shift, User, UserRole
+from bgmon_api.utils import transactional_session
 
 night_bp = Blueprint("night", __name__)
 
@@ -29,8 +30,8 @@ def get_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     profile = NightProfile.query.filter_by(user_id=patient.id).first()
     if not profile:
         profile = NightProfile(user_id=patient.id)
-        db.session.add(profile)
-        db.session.commit()
+        with transactional_session():
+            db.session.add(profile)
 
     return jsonify(profile.to_dict())
 
@@ -58,7 +59,8 @@ def update_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if "end_time" in data:
         profile.end_time = data["end_time"]
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(profile.to_dict())
 
 
@@ -75,7 +77,8 @@ def webhook_activate(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
         return jsonify({"error": "no active shift"}), HTTPStatus.BAD_REQUEST
 
     profile.enabled = True
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
 
     from bgmon_api.services.web_push import send_push_to_user
 

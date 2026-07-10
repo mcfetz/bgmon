@@ -5,6 +5,7 @@ import logging
 from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import SnoozePreset, Threshold, User, UserRole
+from bgmon_api.utils import transactional_session
 
 logger = logging.getLogger(__name__)
 
@@ -47,5 +48,6 @@ def bootstrap_admin() -> None:
         ]:
             db.session.add(SnoozePreset(user_id=user.id, label=label, duration_minutes=mins))
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     logger.info("Bootstrapped admin and patient users")

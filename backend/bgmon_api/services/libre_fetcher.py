@@ -13,6 +13,7 @@ from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import GlucoseReading
 from bgmon_api.services.influx_writer import write_glucose_to_influx
+from bgmon_api.utils import transactional_session
 
 logger = logging.getLogger(__name__)
 
@@ -255,8 +256,8 @@ def _store_historical_data(graph_data: list[dict]) -> int:
                 direction=direction,
                 source="librelinkup",
             )
-            db.session.add(reading)
-            db.session.commit()
+            with transactional_session():
+                db.session.add(reading)
             written += 1
         except IntegrityError:
             db.session.rollback()
@@ -354,7 +355,8 @@ def fetch_and_store(fetch_history: bool = False) -> None:
                 },
             )
             db.session.execute(stmt)
-            db.session.commit()
+            with transactional_session():
+                pass  # commit handled by context manager
         except Exception:
             db.session.rollback()
             logger.warning(

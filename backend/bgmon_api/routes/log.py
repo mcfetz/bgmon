@@ -15,7 +15,7 @@ from bgmon_api.models import (
     User,
     UserRole,
 )
-from bgmon_api.utils import parse_iso_datetime
+from bgmon_api.utils import parse_iso_datetime, transactional_session
 
 log_bp = Blueprint("log", __name__)
 
@@ -57,7 +57,8 @@ def delete_log(entry_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus
 
     entry = LogEntry.query.get_or_404(entry_id)
     db.session.delete(entry)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"deleted": True}), HTTPStatus.OK
 
 
@@ -111,7 +112,8 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     )
     entry.created_at = entry_ts  # type: ignore[assignment]
     db.session.add(entry)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(entry.to_dict()), HTTPStatus.CREATED
 
 
@@ -201,7 +203,8 @@ def update_basal_rate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         )
         db.session.add(log_entry)
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"rate": entry.rate, "unit": entry.unit}), HTTPStatus.CREATED
 
 
@@ -291,7 +294,8 @@ def update_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         )
         db.session.add(log_entry)
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"factor": entry.factor, "unit": entry.unit}), HTTPStatus.CREATED
 
 

@@ -9,6 +9,7 @@ from bgmon_api.auth_utils import get_current_user
 from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import GlobalSettings, Threshold, User, UserRole
+from bgmon_api.utils import transactional_session
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")
 
@@ -39,8 +40,8 @@ def get_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     settings = GlobalSettings.query.first()
     if not settings:
         settings = GlobalSettings(insulin_action_hours=4.0)
-        db.session.add(settings)
-        db.session.commit()
+        with transactional_session():
+            db.session.add(settings)
 
     return jsonify(settings.to_dict())
 
@@ -84,7 +85,8 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     if correction_factor is not None:
         settings.correction_factor = float(correction_factor)
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(settings.to_dict())
 
 
@@ -103,8 +105,8 @@ def get_thresholds() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             high=180.0,
             critical_high=250.0,
         )
-        db.session.add(threshold)
-        db.session.commit()
+        with transactional_session():
+            db.session.add(threshold)
 
     return jsonify(threshold.to_dict())
 
@@ -136,7 +138,8 @@ def update_thresholds() -> FlaskResponse | tuple[FlaskResponse, int]:
     if threshold.high >= threshold.critical_high:
         return jsonify({"error": "high must be < critical_high"}), HTTPStatus.BAD_REQUEST
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(threshold.to_dict())
 
 
@@ -166,7 +169,8 @@ def change_password() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         )
 
     user.set_password(new_password)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"message": "password changed"})
 
 
@@ -190,7 +194,8 @@ def update_email() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         return jsonify({"error": "email already in use"}), HTTPStatus.CONFLICT
 
     user.email = new_email
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"email": user.email})
 
 
@@ -234,7 +239,8 @@ def update_twilio() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if new_phone is not None:
         user.phone_number = new_phone
     user.twilio_from_number = from_number
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({
         "from_number": user.twilio_from_number,
         "phone_number": user.phone_number,
@@ -289,7 +295,8 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             unit="",
             notes=note,
         ))
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
 
         return jsonify({
             "message": "Test call initiated",
@@ -307,5 +314,6 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             unit="",
             notes=note,
         ))
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
         return jsonify({"error": f"Twilio call failed: {exc}"}), HTTPStatus.SERVICE_UNAVAILABLE

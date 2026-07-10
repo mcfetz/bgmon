@@ -9,6 +9,7 @@ from twilio.rest import Client
 from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import Alarm, LogEntry, LogEntryType, TwilioCallLog, User, UserRole
+from bgmon_api.utils import transactional_session
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,8 @@ def _log_call(user: User, to_number: str, status: str, title: str, sgv: int | No
         notes=note,
     )
     db.session.add(entry)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
 
 
 def _log_call_error(
@@ -101,7 +103,8 @@ def place_call(user: User, sgv: int | None, title: str) -> bool:  # noqa: PLR091
         )
         db.session.add(log)
         _log_call(user, user.phone_number, call_status, title, sgv)
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
 
         logger.info("Twilio call initiated to %s for user %d", user.phone_number, user.id)
         return True

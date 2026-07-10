@@ -8,6 +8,7 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import Shift, UserRole
+from bgmon_api.utils import transactional_session
 
 shifts_bp = Blueprint("shifts", __name__)
 
@@ -52,11 +53,13 @@ def start_shift() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
         existing.active = False
         existing.ended_at = datetime.now(UTC)
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
 
     shift = Shift(user_id=user.id, active=True)
     db.session.add(shift)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
 
     return jsonify({
         "status": "started",
@@ -82,7 +85,8 @@ def end_shift() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     active.active = False
     active.ended_at = datetime.now(UTC)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
 
     return jsonify({"status": "ended"})
 

@@ -9,6 +9,7 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import Alarm, PushSubscription, User, UserRole
+from bgmon_api.utils import transactional_session
 
 alarms_bp = Blueprint("alarms", __name__)
 
@@ -55,7 +56,8 @@ def acknowledge_alarm(alarm_id: int) -> FlaskResponse | tuple[FlaskResponse, HTT
     from datetime import datetime
 
     alarm.acknowledged_at = datetime.now(UTC)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"status": "acknowledged"})
 
 
@@ -85,7 +87,8 @@ def subscribe_push() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         auth_key=auth,
     )
     db.session.add(sub)
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify({"status": "subscribed"}), HTTPStatus.CREATED
 
 
@@ -105,7 +108,8 @@ def unsubscribe_push() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     if sub:
         db.session.delete(sub)
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
         return jsonify({"status": "unsubscribed"})
 
     return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND

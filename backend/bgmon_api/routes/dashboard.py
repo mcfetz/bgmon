@@ -21,7 +21,7 @@ from bgmon_api.models import (
     User,
     UserRole,
 )
-from bgmon_api.utils import compute_glucose_stats, parse_iso_datetime
+from bgmon_api.utils import compute_glucose_stats, parse_iso_datetime, transactional_session
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -705,7 +705,8 @@ def check_and_log_streak() -> None:
     if longest_q > settings.best_streak_hours and record_achieved_at is not None:
         settings.best_streak_hours = longest_q
         settings.best_streak_achieved_at = record_achieved_at
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
 
         note = f"Neuer Rekord-Streak: {longest_q * 15} Min. im grünen Bereich!"
         entry = LogEntry(
@@ -715,7 +716,8 @@ def check_and_log_streak() -> None:
             unit="",
             notes=note,
         )
-        db.session.add(entry)
-        db.session.commit()
+        with transactional_session():
+            db.session.add(entry)
     else:
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager

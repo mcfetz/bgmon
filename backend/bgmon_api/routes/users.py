@@ -9,6 +9,7 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import admin_required, get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import NightProfile, SnoozePreset, Threshold, User, UserRole
+from bgmon_api.utils import transactional_session
 
 users_bp = Blueprint("users", __name__)
 
@@ -85,7 +86,8 @@ def create_user() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         ("60 min", 60),
     ]:
         db.session.add(SnoozePreset(user_id=new_user.id, label=label, duration_minutes=mins))
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
 
     return jsonify(new_user.to_dict()), HTTPStatus.CREATED
 
@@ -115,7 +117,8 @@ def update_user(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus
         with contextlib.suppress(ValueError):
             target.role = UserRole(data["role"])
 
-    db.session.commit()
+    with transactional_session():
+        pass  # commit handled by context manager
     return jsonify(target.to_dict())
 
 
@@ -146,7 +149,8 @@ def thresholds(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
             th.high = float(data["high"])
         if "critical_high" in data:
             th.critical_high = float(data["critical_high"])
-        db.session.commit()
+        with transactional_session():
+            pass  # commit handled by context manager
 
     return jsonify(th.to_dict())
 
