@@ -1,6 +1,7 @@
 """Twilio phone call service for critical alarm escalation."""
 
 import logging
+import time
 
 from sqlalchemy.exc import SQLAlchemyError
 from twilio.base.exceptions import TwilioRestException
@@ -53,10 +54,11 @@ def _log_call_error(
         logger.error("Failed to log Twilio call error for user %d", user.id)
 
 
-def place_call(user: User, sgv: int | None, title: str) -> bool:  # noqa: PLR0911
-    """Place a Twilio voice call to a user with current BG value.
+def place_call(user: User, sgv: int | None, title: str) -> bool:
+    """Place a Twilio voice call with retry on failure.
 
-    Returns True if the call was initiated successfully.
+    Retries up to TWILIO_RETRY_COUNT times with TWILIO_RETRY_DELAY_S
+    seconds between attempts. Returns True on first successful call.
     """
     client = _get_client()
     if client is None:
@@ -87,40 +89,65 @@ def place_call(user: User, sgv: int | None, title: str) -> bool:  # noqa: PLR091
         "</Say></Response>"
     )
 
-    try:
-        call = client.calls.create(
-            to=user.phone_number,
-            from_=from_number,
-            twiml=twiml,
-        )
+    max_retries = Config.TWILIO_RETRY_COUNT
+    delay = Config.TWILIO_RETRY_DELAY_S
 
-        call_status = str(call.status) if call.status else "unknown"
-        log = TwilioCallLog(
-            alarm_id=None,
-            to_number=user.phone_number,
-            status=call_status,
-            twilio_sid=call.sid,
-        )
-        db.session.add(log)
-        _log_call(user, user.phone_number, call_status, title, sgv)
-        with transactional_session():
-            pass  # commit handled by context manager
+    for attempt in range(1, max_retries + 1):
+        try:
+            call = client.calls.create(
+                to=user.phone_number,
+                from_=from_number,
+                twiml=twiml,
+            )
 
-        logger.info("Twilio call initiated to %s for user %d", user.phone_number, user.id)
-        return True
-    except (TwilioRestException, SQLAlchemyError) as exc:
-        error_type = type(exc).__name__
-        logger.error("Error in Twilio call for user %d (%s): %s", user.id, error_type, exc)
-        log = TwilioCallLog(alarm_id=None, to_number=user.phone_number, status="failed")
-        db.session.add(log)
-        _log_call_error(user, user.phone_number, "failed", title, sgv)
-        return False
-    except Exception as exc:
-        logger.error("Unexpected error in Twilio call for user %d: %s", user.id, exc, exc_info=True)
-        log = TwilioCallLog(alarm_id=None, to_number=user.phone_number, status="failed")
-        db.session.add(log)
-        _log_call_error(user, user.phone_number, "failed", title, sgv)
-        return False
+            call_status = str(call.status) if call.status else "unknown"
+            log = TwilioCallLog(
+                alarm_id=None,
+                to_number=user.phone_number,
+                status=call_status,
+                twilio_sid=call.sid,
+                retry_count=attempt - 1,
+            )
+            db.session.add(log)
+            _log_call(user, user.phone_number, call_status, title, sgv)
+            with transactional_session():
+                pass
+
+            logger.info(
+                "Twilio call %d/%d to %s (user %d) — %s",
+                attempt, max_retries, user.phone_number, user.id, call_status,
+            )
+            return True
+
+        except (TwilioRestException, SQLAlchemyError) as exc:
+            logger.error(
+                "Twilio call attempt %d/%d for user %d failed (%s): %s",
+                attempt, max_retries, user.id, type(exc).__name__, exc,
+            )
+            if attempt == max_retries:
+                log = TwilioCallLog(
+                    alarm_id=None, to_number=user.phone_number, status="failed",
+                    retry_count=attempt,
+                )
+                db.session.add(log)
+                _log_call_error(user, user.phone_number, "failed", title, sgv)
+                return False
+            logger.info("Retrying in %ds...", delay)
+            time.sleep(delay)
+
+        except Exception as exc:
+            logger.error(
+                "Unexpected error in Twilio call for user %d: %s", user.id, exc, exc_info=True,
+            )
+            log = TwilioCallLog(
+                alarm_id=None, to_number=user.phone_number, status="failed",
+                retry_count=attempt,
+            )
+            db.session.add(log)
+            _log_call_error(user, user.phone_number, "failed", title, sgv)
+            return False
+
+    return False
 
 
 def call_observer_for_alarm(alarm_id: int, observer_id: int) -> bool:
