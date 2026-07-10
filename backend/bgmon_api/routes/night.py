@@ -8,7 +8,6 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import NightProfile, Shift, User, UserRole
-from bgmon_api.utils import transactional
 
 night_bp = Blueprint("night", __name__)
 
@@ -18,7 +17,6 @@ def _get_patient() -> User | None:
 
 
 @night_bp.route("/profile", methods=["GET"])
-@transactional
 def get_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -30,15 +28,14 @@ def get_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     profile = NightProfile.query.filter_by(user_id=patient.id).first()
     if not profile:
-        profile = NightProfile()
-        profile.user_id = patient.id
+        profile = NightProfile(user_id=patient.id)
         db.session.add(profile)
+        db.session.commit()
 
     return jsonify(profile.to_dict())
 
 
 @night_bp.route("/profile", methods=["POST"])
-@transactional
 def update_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -50,8 +47,7 @@ def update_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     profile = NightProfile.query.filter_by(user_id=patient.id).first()
     if not profile:
-        profile = NightProfile()
-        profile.user_id = patient.id
+        profile = NightProfile(user_id=patient.id)
         db.session.add(profile)
 
     data = request.get_json(silent=True) or {}
@@ -62,11 +58,11 @@ def update_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if "end_time" in data:
         profile.end_time = data["end_time"]
 
+    db.session.commit()
     return jsonify(profile.to_dict())
 
 
 @night_bp.route("/webhook/<token>", methods=["POST"])
-@transactional
 def webhook_activate(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     """Secret webhook to activate night mode for the on-call observer."""
     profile = NightProfile.query.filter_by(webhook_token=token).first()
@@ -79,6 +75,7 @@ def webhook_activate(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
         return jsonify({"error": "no active shift"}), HTTPStatus.BAD_REQUEST
 
     profile.enabled = True
+    db.session.commit()
 
     from bgmon_api.services.web_push import send_push_to_user
 

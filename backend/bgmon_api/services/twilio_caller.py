@@ -9,7 +9,6 @@ from twilio.rest import Client
 from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import Alarm, LogEntry, LogEntryType, TwilioCallLog, User, UserRole
-from bgmon_api.utils import transactional_session
 
 logger = logging.getLogger(__name__)
 
@@ -22,22 +21,23 @@ def _get_client() -> Client | None:
 
 def _log_call(user: User, to_number: str, status: str, title: str, sgv: int | None) -> None:
     """Log a Twilio call attempt in the patient's logbook."""
-    with transactional_session():
-        patient = User.query.filter_by(role=UserRole.PATIENT).first()
-        if not patient:
-            return
-        sgv_str = f"{sgv} mg/dL" if sgv is not None else "keine Daten"
-        note = (
-            f"Twilio Anruf an {user.display_name} ({to_number}). "
-            f"Status: {status}. Alarm: {title}. {sgv_str}."
-        )
-        entry = LogEntry()
-        entry.user_id = patient.id
-        entry.entry_type = LogEntryType.ALARM
-        entry.value = 0
-        entry.unit = ""
-        entry.notes = note
-        db.session.add(entry)
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if not patient:
+        return
+    sgv_str = f"{sgv} mg/dL" if sgv is not None else "keine Daten"
+    note = (
+        f"Twilio Anruf an {user.display_name} ({to_number}). "
+        f"Status: {status}. Alarm: {title}. {sgv_str}."
+    )
+    entry = LogEntry(
+        user_id=patient.id,
+        entry_type=LogEntryType.ALARM,
+        value=0,
+        unit="",
+        notes=note,
+    )
+    db.session.add(entry)
+    db.session.commit()
 
 
 def _log_call_error(
@@ -93,33 +93,28 @@ def place_call(user: User, sgv: int | None, title: str) -> bool:  # noqa: PLR091
         )
 
         call_status = str(call.status) if call.status else "unknown"
-        with transactional_session():
-            log = TwilioCallLog()
-            log.alarm_id = None
-            log.to_number = user.phone_number
-            log.status = call_status
-            log.twilio_sid = call.sid
-            db.session.add(log)
-            _log_call(user, user.phone_number, call_status, title, sgv)
+        log = TwilioCallLog(
+            alarm_id=None,
+            to_number=user.phone_number,
+            status=call_status,
+            twilio_sid=call.sid,
+        )
+        db.session.add(log)
+        _log_call(user, user.phone_number, call_status, title, sgv)
+        db.session.commit()
 
         logger.info("Twilio call initiated to %s for user %d", user.phone_number, user.id)
         return True
     except (TwilioRestException, SQLAlchemyError) as exc:
         error_type = type(exc).__name__
         logger.error("Error in Twilio call for user %d (%s): %s", user.id, error_type, exc)
-        log = TwilioCallLog()
-        log.alarm_id = None
-        log.to_number = user.phone_number
-        log.status = "failed"
+        log = TwilioCallLog(alarm_id=None, to_number=user.phone_number, status="failed")
         db.session.add(log)
         _log_call_error(user, user.phone_number, "failed", title, sgv)
         return False
     except Exception as exc:
         logger.error("Unexpected error in Twilio call for user %d: %s", user.id, exc, exc_info=True)
-        log = TwilioCallLog()
-        log.alarm_id = None
-        log.to_number = user.phone_number
-        log.status = "failed"
+        log = TwilioCallLog(alarm_id=None, to_number=user.phone_number, status="failed")
         db.session.add(log)
         _log_call_error(user, user.phone_number, "failed", title, sgv)
         return False

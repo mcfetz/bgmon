@@ -9,7 +9,6 @@ from bgmon_api.auth_utils import get_current_user
 from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import GlobalSettings, Threshold, User, UserRole
-from bgmon_api.utils import transactional
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")
 
@@ -32,7 +31,6 @@ def reload_libre_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @settings_bp.route("/global", methods=["GET"])
-@transactional
 def get_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -40,15 +38,14 @@ def get_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     settings = GlobalSettings.query.first()
     if not settings:
-        settings = GlobalSettings()
-        settings.insulin_action_hours = 4.0
+        settings = GlobalSettings(insulin_action_hours=4.0)
         db.session.add(settings)
+        db.session.commit()
 
     return jsonify(settings.to_dict())
 
 
 @settings_bp.route("/global", methods=["POST"])
-@transactional
 def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -87,11 +84,11 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     if correction_factor is not None:
         settings.correction_factor = float(correction_factor)
 
+    db.session.commit()
     return jsonify(settings.to_dict())
 
 
 @settings_bp.route("/thresholds", methods=["GET"])
-@transactional
 def get_thresholds() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -99,19 +96,20 @@ def get_thresholds() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     threshold = Threshold.query.filter_by(user_id=user.id).first()
     if not threshold:
-        threshold = Threshold()
-        threshold.user_id = user.id
-        threshold.critical_low = 54.0
-        threshold.low = 70.0
-        threshold.high = 180.0
-        threshold.critical_high = 250.0
+        threshold = Threshold(
+            user_id=user.id,
+            critical_low=54.0,
+            low=70.0,
+            high=180.0,
+            critical_high=250.0,
+        )
         db.session.add(threshold)
+        db.session.commit()
 
     return jsonify(threshold.to_dict())
 
 
 @settings_bp.route("/thresholds", methods=["POST"])
-@transactional
 def update_thresholds() -> FlaskResponse | tuple[FlaskResponse, int]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -121,8 +119,7 @@ def update_thresholds() -> FlaskResponse | tuple[FlaskResponse, int]:
 
     threshold = Threshold.query.filter_by(user_id=user.id).first()
     if not threshold:
-        threshold = Threshold()
-        threshold.user_id = user.id
+        threshold = Threshold(user_id=user.id)
         db.session.add(threshold)
 
     for field in ["critical_low", "low", "high", "critical_high"]:
@@ -139,11 +136,11 @@ def update_thresholds() -> FlaskResponse | tuple[FlaskResponse, int]:
     if threshold.high >= threshold.critical_high:
         return jsonify({"error": "high must be < critical_high"}), HTTPStatus.BAD_REQUEST
 
+    db.session.commit()
     return jsonify(threshold.to_dict())
 
 
 @settings_bp.route("/password", methods=["POST"])
-@transactional
 def change_password() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -169,11 +166,11 @@ def change_password() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         )
 
     user.set_password(new_password)
+    db.session.commit()
     return jsonify({"message": "password changed"})
 
 
 @settings_bp.route("/email", methods=["POST"])
-@transactional
 def update_email() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -193,6 +190,7 @@ def update_email() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         return jsonify({"error": "email already in use"}), HTTPStatus.CONFLICT
 
     user.email = new_email
+    db.session.commit()
     return jsonify({"email": user.email})
 
 
@@ -210,7 +208,6 @@ def get_twilio_numbers() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @settings_bp.route("/twilio", methods=["POST"])
-@transactional
 def update_twilio() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -237,6 +234,7 @@ def update_twilio() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if new_phone is not None:
         user.phone_number = new_phone
     user.twilio_from_number = from_number
+    db.session.commit()
     return jsonify({
         "from_number": user.twilio_from_number,
         "phone_number": user.phone_number,
@@ -244,7 +242,6 @@ def update_twilio() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @settings_bp.route("/twilio/test", methods=["POST"])
-@transactional
 def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -285,13 +282,14 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             f"Testanruf an {user.display_name} ({user.email}) via Twilio: "
             f"from={from_number} to={user.phone_number}, status={call.status}"
         )
-        log_entry = LogEntry()
-        log_entry.user_id = user.id
-        log_entry.entry_type = LogEntryType.ALARM
-        log_entry.value = 0
-        log_entry.unit = ""
-        log_entry.notes = note
-        db.session.add(log_entry)
+        db.session.add(LogEntry(
+            user_id=user.id,
+            entry_type=LogEntryType.ALARM,
+            value=0,
+            unit="",
+            notes=note,
+        ))
+        db.session.commit()
 
         return jsonify({
             "message": "Test call initiated",
@@ -302,11 +300,12 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     except Exception as exc:
         from bgmon_api.models import LogEntry, LogEntryType
         note = f"Testanruf an {user.display_name} ({user.email}) via Twilio FEHLGESCHLAGEN: {exc}"
-        log_entry = LogEntry()
-        log_entry.user_id = user.id
-        log_entry.entry_type = LogEntryType.ALARM
-        log_entry.value = 0
-        log_entry.unit = ""
-        log_entry.notes = note
-        db.session.add(log_entry)
+        db.session.add(LogEntry(
+            user_id=user.id,
+            entry_type=LogEntryType.ALARM,
+            value=0,
+            unit="",
+            notes=note,
+        ))
+        db.session.commit()
         return jsonify({"error": f"Twilio call failed: {exc}"}), HTTPStatus.SERVICE_UNAVAILABLE

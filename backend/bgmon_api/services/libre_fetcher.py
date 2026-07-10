@@ -13,7 +13,6 @@ from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import GlucoseReading
 from bgmon_api.services.influx_writer import write_glucose_to_influx
-from bgmon_api.utils import transactional_session
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +232,6 @@ def _store_historical_data(graph_data: list[dict]) -> int:
     )
 
     written = 0
-    readings_to_add: list[GlucoseReading] = []
     for ts, value, trend_arrow in to_write:
         trend_num, direction = _TREND_MAP.get(trend_arrow, (4, "Flat"))
         date_string = str(int(ts.timestamp() * 1_000_000_000))
@@ -249,41 +247,23 @@ def _store_historical_data(graph_data: list[dict]) -> int:
         if not influx_ok:
             logger.warning("Historical: InfluxDB write failed for ts=%s, continuing with PG", ts)
 
-        reading = GlucoseReading()
-        reading.timestamp = ts
-        reading.sgv = value
-        reading.trend = trend_num
-        reading.direction = direction
-        reading.source = "librelinkup"
-        readings_to_add.append(reading)
-
-    try:
-        with transactional_session():
-            db.session.add_all(readings_to_add)
-        written = len(readings_to_add)
-    except IntegrityError:
-        logger.warning(
-            "Historical: duplicate timestamp detected during batch insert, retrying individually"
-        )
-        for reading in readings_to_add:
-            try:
-                with transactional_session():
-                    db.session.add(reading)
-                written += 1
-            except IntegrityError:
-                logger.warning(
-                    "Historical: duplicate timestamp %s (sgv=%s), skipping",
-                    reading.timestamp,
-                    reading.sgv,
-                )
-            except Exception as exc:
-                logger.error(
-                    "Historical: failed to write reading at %s: %s",
-                    reading.timestamp,
-                    exc,
-                )
-    except Exception as exc:
-        logger.error("Historical: failed batch write for %d entries: %s", len(readings_to_add), exc)
+        try:
+            reading = GlucoseReading(
+                timestamp=ts,
+                sgv=value,
+                trend=trend_num,
+                direction=direction,
+                source="librelinkup",
+            )
+            db.session.add(reading)
+            db.session.commit()
+            written += 1
+        except IntegrityError:
+            db.session.rollback()
+            logger.warning("Historical: duplicate timestamp %s (sgv=%s), skipping", ts, value)
+        except Exception as exc:
+            db.session.rollback()
+            logger.error("Historical: failed to write reading at %s: %s", ts, exc)
 
     logger.info(
         "Historical: wrote %d/%d new entries to InfluxDB + PostgreSQL",
@@ -358,7 +338,6 @@ def fetch_and_store(fetch_history: bool = False) -> None:
 
         try:
             from sqlalchemy.dialects.postgresql import insert as pg_insert
-
             stmt = pg_insert(GlucoseReading).values(
                 timestamp=ts,
                 sgv=measurement["sgv"],
@@ -374,9 +353,10 @@ def fetch_and_store(fetch_history: bool = False) -> None:
                     "source": "librelinkup",
                 },
             )
-            with transactional_session():
-                db.session.execute(stmt)
+            db.session.execute(stmt)
+            db.session.commit()
         except Exception:
+            db.session.rollback()
             logger.warning(
                 "Failed to upsert current reading at %s (sgv=%s)",
                 ts, measurement["sgv"],

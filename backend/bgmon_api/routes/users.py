@@ -9,7 +9,6 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import admin_required, get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import NightProfile, SnoozePreset, Threshold, User, UserRole
-from bgmon_api.utils import transactional
 
 users_bp = Blueprint("users", __name__)
 
@@ -48,7 +47,6 @@ def get_user(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @users_bp.route("", methods=["POST"])
-@transactional
 def create_user() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     current = get_current_user()
     if isinstance(current, tuple):
@@ -67,21 +65,17 @@ def create_user() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     except ValueError:
         role = UserRole.OBSERVER
 
-    new_user = User()
-    new_user.email = email
-    new_user.display_name = data.get("display_name", email.split("@")[0])
-    new_user.role = role
+    new_user = User(
+        email=email,
+        display_name=data.get("display_name", email.split("@")[0]),
+        role=role,
+    )
     new_user.set_password(data.get("password", "changeme"))
     db.session.add(new_user)
     db.session.flush()
 
-    threshold = Threshold()
-    threshold.user_id = new_user.id
-    db.session.add(threshold)
-
-    night_profile = NightProfile()
-    night_profile.user_id = new_user.id
-    db.session.add(night_profile)
+    db.session.add(Threshold(user_id=new_user.id))
+    db.session.add(NightProfile(user_id=new_user.id))
     for label, mins in [
         ("5 min", 5),
         ("10 min", 10),
@@ -90,17 +84,13 @@ def create_user() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         ("30 min", 30),
         ("60 min", 60),
     ]:
-        preset = SnoozePreset()
-        preset.user_id = new_user.id
-        preset.label = label
-        preset.duration_minutes = mins
-        db.session.add(preset)
+        db.session.add(SnoozePreset(user_id=new_user.id, label=label, duration_minutes=mins))
+    db.session.commit()
 
     return jsonify(new_user.to_dict()), HTTPStatus.CREATED
 
 
 @users_bp.route("/<int:user_id>", methods=["PUT"])
-@transactional
 def update_user(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     current = get_current_user()
     if isinstance(current, tuple):
@@ -125,11 +115,11 @@ def update_user(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus
         with contextlib.suppress(ValueError):
             target.role = UserRole(data["role"])
 
+    db.session.commit()
     return jsonify(target.to_dict())
 
 
 @users_bp.route("/<int:user_id>/thresholds", methods=["GET", "PUT"])
-@transactional
 def thresholds(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     current = get_current_user()
     if isinstance(current, tuple):
@@ -143,8 +133,7 @@ def thresholds(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
 
     th = Threshold.query.filter_by(user_id=user_id).first()
     if not th:
-        th = Threshold()
-        th.user_id = user_id
+        th = Threshold(user_id=user_id)
         db.session.add(th)
 
     if request.method == "PUT":
@@ -157,6 +146,7 @@ def thresholds(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
             th.high = float(data["high"])
         if "critical_high" in data:
             th.critical_high = float(data["critical_high"])
+        db.session.commit()
 
     return jsonify(th.to_dict())
 

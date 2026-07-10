@@ -21,7 +21,7 @@ from bgmon_api.models import (
     User,
     UserRole,
 )
-from bgmon_api.utils import compute_glucose_stats, parse_iso_datetime, transactional_session
+from bgmon_api.utils import compute_glucose_stats, parse_iso_datetime
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -682,36 +682,40 @@ def check_and_log_streak() -> None:
     from bgmon_api.extensions import db
     from bgmon_api.models import LogEntry, LogEntryType, User, UserRole
 
-    with transactional_session():
-        patient = User.query.filter_by(role=UserRole.PATIENT).first()
-        if not patient:
-            return
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if not patient:
+        return
 
-        threshold = db.session.execute(
-            db.select(Threshold).where(Threshold.user_id == patient.id)
-        ).scalar_one_or_none()
-        if not threshold:
-            return
-        low = int(threshold.low)
-        high = int(threshold.high)
+    threshold = db.session.execute(
+        db.select(Threshold).where(Threshold.user_id == patient.id)
+    ).scalar_one_or_none()
+    if not threshold:
+        return
+    low = int(threshold.low)
+    high = int(threshold.high)
 
-        settings = GlobalSettings.query.first()
-        if not settings:
-            return
+    settings = GlobalSettings.query.first()
+    if not settings:
+        return
 
-        current_streak_start, longest_q, record_achieved_at = _analyze_streaks(low, high)
+    current_streak_start, longest_q, record_achieved_at = _analyze_streaks(low, high)
 
-        settings.streak_started_at = current_streak_start
+    settings.streak_started_at = current_streak_start
 
-        if longest_q > settings.best_streak_hours and record_achieved_at is not None:
-            settings.best_streak_hours = longest_q
-            settings.best_streak_achieved_at = record_achieved_at
+    if longest_q > settings.best_streak_hours and record_achieved_at is not None:
+        settings.best_streak_hours = longest_q
+        settings.best_streak_achieved_at = record_achieved_at
+        db.session.commit()
 
-            note = f"Neuer Rekord-Streak: {longest_q * 15} Min. im grünen Bereich!"
-            entry = LogEntry()
-            entry.user_id = patient.id
-            entry.entry_type = LogEntryType.SUCCESS
-            entry.value = 0
-            entry.unit = ""
-            entry.notes = note
-            db.session.add(entry)
+        note = f"Neuer Rekord-Streak: {longest_q * 15} Min. im grünen Bereich!"
+        entry = LogEntry(
+            user_id=patient.id,
+            entry_type=LogEntryType.SUCCESS,
+            value=0,
+            unit="",
+            notes=note,
+        )
+        db.session.add(entry)
+        db.session.commit()
+    else:
+        db.session.commit()
