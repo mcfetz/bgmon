@@ -51,6 +51,7 @@ jobs:
         env:
           BGMON_DATABASE_URL: postgresql://bgmon:bgmon@localhost:5432/bgmon_test
           BGMON_SECRET_KEY: test-secret
+          BGMON_DISABLE_SCHEDULER: "true"
         run: flask --app bgmon_api.app db upgrade
 
       - name: Run backend tests
