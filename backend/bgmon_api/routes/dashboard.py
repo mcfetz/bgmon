@@ -21,6 +21,7 @@ from bgmon_api.models import (
     User,
     UserRole,
 )
+from bgmon_api.utils import compute_glucose_stats, parse_iso_datetime
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -57,8 +58,8 @@ def history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if start and end:
         from datetime import datetime
         try:
-            start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
-            end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+            start_dt = parse_iso_datetime(start)
+            end_dt = parse_iso_datetime(end)
         except ValueError:
             return jsonify({"error": "invalid date format"}), HTTPStatus.BAD_REQUEST
 
@@ -107,8 +108,8 @@ def logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if start and end:
         from datetime import datetime
         try:
-            start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
-            end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+            start_dt = parse_iso_datetime(start)
+            end_dt = parse_iso_datetime(end)
         except ValueError:
             return jsonify({"error": "invalid date format"}), HTTPStatus.BAD_REQUEST
 
@@ -485,8 +486,8 @@ def stats() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     if start and end:
         try:
-            start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
-            end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+            start_dt = parse_iso_datetime(start)
+            end_dt = parse_iso_datetime(end)
         except ValueError:
             return jsonify({"error": "invalid date format"}), HTTPStatus.BAD_REQUEST
 
@@ -507,29 +508,9 @@ def stats() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         )
 
     values = [r.sgv for r in readings if r.sgv is not None]
-    data: dict[str, Any]
-    if not values:
-        data = {
-            "mean": None,
-            "tir_percent": None,
-            "tir_below": None,
-            "tir_above": None,
-            "gmi": None,
-            "std_dev": None,
-            "readings": 0,
-            "min": None,
-            "max": None,
-        }
-    else:
-        n = len(values)
-        mean = sum(values) / n
-        variance = sum((v - mean) ** 2 for v in values) / n
-        std_dev = variance**0.5
-        gmi = 46.7 + mean / 1.594
-        tir_below = sum(1 for v in values if v < 70)
-        tir_above = sum(1 for v in values if v > 180)
-        tir_in_range = n - tir_below - tir_above
+    data: dict[str, Any] = compute_glucose_stats(values)
 
+    if values:
         streak_hours = 0
         best_streak_hours = 0
         best_streak_achieved_at = None
@@ -554,21 +535,10 @@ def stats() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
                 sts = sts.replace(tzinfo=UTC)
             streak_started_at_iso = sts.isoformat()
 
-        data = {
-            "mean": round(mean, 1),
-            "tir_percent": round(tir_in_range / n * 100, 1),
-            "tir_below": round(tir_below / n * 100, 1),
-            "tir_above": round(tir_above / n * 100, 1),
-            "gmi": round(gmi, 1),
-            "std_dev": round(std_dev, 1),
-            "streak_hours": streak_hours,
-            "streak_started_at": streak_started_at_iso,
-            "best_streak_hours": best_streak_hours,
-            "best_streak_achieved_at": best_streak_achieved_at,
-            "readings": n,
-            "min": min(values),
-            "max": max(values),
-        }
+        data["streak_hours"] = streak_hours
+        data["streak_started_at"] = streak_started_at_iso
+        data["best_streak_hours"] = best_streak_hours
+        data["best_streak_achieved_at"] = best_streak_achieved_at
 
     from datetime import date as date_cls
 
@@ -657,7 +627,7 @@ def _analyze_streaks(low: int, high: int) -> tuple[datetime | None, int, datetim
         ts = (
             r.timestamp
             if isinstance(r.timestamp, datetime)
-            else datetime.fromisoformat(r.timestamp)
+            else parse_iso_datetime(r.timestamp)
         )
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=from_zone)

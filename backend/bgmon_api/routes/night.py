@@ -5,8 +5,8 @@ from http import HTTPStatus
 from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
 
-from bgmon_api.app import db
 from bgmon_api.auth_utils import get_current_user
+from bgmon_api.extensions import db
 from bgmon_api.models import NightProfile, Shift, User, UserRole
 
 night_bp = Blueprint("night", __name__)

@@ -1,5 +1,6 @@
 """Thread tracing — logs thread count and names before/after scheduler jobs."""
 
+import contextlib
 import logging
 import os
 import threading
@@ -67,10 +68,8 @@ def start_periodic_snapshot(interval_s: int = 300) -> None:
     def _loop() -> None:
         while True:
             time.sleep(interval_s)
-            try:
+            with contextlib.suppress(Exception):
                 snapshot("(periodic)", "snapshot")
-            except Exception:
-                pass
 
     t = threading.Thread(target=_loop, daemon=True, name="thread-tracer")
     t.start()

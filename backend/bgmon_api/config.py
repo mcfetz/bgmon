@@ -15,11 +15,20 @@ def _get_bool(name: str, default: bool = False) -> bool:
 class Config:
     """Flask application configuration."""
 
-    SECRET_KEY = os.getenv("BGMON_SECRET_KEY", "dev-secret-key")
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "BGMON_DATABASE_URL",
-        "postgresql://bgmon:bgmon@localhost:5432/bgmon",
-    )
+    _secret = os.getenv("BGMON_SECRET_KEY")
+    if not _secret:
+        import sys
+        if "pytest" not in sys.modules:
+            raise RuntimeError("BGMON_SECRET_KEY must be set in production")
+        _secret = "test-secret-key"
+    SECRET_KEY = _secret
+    _db_url = os.getenv("BGMON_DATABASE_URL")
+    if not _db_url:
+        import sys
+        if "pytest" not in sys.modules:
+            raise RuntimeError("BGMON_DATABASE_URL must be set")
+        _db_url = "postgresql://bgmon:bgmon@localhost:5432/bgmon_test"
+    SQLALCHEMY_DATABASE_URI = _db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_POOL_SIZE = 5
     SQLALCHEMY_MAX_OVERFLOW = 10

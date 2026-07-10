@@ -1,13 +1,12 @@
 """InfluxDB writer in legacy gluroo format."""
-
 import logging
-from datetime import datetime
 from typing import Any
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 from bgmon_api.config import Config
+from bgmon_api.utils import parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +57,7 @@ def write_glucose_to_influx(
                 ts_ns = int(date_string)
             except ValueError:
                 ts_ns = int(
-                    datetime.fromisoformat(date_string.replace("Z", "+00:00")).timestamp()
+                    parse_iso_datetime(date_string).timestamp()
                     * 1_000_000_000
                 )
 
@@ -75,7 +74,7 @@ def write_glucose_to_influx(
                 ts_ns = int(date_string)
             except ValueError:
                 ts_ns = int(
-                    datetime.fromisoformat(date_string.replace("Z", "+00:00")).timestamp()
+                    parse_iso_datetime(date_string).timestamp()
                     * 1_000_000_000
                 )
             point = (

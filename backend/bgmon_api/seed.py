@@ -2,8 +2,8 @@
 
 import logging
 
-from bgmon_api.app import db
 from bgmon_api.config import Config
+from bgmon_api.extensions import db
 from bgmon_api.models import SnoozePreset, Threshold, User, UserRole
 
 logger = logging.getLogger(__name__)

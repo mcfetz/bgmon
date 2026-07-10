@@ -6,6 +6,8 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from bgmon_api.extensions import db
 from bgmon_api.services.influx_reader import query_current_glucose as query_influx
 from bgmon_api.services.twilio_caller import place_call
@@ -58,6 +60,7 @@ def _query_current_glucose() -> dict | None:
     result = query_influx()
     if result is not None:
         return result
+    logger.warning("InfluxDB unavailable, falling back to PostgreSQL")
     try:
         from bgmon_api.models import GlucoseReading
         row = (
@@ -72,8 +75,10 @@ def _query_current_glucose() -> dict | None:
                 "direction": row.direction,
                 "timestamp": row.timestamp.isoformat() if row.timestamp else None,
             }
-    except Exception:
-        logger.exception("PostgreSQL fallback query failed")
+    except SQLAlchemyError as exc:
+        logger.exception("PostgreSQL fallback query failed: %s", exc)
+    except (AttributeError, ValueError) as exc:
+        logger.exception("Error processing glucose reading: %s", exc)
     return None
 
 
@@ -99,7 +104,11 @@ def evaluate_alarms() -> None:
         return
 
     for active in active_profiles:
-        _evaluate_for_user(active.user_id, sgv)
+        try:
+            _evaluate_for_user(active.user_id, sgv)
+        except Exception:
+            logger.exception("Error evaluating alarms for user %d", active.user_id)
+            db.session.rollback()
 
 
 def _evaluate_for_user(user_id: int, sgv: int) -> None:
@@ -261,6 +270,7 @@ def _dispatch_to_user(
     if threshold is None:
         if reason:
             _log_notification(user, reason, sgv)
+            _set_snooze(user_id, reason="no_data")
         return
 
     profile = m["NotificationProfile"].query.get(active.profile_id)
@@ -268,6 +278,10 @@ def _dispatch_to_user(
         logger.warning(
             "Active profile %d not found for user %d", active.profile_id, user_id
         )
+        return
+
+    if not profile.is_active:
+        logger.info("Profile '%s' (user %d) is deactivated, skipping", profile.name, user_id)
         return
 
     assignment = m["NotificationAssignment"].query.filter_by(

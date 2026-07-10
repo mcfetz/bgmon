@@ -9,8 +9,8 @@ import requests
 from dateutil import parser as date_parser
 from sqlalchemy.exc import IntegrityError
 
-from bgmon_api.app import db
 from bgmon_api.config import Config
+from bgmon_api.extensions import db
 from bgmon_api.models import GlucoseReading
 from bgmon_api.services.influx_writer import write_glucose_to_influx
 

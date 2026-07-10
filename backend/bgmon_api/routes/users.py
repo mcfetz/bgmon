@@ -6,18 +6,28 @@ from http import HTTPStatus
 from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
 
-from bgmon_api.app import db
 from bgmon_api.auth_utils import admin_required, get_current_user
+from bgmon_api.extensions import db
 from bgmon_api.models import NightProfile, SnoozePreset, Threshold, User, UserRole
 
 users_bp = Blueprint("users", __name__)
 
 
+def _require_owner_or_admin(current: User, user_id: int) -> tuple[dict, HTTPStatus] | None:
+    """Check that the current user owns the target resource or is an admin."""
+    if current.id == user_id:
+        return None
+    return admin_required(current)
+
+
 @users_bp.route("", methods=["GET"])
 def list_users() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
-    user = get_current_user()
-    if isinstance(user, tuple):
-        return jsonify(user[0]), user[1]
+    current = get_current_user()
+    if isinstance(current, tuple):
+        return jsonify(current[0]), current[1]
+    err = admin_required(current)
+    if err:
+        return jsonify(err[0]), err[1]
     users = User.query.order_by(User.display_name).all()
     return jsonify([u.to_dict() for u in users])
 
@@ -27,6 +37,9 @@ def get_user(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     current = get_current_user()
     if isinstance(current, tuple):
         return jsonify(current[0]), current[1]
+    err = _require_owner_or_admin(current, user_id)
+    if err:
+        return jsonify(err[0]), err[1]
     target = db.session.get(User, user_id)
     if not target:
         return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
@@ -111,6 +124,9 @@ def thresholds(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     current = get_current_user()
     if isinstance(current, tuple):
         return jsonify(current[0]), current[1]
+    err = _require_owner_or_admin(current, user_id)
+    if err:
+        return jsonify(err[0]), err[1]
     target = db.session.get(User, user_id)
     if not target:
         return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
@@ -140,6 +156,9 @@ def snooze_presets(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
     current = get_current_user()
     if isinstance(current, tuple):
         return jsonify(current[0]), current[1]
+    err = _require_owner_or_admin(current, user_id)
+    if err:
+        return jsonify(err[0]), err[1]
     presets = (
         SnoozePreset.query.filter_by(user_id=user_id).order_by(SnoozePreset.duration_minutes).all()
     )

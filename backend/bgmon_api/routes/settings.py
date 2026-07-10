@@ -5,9 +5,9 @@ from http import HTTPStatus
 from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
 
-from bgmon_api.app import db
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.config import Config
+from bgmon_api.extensions import db
 from bgmon_api.models import GlobalSettings, Threshold, User, UserRole
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")

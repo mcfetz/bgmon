@@ -9,6 +9,7 @@ from flask import Blueprint, jsonify
 from flask import Response as FlaskResponse
 
 from bgmon_api.models import FamilyDashboardToken, GlucoseReading
+from bgmon_api.utils import compute_glucose_stats
 
 family_bp = Blueprint("family", __name__)
 
@@ -44,38 +45,7 @@ def dashboard(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         .all()
     )
     values = [r.sgv for r in readings if r.sgv is not None]
-    if not values:
-        stats = {
-            "mean": None,
-            "tir_percent": None,
-            "tir_below": None,
-            "tir_above": None,
-            "gmi": None,
-            "std_dev": None,
-            "readings": 0,
-            "min": None,
-            "max": None,
-        }
-    else:
-        n = len(values)
-        mean = sum(values) / n
-        variance = sum((v - mean) ** 2 for v in values) / n
-        std_dev = variance**0.5
-        gmi = 46.7 + mean / 1.594
-        tir_below = sum(1 for v in values if v < 70)
-        tir_above = sum(1 for v in values if v > 180)
-        tir_in_range = n - tir_below - tir_above
-        stats = {
-            "mean": round(mean, 1),
-            "tir_percent": round(tir_in_range / n * 100, 1),
-            "tir_below": round(tir_below / n * 100, 1),
-            "tir_above": round(tir_above / n * 100, 1),
-            "gmi": round(gmi, 1),
-            "std_dev": round(std_dev, 1),
-            "readings": n,
-            "min": min(values),
-            "max": max(values),
-        }
+    stats = compute_glucose_stats(values)
 
     return jsonify({
         "current": current_data,

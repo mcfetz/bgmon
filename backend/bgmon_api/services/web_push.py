@@ -6,8 +6,8 @@ from urllib.parse import urlparse
 
 from pywebpush import WebPushException, webpush
 
-from bgmon_api.app import db
 from bgmon_api.config import Config
+from bgmon_api.extensions import db
 from bgmon_api.models import PushSubscription
 
 logger = logging.getLogger(__name__)

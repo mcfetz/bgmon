@@ -1,13 +1,12 @@
 """Patient logging blueprint — carbs, insulin, basal + history."""
-
 import contextlib
 from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
 
-from bgmon_api.app import db
 from bgmon_api.auth_utils import get_current_user
+from bgmon_api.extensions import db
 from bgmon_api.models import (
     BasalRateHistory,
     CarbFactorHistory,
@@ -16,6 +15,7 @@ from bgmon_api.models import (
     User,
     UserRole,
 )
+from bgmon_api.utils import parse_iso_datetime
 
 log_bp = Blueprint("log", __name__)
 
@@ -30,7 +30,6 @@ def list_logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if not patient:
         return jsonify({"error": "no patient found"}), HTTPStatus.NOT_FOUND
 
-    from datetime import datetime
     query = LogEntry.query.filter_by(user_id=patient.id)
 
     start = request.args.get("start")
@@ -38,12 +37,12 @@ def list_logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if start:
         with contextlib.suppress(ValueError):
             query = query.filter(
-                LogEntry.created_at >= datetime.fromisoformat(start.replace("Z", "+00:00"))
+                LogEntry.created_at >= parse_iso_datetime(start)
             )
     if end:
         with contextlib.suppress(ValueError):
             query = query.filter(
-                LogEntry.created_at <= datetime.fromisoformat(end.replace("Z", "+00:00"))
+                LogEntry.created_at <= parse_iso_datetime(end)
             )
 
     logs = query.order_by(LogEntry.created_at.desc()).limit(100).all()
@@ -85,7 +84,7 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     entry_ts = datetime.now(UTC)
     if ts_str:
         with contextlib.suppress(ValueError):
-            entry_ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            entry_ts = parse_iso_datetime(ts_str)
 
     # Basal: only one per day (Europe/Berlin)
     if entry_type == LogEntryType.BASAL:

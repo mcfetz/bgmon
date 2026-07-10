@@ -7,6 +7,7 @@ from influxdb_client import InfluxDBClient
 from influxdb_client.client.query_api import QueryApi
 
 from bgmon_api.config import Config
+from bgmon_api.utils import compute_glucose_stats
 
 logger = logging.getLogger(__name__)
 
@@ -152,36 +153,4 @@ def query_stats(range_key: str = "today") -> dict[str, Any]:
     readings = query_glucose_history(range_key)
     values = [r["sgv"] for r in readings if r.get("sgv") is not None]
 
-    if not values:
-        return {
-            "mean": None,
-            "tir_percent": None,
-            "tir_below": None,
-            "tir_above": None,
-            "gmi": None,
-            "std_dev": None,
-            "readings": 0,
-            "min": None,
-            "max": None,
-        }
-
-    n = len(values)
-    mean = sum(values) / n
-    variance = sum((v - mean) ** 2 for v in values) / n
-    std_dev = variance**0.5
-    gmi = 46.7 + mean / 1.594  # Nathan 2008
-    tir_below = sum(1 for v in values if v < 70)
-    tir_above = sum(1 for v in values if v > 180)
-    tir_in_range = n - tir_below - tir_above
-
-    return {
-        "mean": round(mean, 1),
-        "tir_percent": round(tir_in_range / n * 100, 1),
-        "tir_below": round(tir_below / n * 100, 1),
-        "tir_above": round(tir_above / n * 100, 1),
-        "gmi": round(gmi, 1),
-        "std_dev": round(std_dev, 1),
-        "readings": n,
-        "min": min(values),
-        "max": max(values),
-    }
+    return compute_glucose_stats(values)

@@ -6,9 +6,10 @@ from http import HTTPStatus
 from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
 
-from bgmon_api.app import db
 from bgmon_api.auth_utils import get_current_user
+from bgmon_api.extensions import db
 from bgmon_api.models import Session, User
+from bgmon_api.utils import transactional_session
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -23,19 +24,29 @@ def login() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if not user or not user.check_password(password):
         return jsonify({"error": "invalid credentials"}), HTTPStatus.UNAUTHORIZED
 
-    session = Session(
-        user_id=user.id,
-        expires_at=datetime.now(UTC) + timedelta(days=30),
-    )
-    db.session.add(session)
-    db.session.commit()
+    if not user.is_active:
+        return jsonify({"error": "account deactivated"}), HTTPStatus.UNAUTHORIZED
 
-    return jsonify(
-        {
-            "token": session.token,
-            "user": user.to_dict(),
+    user_data = {
+            "id": user.id,
+            "email": user.email,
+            "display_name": user.display_name,
+            "role": user.role.value,
+            "is_active": user.is_active,
         }
-    )
+
+    try:
+        with transactional_session():
+            session = Session(
+                user_id=user.id,
+                expires_at=datetime.now(UTC) + timedelta(days=30),
+            )
+            db.session.add(session)
+            token = session.token
+
+        return jsonify({"token": token, "user": user_data})
+    except Exception:
+        return jsonify({"error": "Failed to create session"}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @auth_bp.route("/me", methods=["GET"])
@@ -53,6 +64,9 @@ def logout() -> FlaskResponse:
         token = auth.removeprefix("Bearer ")
         session = Session.query.filter_by(token=token).first()
         if session:
-            db.session.delete(session)
-            db.session.commit()
+            try:
+                with transactional_session():
+                    db.session.delete(session)
+            except Exception:
+                pass  # Logout should always succeed even if DB fails
     return jsonify({"status": "ok"})

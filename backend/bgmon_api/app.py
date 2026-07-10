@@ -7,6 +7,9 @@ from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, Response, jsonify, send_from_directory
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from bgmon_api.config import Config
 from bgmon_api.extensions import db, migrate
@@ -51,7 +54,8 @@ def _alarm_job() -> None:
     """Evaluate alarms (runs in scheduler)."""
     from bgmon_api.thread_tracer import snapshot
     snapshot("alarm_eval", "before")
-    if _app is not None:
+    global leader
+    if leader is not None and leader.is_leader and _app is not None:
         with _app.app_context():
             try:
                 from bgmon_api.services.alarm_evaluator import evaluate_alarms
@@ -65,7 +69,8 @@ def _profile_schedule_job() -> None:
     """Check profile schedules (runs in scheduler)."""
     from bgmon_api.thread_tracer import snapshot
     snapshot("profile_schedule", "before")
-    if _app is not None:
+    global leader
+    if leader is not None and leader.is_leader and _app is not None:
         with _app.app_context():
             try:
                 from bgmon_api.services.alarm_evaluator import check_profile_schedules
@@ -79,7 +84,8 @@ def _streak_job() -> None:
     """Check and log streak (runs in scheduler)."""
     from bgmon_api.thread_tracer import snapshot
     snapshot("streak_check", "before")
-    if _app is not None:
+    global leader
+    if leader is not None and leader.is_leader and _app is not None:
         with _app.app_context():
             try:
                 from bgmon_api.routes.dashboard import check_and_log_streak
@@ -105,6 +111,15 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     db.init_app(app)
     migrate.init_app(app, db)
+
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+    _limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="memory://",
+    )
 
     import bgmon_api.models  # noqa: F401
     from bgmon_api.routes.alarms import alarms_bp
@@ -226,7 +241,11 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                 .first()
             )
             if last_reading:
-                age_minutes = (datetime.now(UTC) - last_reading.timestamp.replace(tzinfo=UTC)).total_seconds() / 60
+                age_seconds = (
+                    (datetime.now(UTC) - last_reading.timestamp.replace(tzinfo=UTC))
+                    .total_seconds()
+                )
+                age_minutes = age_seconds / 60
                 libre_ok = age_minutes < 10
         except Exception:
             pass
@@ -239,7 +258,9 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                     "is_leader": leader.is_leader if leader else False,
                     "instance_id": leader.instance_id[:8] if leader else None,
                     "influxdb_connected": influx_ok,
-                    "last_libre_fetch_at": last_reading.timestamp.isoformat() if last_reading else None,
+                    "last_libre_fetch_at": (
+                        last_reading.timestamp.isoformat() if last_reading else None
+                    ),
                     "last_libre_fetch_status": "ok" if libre_ok else "no_data",
                 }
             ),

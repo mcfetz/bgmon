@@ -2,6 +2,8 @@
 
 import logging
 
+from sqlalchemy.exc import SQLAlchemyError
+from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 
 from bgmon_api.config import Config
@@ -19,7 +21,6 @@ def _get_client() -> Client | None:
 
 def _log_call(user: User, to_number: str, status: str, title: str, sgv: int | None) -> None:
     """Log a Twilio call attempt in the patient's logbook."""
-    from bgmon_api.models import User, UserRole
     patient = User.query.filter_by(role=UserRole.PATIENT).first()
     if not patient:
         return
@@ -39,7 +40,18 @@ def _log_call(user: User, to_number: str, status: str, title: str, sgv: int | No
     db.session.commit()
 
 
-def place_call(user: User, sgv: int | None, title: str) -> bool:
+def _log_call_error(
+    user: User, to_number: str, status: str, title: str, sgv: int | None
+) -> None:
+    """Log a failed Twilio call, with error handling."""
+    try:
+        _log_call(user, to_number, status, title, sgv)
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.error("Failed to log Twilio call error for user %d", user.id)
+
+
+def place_call(user: User, sgv: int | None, title: str) -> bool:  # noqa: PLR0911
     """Place a Twilio voice call to a user with current BG value.
 
     Returns True if the call was initiated successfully.
@@ -93,12 +105,18 @@ def place_call(user: User, sgv: int | None, title: str) -> bool:
 
         logger.info("Twilio call initiated to %s for user %d", user.phone_number, user.id)
         return True
-    except Exception as exc:
-        logger.error("Twilio call failed for user %d: %s", user.id, exc)
+    except (TwilioRestException, SQLAlchemyError) as exc:
+        error_type = type(exc).__name__
+        logger.error("Error in Twilio call for user %d (%s): %s", user.id, error_type, exc)
         log = TwilioCallLog(alarm_id=None, to_number=user.phone_number, status="failed")
         db.session.add(log)
-        _log_call(user, user.phone_number, "failed", title, sgv)
-        db.session.commit()
+        _log_call_error(user, user.phone_number, "failed", title, sgv)
+        return False
+    except Exception as exc:
+        logger.error("Unexpected error in Twilio call for user %d: %s", user.id, exc, exc_info=True)
+        log = TwilioCallLog(alarm_id=None, to_number=user.phone_number, status="failed")
+        db.session.add(log)
+        _log_call_error(user, user.phone_number, "failed", title, sgv)
         return False
 
 

@@ -2,24 +2,21 @@
 
 import logging
 import secrets
-from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
-from bgmon_api.app import db
+from sqlalchemy import update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
+
 from bgmon_api.config import Config
+from bgmon_api.extensions import db
 from bgmon_api.models import SchedulerLeader
 
 logger = logging.getLogger(__name__)
 
 
 class RowLeaseLeader:
-    """PostgreSQL row-lease for leader election among replicas.
-
-    Only one replica is leader at a time. The lease is acquired by inserting
-    into the single-row ``scheduler_leader`` table (id=1) using ``ON CONFLICT``
-    with a time condition: either no row exists yet, or the existing lease has
-    expired (``expires_at < NOW()``).
-    """
+    """PostgreSQL row-lease for leader election among replicas."""
 
     def __init__(self) -> None:
         self._instance_id = secrets.token_hex(16)
@@ -34,67 +31,85 @@ class RowLeaseLeader:
         return self._is_leader
 
     def try_acquire(self) -> bool:
-        """Try to become leader. Returns True if we acquired the lease."""
+        """Try to become leader. Returns True if we acquired or still hold the lease."""
         ttl = Config.LEASE_TTL_S
         now = datetime.now(UTC)
         new_expires = now + timedelta(seconds=ttl)
+        leader_table = SchedulerLeader.__table__
 
-        try:
-            row = db.session.get(SchedulerLeader, 1)
-        except Exception:
-            db.session.rollback()
-            row = None
-
-        if row is None:
-            row = SchedulerLeader(
+        stmt = (
+            insert(leader_table)
+            .values(
                 id=1,
                 instance_id=self._instance_id,
                 last_heartbeat=now,
                 expires_at=new_expires,
             )
-            db.session.add(row)
-            with suppress(Exception):
-                db.session.commit()
-            self._is_leader = True
-            logger.info("Became leader (instance=%s)", self._instance_id[:8])
-            return True
-
-        if row.expires_at < now:
-            row.instance_id = self._instance_id
-            row.last_heartbeat = now
-            row.expires_at = new_expires
-            with suppress(Exception):
-                db.session.commit()
-            self._is_leader = True
-            logger.info("Took over lease (instance=%s)", self._instance_id[:8])
-            return True
-
-        self._is_leader = row.instance_id == self._instance_id
-        return self._is_leader
-
-    def renew(self) -> bool:
-        """Renew the lease if we are the leader. Returns True if still leader."""
-        if not self._is_leader:
-            return False
-        ttl = Config.LEASE_TTL_S
-        now = datetime.now(UTC)
-        new_expires = now + timedelta(seconds=ttl)
+            .on_conflict_do_update(
+                index_elements=[leader_table.c.id],
+                set_={
+                    "instance_id": self._instance_id,
+                    "last_heartbeat": now,
+                    "expires_at": new_expires,
+                },
+                where=(
+                    (leader_table.c.expires_at < now)
+                    | (leader_table.c.instance_id == self._instance_id)
+                ),
+            )
+            .returning(leader_table.c.instance_id)
+        )
 
         try:
-            row = db.session.get(SchedulerLeader, 1)
-        except Exception:
+            owner_id = db.session.execute(stmt).scalar_one_or_none()
+            db.session.commit()
+        except SQLAlchemyError as exc:
+            logger.error("Failed to acquire leader lease: %s", exc)
             db.session.rollback()
-            return False
-
-        if row is None or row.instance_id != self._instance_id:
             self._is_leader = False
             return False
 
-        row.last_heartbeat = now
-        row.expires_at = new_expires
-        with suppress(Exception):
+        self._is_leader = owner_id == self._instance_id
+        if self._is_leader:
+            logger.info("Leader lease acquired/confirmed (instance=%s)", self._instance_id[:8])
+
+        return self._is_leader
+
+    def renew(self) -> bool:
+        """Renew the lease if we are still the leader. Returns True if still leader."""
+        if not self._is_leader:
+            return False
+
+        ttl = Config.LEASE_TTL_S
+        now = datetime.now(UTC)
+        new_expires = now + timedelta(seconds=ttl)
+        leader_table = SchedulerLeader.__table__
+
+        stmt = (
+            update(leader_table)
+            .where(
+                leader_table.c.id == 1,
+                leader_table.c.instance_id == self._instance_id,
+                leader_table.c.expires_at >= now,
+            )
+            .values(
+                last_heartbeat=now,
+                expires_at=new_expires,
+            )
+            .returning(leader_table.c.instance_id)
+        )
+
+        try:
+            owner_id = db.session.execute(stmt).scalar_one_or_none()
             db.session.commit()
-        return True
+        except SQLAlchemyError as exc:
+            logger.error("Failed to renew leader lease: %s", exc)
+            db.session.rollback()
+            self._is_leader = False
+            return False
+
+        self._is_leader = owner_id == self._instance_id
+        return self._is_leader
 
     def resign(self) -> None:
         """Resign leadership by expiring the lease."""
@@ -105,10 +120,12 @@ class RowLeaseLeader:
             if row and row.instance_id == self._instance_id:
                 row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
                 db.session.commit()
-        except Exception:
+                logger.info("Resigned leadership (instance=%s)", self._instance_id[:8])
+        except SQLAlchemyError as exc:
+            logger.error("Failed to resign leadership: %s", exc)
             db.session.rollback()
-        self._is_leader = False
-        logger.info("Resigned leadership (instance=%s)", self._instance_id[:8])
+        finally:
+            self._is_leader = False
 
     def daemon_renew_loop(self) -> None:
         """Periodic renew loop for APScheduler."""
