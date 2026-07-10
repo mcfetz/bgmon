@@ -670,7 +670,7 @@ def _analyze_streaks(low: int, high: int) -> tuple[datetime | None, int, datetim
     if in_range_start is None:
         current_streak_start: datetime | None = None
     elif last_oor is None:
-        current_streak_start = parsed[0][1]
+        current_streak_start = in_range_start
     else:
         current_streak_start = last_oor
 
