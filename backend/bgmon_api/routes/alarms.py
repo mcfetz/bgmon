@@ -9,6 +9,7 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import Alarm, PushSubscription, User, UserRole
+from bgmon_api.utils import transactional
 
 alarms_bp = Blueprint("alarms", __name__)
 
@@ -43,6 +44,7 @@ def get_active_alarms() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @alarms_bp.route("/<int:alarm_id>/acknowledge", methods=["POST"])
+@transactional
 def acknowledge_alarm(alarm_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -55,11 +57,11 @@ def acknowledge_alarm(alarm_id: int) -> FlaskResponse | tuple[FlaskResponse, HTT
     from datetime import datetime
 
     alarm.acknowledged_at = datetime.now(UTC)
-    db.session.commit()
     return jsonify({"status": "acknowledged"})
 
 
 @alarms_bp.route("/subscribe", methods=["POST"])
+@transactional
 def subscribe_push() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -78,18 +80,17 @@ def subscribe_push() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if existing:
         db.session.delete(existing)
 
-    sub = PushSubscription(
-        user_id=user.id,
-        endpoint=endpoint,
-        p256dh_key=p256dh,
-        auth_key=auth,
-    )
+    sub = PushSubscription()
+    sub.user_id = user.id
+    sub.endpoint = endpoint
+    sub.p256dh_key = p256dh
+    sub.auth_key = auth
     db.session.add(sub)
-    db.session.commit()
     return jsonify({"status": "subscribed"}), HTTPStatus.CREATED
 
 
 @alarms_bp.route("/unsubscribe", methods=["POST"])
+@transactional
 def unsubscribe_push() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -105,7 +106,6 @@ def unsubscribe_push() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     if sub:
         db.session.delete(sub)
-        db.session.commit()
         return jsonify({"status": "unsubscribed"})
 
     return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND

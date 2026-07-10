@@ -15,7 +15,7 @@ from bgmon_api.models import (
     User,
     UserRole,
 )
-from bgmon_api.utils import parse_iso_datetime
+from bgmon_api.utils import parse_iso_datetime, transactional
 
 log_bp = Blueprint("log", __name__)
 
@@ -50,6 +50,7 @@ def list_logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @log_bp.route("/<int:entry_id>", methods=["DELETE"])
+@transactional
 def delete_log(entry_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -57,11 +58,11 @@ def delete_log(entry_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus
 
     entry = LogEntry.query.get_or_404(entry_id)
     db.session.delete(entry)
-    db.session.commit()
     return jsonify({"deleted": True}), HTTPStatus.OK
 
 
 @log_bp.route("/", methods=["POST"])
+@transactional
 def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -101,17 +102,15 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         if existing:
             return jsonify({"error": "basal already logged today"}), HTTPStatus.CONFLICT
 
-    entry = LogEntry(
-        user_id=patient.id,
-        entry_type=entry_type,
-        value=float(data.get("value", 0)),
-        unit=data.get("unit", "g" if entry_type == LogEntryType.CARBS else "U"),
-        notes=data.get("notes"),
-        created_by_id=user.id,
-    )
+    entry = LogEntry()
+    entry.user_id = patient.id
+    entry.entry_type = entry_type
+    entry.value = float(data.get("value", 0))
+    entry.unit = data.get("unit", "g" if entry_type == LogEntryType.CARBS else "U")
+    entry.notes = data.get("notes")
+    entry.created_by_id = user.id
     entry.created_at = entry_ts  # type: ignore[assignment]
     db.session.add(entry)
-    db.session.commit()
     return jsonify(entry.to_dict()), HTTPStatus.CREATED
 
 
@@ -153,6 +152,7 @@ def get_basal_rate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @log_bp.route("/basal-rate", methods=["POST"])
+@transactional
 def update_basal_rate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -175,12 +175,11 @@ def update_basal_rate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     )
     prev_rate = prev.rate if prev else None
 
-    entry = BasalRateHistory(
-        user_id=patient.id,
-        rate=new_rate,
-        unit=unit,
-        changed_by_id=user.id,
-    )
+    entry = BasalRateHistory()
+    entry.user_id = patient.id
+    entry.rate = new_rate
+    entry.unit = unit
+    entry.changed_by_id = user.id
     db.session.add(entry)
 
     if prev_rate is None or prev_rate != new_rate:
@@ -191,17 +190,15 @@ def update_basal_rate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             )
         else:
             note = f"Basalrate auf {new_rate} {unit} gesetzt. ({user.display_name})"
-        log_entry = LogEntry(
-            user_id=patient.id,
-            entry_type=LogEntryType.NOTE,
-            value=0,
-            unit="",
-            notes=note,
-            created_by_id=user.id,
-        )
+        log_entry = LogEntry()
+        log_entry.user_id = patient.id
+        log_entry.entry_type = LogEntryType.NOTE
+        log_entry.value = 0
+        log_entry.unit = ""
+        log_entry.notes = note
+        log_entry.created_by_id = user.id
         db.session.add(log_entry)
 
-    db.session.commit()
     return jsonify({"rate": entry.rate, "unit": entry.unit}), HTTPStatus.CREATED
 
 
@@ -243,6 +240,7 @@ def get_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @log_bp.route("/carb-factor", methods=["POST"])
+@transactional
 def update_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -265,12 +263,11 @@ def update_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     )
     prev_factor = prev.factor if prev else None
 
-    entry = CarbFactorHistory(
-        user_id=patient.id,
-        factor=new_factor,
-        unit=unit,
-        changed_by_id=user.id,
-    )
+    entry = CarbFactorHistory()
+    entry.user_id = patient.id
+    entry.factor = new_factor
+    entry.unit = unit
+    entry.changed_by_id = user.id
     db.session.add(entry)
 
     if prev_factor is None or prev_factor != new_factor:
@@ -281,17 +278,15 @@ def update_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             )
         else:
             note = f"KE-Faktor auf {new_factor} {unit} gesetzt. ({user.display_name})"
-        log_entry = LogEntry(
-            user_id=patient.id,
-            entry_type=LogEntryType.NOTE,
-            value=0,
-            unit="",
-            notes=note,
-            created_by_id=user.id,
-        )
+        log_entry = LogEntry()
+        log_entry.user_id = patient.id
+        log_entry.entry_type = LogEntryType.NOTE
+        log_entry.value = 0
+        log_entry.unit = ""
+        log_entry.notes = note
+        log_entry.created_by_id = user.id
         db.session.add(log_entry)
 
-    db.session.commit()
     return jsonify({"factor": entry.factor, "unit": entry.unit}), HTTPStatus.CREATED
 
 

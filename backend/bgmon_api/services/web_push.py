@@ -9,6 +9,7 @@ from pywebpush import WebPushException, webpush
 from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import PushSubscription
+from bgmon_api.utils import transactional_session
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ def send_push_to_user(user_id: int, title: str, body: str) -> None:
         except WebPushException as exc:
             if exc.response and exc.response.status_code in (404, 410):
                 logger.info("Removing expired push subscription for user %d", user_id)
-                db.session.delete(sub)
-                db.session.commit()
+                with transactional_session():
+                    db.session.delete(sub)
             else:
                 logger.error("Push failed for user %d: %s", user_id, exc)

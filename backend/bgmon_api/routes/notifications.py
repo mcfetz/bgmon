@@ -17,6 +17,7 @@ from bgmon_api.models import (
     UserActiveProfile,
     UserSnooze,
 )
+from bgmon_api.utils import transactional
 
 notifications_bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
 
@@ -74,6 +75,7 @@ def list_profiles() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @notifications_bp.route("/profiles", methods=["POST"])
+@transactional
 def create_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -90,25 +92,28 @@ def create_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     normalized, err = _parse_assignments(data.get("assignments", []))
     if err:
         return err
+    if normalized is None:
+        return jsonify({"error": "invalid assignments"}), HTTPStatus.BAD_REQUEST
 
-    profile = NotificationProfile(user_id=user.id, name=name, icon=icon)
+    profile = NotificationProfile()
+    profile.user_id = user.id
+    profile.name = name
+    profile.icon = icon
     db.session.add(profile)
     db.session.flush()
 
     for threshold, area in normalized.items():
-        db.session.add(
-            NotificationAssignment(
-                profile_id=profile.id,
-                area=NotificationArea(area),
-                threshold=NotificationThreshold(threshold),
-            )
-        )
+        assignment = NotificationAssignment()
+        assignment.profile_id = profile.id
+        assignment.area = NotificationArea(area)
+        assignment.threshold = NotificationThreshold(threshold)
+        db.session.add(assignment)
 
-    db.session.commit()
     return jsonify(profile.to_dict()), HTTPStatus.CREATED
 
 
 @notifications_bp.route("/profiles/<int:profile_id>", methods=["PATCH"])
+@transactional
 def update_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -146,21 +151,21 @@ def update_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTP
         normalized, err = _parse_assignments(data.get("assignments"))
         if err:
             return err
+        if normalized is None:
+            return jsonify({"error": "invalid assignments"}), HTTPStatus.BAD_REQUEST
         NotificationAssignment.query.filter_by(profile_id=profile.id).delete()
         for threshold, area in normalized.items():
-            db.session.add(
-                NotificationAssignment(
-                    profile_id=profile.id,
-                    area=NotificationArea(area),
-                    threshold=NotificationThreshold(threshold),
-                )
-            )
+            assignment = NotificationAssignment()
+            assignment.profile_id = profile.id
+            assignment.area = NotificationArea(area)
+            assignment.threshold = NotificationThreshold(threshold)
+            db.session.add(assignment)
 
-    db.session.commit()
     return jsonify(profile.to_dict())
 
 
 @notifications_bp.route("/profiles/<int:profile_id>", methods=["DELETE"])
+@transactional
 def delete_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -171,7 +176,6 @@ def delete_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTP
         return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
 
     db.session.delete(profile)
-    db.session.commit()
     return jsonify({"deleted": profile_id})
 
 
@@ -193,6 +197,7 @@ def get_active_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @notifications_bp.route("/active", methods=["PUT"])
+@transactional
 def set_active_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -207,16 +212,21 @@ def set_active_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             return jsonify({"error": "profile not found"}), HTTPStatus.NOT_FOUND
 
     active = UserActiveProfile.query.get(user.id)
+    if profile_id is None:
+        if active:
+            db.session.delete(active)
+        return jsonify({"profile_id": None, "profile": None})
+
     if not active:
-        active = UserActiveProfile(user_id=user.id, profile_id=profile_id)
+        active = UserActiveProfile()
+        active.user_id = user.id
         db.session.add(active)
-    else:
-        active.profile_id = profile_id
-    db.session.commit()
+    active.profile_id = int(profile_id)
     return jsonify(active.to_dict())
 
 
 @notifications_bp.route("/active/<int:profile_id>", methods=["GET"])
+@transactional
 def webhook_activate_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     profile = NotificationProfile.query.get(profile_id)
     if not profile:
@@ -225,11 +235,10 @@ def webhook_activate_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResp
     owner_id = profile.user_id
     active = UserActiveProfile.query.get(owner_id)
     if not active:
-        active = UserActiveProfile(user_id=owner_id, profile_id=profile_id)
+        active = UserActiveProfile()
+        active.user_id = owner_id
         db.session.add(active)
-    else:
-        active.profile_id = profile_id
-    db.session.commit()
+    active.profile_id = profile_id
 
     return jsonify({
         "message": f"Active profile set to '{profile.name}' (id={profile_id}) for user {owner_id}."
@@ -249,6 +258,7 @@ def get_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @notifications_bp.route("/snooze", methods=["POST"])
+@transactional
 def set_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -258,16 +268,19 @@ def set_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     minutes = int(data.get("minutes", 15))
     reason = data.get("reason")
 
-    snooze = UserSnooze.query.get(user.id) or UserSnooze(user_id=user.id)
+    snooze = UserSnooze.query.get(user.id)
+    if snooze is None:
+        snooze = UserSnooze()
+        snooze.user_id = user.id
     snooze.snooze_until = datetime.now(UTC) + timedelta(minutes=minutes)
     snooze.reason = reason
     if snooze not in db.session:
         db.session.add(snooze)
-    db.session.commit()
     return jsonify({**snooze.to_dict(), "active": True})
 
 
 @notifications_bp.route("/snooze", methods=["DELETE"])
+@transactional
 def clear_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -276,11 +289,11 @@ def clear_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     snooze = UserSnooze.query.get(user.id)
     if snooze:
         db.session.delete(snooze)
-        db.session.commit()
     return jsonify({"cleared": True})
 
 
 @notifications_bp.route("/snooze", methods=["PATCH"])
+@transactional
 def adjust_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -291,7 +304,9 @@ def adjust_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     snooze = UserSnooze.query.get(user.id)
     if not snooze:
-        snooze = UserSnooze(user_id=user.id, snooze_until=datetime.now(UTC))
+        snooze = UserSnooze()
+        snooze.user_id = user.id
+        snooze.snooze_until = datetime.now(UTC)
         db.session.add(snooze)
 
     new_until = snooze.snooze_until + timedelta(minutes=delta)
@@ -299,5 +314,4 @@ def adjust_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         new_until = datetime.now(UTC) + timedelta(minutes=1)
 
     snooze.snooze_until = new_until
-    db.session.commit()
     return jsonify({**snooze.to_dict(), "active": True})

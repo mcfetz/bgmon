@@ -42,6 +42,7 @@ def login() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
                 expires_at=datetime.now(UTC) + timedelta(days=30),
             )
             db.session.add(session)
+            db.session.flush()
             token = session.token
 
         return jsonify({"token": token, "user": user_data})

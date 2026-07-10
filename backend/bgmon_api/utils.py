@@ -2,7 +2,7 @@
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
 
@@ -57,13 +57,25 @@ def transactional_session() -> Generator:
             user = User(email="test@example.com")
             db.session.add(user)
             # Automatic commit on success, rollback on exception
+
+    Nested calls share the same outer transaction. Only the outermost context
+    commits or rolls back the session.
     """
+    transaction_depth = int(db.session.info.get("transactional_depth", 0))
+    db.session.info["transactional_depth"] = transaction_depth + 1
     try:
         yield db.session
-        db.session.commit()
+        if transaction_depth == 0:
+            db.session.commit()
     except Exception:
-        db.session.rollback()
+        if transaction_depth == 0:
+            db.session.rollback()
         raise
+    finally:
+        if transaction_depth == 0:
+            db.session.info.pop("transactional_depth", None)
+        else:
+            db.session.info["transactional_depth"] = transaction_depth
 
 
 def transactional(f):
@@ -78,15 +90,12 @@ def transactional(f):
         def update_thresholds():
             ...
     """
+
     @wraps(f)
     def wrapper(*args, **kwargs):
-        try:
-            result = f(*args, **kwargs)
-            db.session.commit()
-            return result
-        except Exception:
-            db.session.rollback()
-            raise
+        with transactional_session():
+            return f(*args, **kwargs)
+
     return wrapper
 
 
