@@ -29,7 +29,8 @@ def app():
     })
     with app_instance.app_context():
         _db.create_all()
-        yield app_instance
+    yield app_instance
+    with app_instance.app_context():
         _db.session.remove()
         _db.engine.dispose()
 
@@ -44,10 +45,12 @@ def db_session(app):
     from bgmon_api.extensions import db as _db
 
     with app.app_context():
+        _db.session.rollback()
         for table in reversed(_db.metadata.sorted_tables):
             _db.session.execute(table.delete())
         _db.session.commit()
         yield _db.session
+        _db.session.rollback()
         for table in reversed(_db.metadata.sorted_tables):
             _db.session.execute(table.delete())
         _db.session.commit()
