@@ -20,39 +20,21 @@ _TEST_DB_URL = os.environ.get(
 os.environ["BGMON_DATABASE_URL"] = _TEST_DB_URL
 
 
-_app_instance = None
-
-
-def _get_app():
-    global _app_instance
-    if _app_instance is None:
-        from bgmon_api.app import create_app
-        from bgmon_api.extensions import db as _db
-
-        _app_instance = create_app()
-        _app_instance.config.update({
-            "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": _TEST_DB_URL,
-        })
-        with _app_instance.app_context():
-            _db.create_all()
-    return _app_instance
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _setup_db():
-    _get_app()
-    yield
-    from bgmon_api.extensions import db as _db
-    app = _get_app()
-    with app.app_context():
-        _db.drop_all()
-        _db.engine.dispose()
-
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def app():
-    return _get_app()
+    from bgmon_api.app import create_app
+    from bgmon_api.extensions import db as _db
+
+    app_instance = create_app()
+    app_instance.config.update({
+        "TESTING": True,
+        "SQLALCHEMY_DATABASE_URI": _TEST_DB_URL,
+    })
+    with app_instance.app_context():
+        _db.create_all()
+        yield app_instance
+        _db.session.remove()
+        _db.engine.dispose()
 
 
 @pytest.fixture
