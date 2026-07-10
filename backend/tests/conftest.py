@@ -12,8 +12,11 @@ os.environ["VAPID_PRIVATE_KEY"] = "test-private-key"
 os.environ["VAPID_SUBJECT"] = "mailto:test@example.com"
 os.environ["BGMON_SECRET_KEY"] = "test-secret-key"
 
-# Use the test_bgmon database on the existing bgmon-postgres container.
-_TEST_DB_URL = "postgresql://bgmon:bgmon@localhost:5432/test_bgmon"
+# Use BGMON_DATABASE_URL from environment (CI sets bgmon_test, local uses test_bgmon)
+_TEST_DB_URL = os.environ.get(
+    "BGMON_DATABASE_URL",
+    "postgresql://bgmon:bgmon@localhost:5432/test_bgmon",
+)
 os.environ["BGMON_DATABASE_URL"] = _TEST_DB_URL
 
 
@@ -147,17 +150,24 @@ def patient_session(patient_user):
 
 
 @pytest.fixture
-def auth_headers(client):
-    """Return callable that logs in the given user via API and returns auth headers.
+def auth_headers():
+    """Return callable that ensures a server-side session row exists and returns auth headers.
 
-    Using the app's /api/auth/login keeps authentication behavior identical to production and
-    ensures the session token is created by the same code paths the app expects.
+    We create a committed session row directly in the DB (fast, avoids rate-limits and keeps
+    tests independent of the login endpoint). The created token is returned in the Authorization header.
     """
+    from bgmon_api.extensions import db as _db
+    import secrets
 
     def _headers(user):
-        resp = client.post("/api/auth/login", json={"email": user.email, "password": "test_password"})
-        assert resp.status_code == HTTPStatus.OK
-        token = resp.get_json()["token"]
+        token = secrets.token_hex(32)
+        expires = datetime.now(UTC) + timedelta(days=30)
+        # Insert a session row visible to the app immediately
+        _db.session.execute(
+            "INSERT INTO sessions (user_id, token, expires_at, created_at) VALUES (:uid, :tok, :exp, now())",
+            {"uid": user.id, "tok": token, "exp": expires},
+        )
+        _db.session.commit()
         return {"Authorization": f"Bearer {token}"}
 
     return _headers
