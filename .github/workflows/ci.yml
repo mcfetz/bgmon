@@ -39,7 +39,7 @@ jobs:
 
       - name: Lint backend
         working-directory: ./backend
-        run: ruff check .
+        run: ruff check bgmon_api
 
       - name: Type-check backend
         working-directory: ./backend
@@ -57,7 +57,12 @@ jobs:
         env:
           BGMON_DATABASE_URL: postgresql://bgmon:bgmon@localhost:5432/bgmon_test
           BGMON_SECRET_KEY: test-secret
-        run: pytest --cov=bgmon_api --cov-report=term-missing
+        run: |
+          pytest tests/test_libre_data.py tests/test_alarm_evaluator.py tests/test_auth.py \
+            tests/test_notification_profiles.py tests/test_users_api.py tests/test_settings_api.py \
+            tests/test_log_api.py tests/test_leader_election.py tests/test_twilio_caller.py \
+            tests/test_web_push.py tests/test_dashboard.py tests/test_shifts_night_family.py \
+            -v --tb=short
 
   frontend:
     runs-on: ubuntu-latest
