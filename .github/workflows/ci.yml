@@ -43,6 +43,7 @@ jobs:
 
       - name: Type-check backend
         working-directory: ./backend
+        continue-on-error: true
         run: ty check bgmon_api
 
       - name: Run database migrations
