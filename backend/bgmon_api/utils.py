@@ -2,7 +2,8 @@
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+from functools import wraps
 from typing import Any
 
 from bgmon_api.extensions import db
@@ -63,8 +64,30 @@ def transactional_session() -> Generator:
     except Exception:
         db.session.rollback()
         raise
-    finally:
-        db.session.close()
+
+
+def transactional(f):
+    """Decorator: wraps a Flask route handler in a transaction.
+
+    Commits on success, rolls back on exception. Replaces manual
+    db.session.commit() calls inside the handler.
+
+    Usage:
+        @settings_bp.route("/thresholds", methods=["POST"])
+        @transactional
+        def update_thresholds():
+            ...
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            result = f(*args, **kwargs)
+            db.session.commit()
+            return result
+        except Exception:
+            db.session.rollback()
+            raise
+    return wrapper
 
 
 def parse_iso_datetime(value: str | None) -> datetime | None:
