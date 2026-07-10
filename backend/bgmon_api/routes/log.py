@@ -87,7 +87,7 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             entry_ts = parse_iso_datetime(ts_str)
 
     # Basal: only one per day (Europe/Berlin)
-    if entry_type == LogEntryType.BASAL:
+    if entry_type == LogEntryType.BASAL and entry_ts is not None:
         berlin = ZoneInfo("Europe/Berlin")
         day_start = entry_ts.astimezone(berlin).replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
@@ -109,7 +109,7 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         notes=data.get("notes"),
         created_by_id=user.id,
     )
-    entry.created_at = entry_ts
+    entry.created_at = entry_ts  # type: ignore[assignment]
     db.session.add(entry)
     db.session.commit()
     return jsonify(entry.to_dict()), HTTPStatus.CREATED

@@ -629,9 +629,10 @@ def _analyze_streaks(low: int, high: int) -> tuple[datetime | None, int, datetim
             if isinstance(r.timestamp, datetime)
             else parse_iso_datetime(r.timestamp)
         )
-        if ts.tzinfo is None:
+        if ts is not None and ts.tzinfo is None:
             ts = ts.replace(tzinfo=from_zone)
-        parsed.append((r.sgv, ts.astimezone(from_zone)))
+        if ts is not None:
+            parsed.append((r.sgv, ts.astimezone(from_zone)))
 
     if not parsed:
         return None, 0, None

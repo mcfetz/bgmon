@@ -57,7 +57,7 @@ def write_glucose_to_influx(
                 ts_ns = int(date_string)
             except ValueError:
                 ts_ns = int(
-                    parse_iso_datetime(date_string).timestamp()
+                    parse_iso_datetime(date_string).timestamp()  # type: ignore[union-attr]
                     * 1_000_000_000
                 )
 
@@ -74,7 +74,7 @@ def write_glucose_to_influx(
                 ts_ns = int(date_string)
             except ValueError:
                 ts_ns = int(
-                    parse_iso_datetime(date_string).timestamp()
+                    parse_iso_datetime(date_string).timestamp()  # type: ignore[union-attr]
                     * 1_000_000_000
                 )
             point = (
