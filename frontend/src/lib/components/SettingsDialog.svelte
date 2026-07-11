@@ -3,7 +3,7 @@
 
 	let open = $state(false);
 	type View =
-		'main' | 'account' | 'thresholds' | 'treatment' | 'twilio' | 'push' | 'notifications' | 'users';
+		'main' | 'account' | 'thresholds' | 'treatment' | 'twilio' | 'push' | 'notifications' | 'users' | 'ml';
 	let currentView = $state<View>('main');
 
 	const SECTIONS: { id: View; label: string; icon: string }[] = [
@@ -13,7 +13,8 @@
 		{ id: 'notifications', label: 'Benachrichtigungen', icon: '🔕' },
 		{ id: 'push', label: 'Push', icon: '🔔' },
 		{ id: 'twilio', label: 'Twilio', icon: '📞' },
-		{ id: 'users', label: 'Benutzer', icon: '👥' }
+		{ id: 'users', label: 'Benutzer', icon: '👥' },
+		{ id: 'ml', label: 'ML', icon: '🧠' }
 	];
 
 	const SECTION_LABELS: Record<View, string> = {
@@ -24,7 +25,8 @@
 		twilio: 'Twilio',
 		push: 'Push',
 		notifications: 'Benachrichtigungen',
-		users: 'Benutzer'
+		users: 'Benutzer',
+		ml: 'ML'
 	};
 
 	function navigateTo(view: View) {
@@ -105,6 +107,11 @@
 	let libreHistoryMessage = $state('');
 	let libreHistoryError = $state('');
 
+	let mlTrainStatus = $state('');
+	let mlTrainResult = $state<{ metrics?: { horizon: number; baseline_mae: number; model_mae: number; n_splits: number }[] } | null>(null);
+	let mlEvalStatus = $state('');
+	let mlEvalResult = $state<{ summaries?: { horizon: number; model_version: string; mae: number; matched_points: number; completed_runs: number; run_count: number }[] } | null>(null);
+
 	let pushSubscribed = $state(false);
 	let pushLoading = $state(false);
 	let pushError = $state('');
@@ -156,6 +163,73 @@
 			libreHistoryError = 'Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e));
 		} finally {
 			libreHistoryLoading = false;
+		}
+	}
+
+	function pollMlJob(endpoint: string, jobId: string, setStatus: (s: string) => void, setResult: (r: any) => void) {
+		const interval = setInterval(async () => {
+			try {
+				const res = await apiFetch(endpoint.replace('(job_id)', jobId));
+				if (!res.ok) {
+					clearInterval(interval);
+					setStatus('Fehler: ' + res.status);
+					return;
+				}
+				const data = await res.json();
+				if (data.status === 'completed') {
+					clearInterval(interval);
+					setStatus('completed');
+					setResult(data);
+				} else if (data.status === 'error') {
+					clearInterval(interval);
+					setStatus('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+				} else {
+					setStatus('running…');
+				}
+			} catch (e) {
+				clearInterval(interval);
+				setStatus('Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e)));
+			}
+		}, 2000);
+	}
+
+	async function startMlTrain() {
+		mlTrainStatus = 'starte…';
+		mlTrainResult = null;
+		try {
+			const res = await apiFetch('/api/settings/ml/train', { method: 'POST' });
+			if (!res.ok) {
+				const data = await res.json();
+				mlTrainStatus = 'Fehler: ' + (data.error || res.status);
+				return;
+			}
+			const data = await res.json();
+			mlTrainStatus = 'running…';
+			pollMlJob('/api/settings/ml/train/(job_id)', data.job_id,
+				(s) => mlTrainStatus = s,
+				(r) => mlTrainResult = r);
+		} catch (e) {
+			mlTrainStatus = 'Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e));
+		}
+	}
+
+	async function startMlEvaluate() {
+		mlEvalStatus = 'starte…';
+		mlEvalResult = null;
+		try {
+			const res = await apiFetch('/api/settings/ml/evaluate', { method: 'POST' });
+			if (!res.ok) {
+				const data = await res.json();
+				mlEvalStatus = 'Fehler: ' + (data.error || res.status);
+				return;
+			}
+			const data = await res.json();
+			mlEvalStatus = 'running…';
+			pollMlJob('/api/settings/ml/evaluate/(job_id)', data.job_id,
+				(s) => mlEvalStatus = s,
+				(r) => mlEvalResult = r);
+		} catch (e) {
+			mlEvalStatus = 'Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e));
 		}
 	}
 
@@ -1046,6 +1120,30 @@
 					<button class="submit-btn" onclick={createUser} disabled={newUserLoading}>
 						{newUserLoading ? 'Anlegen...' : 'Benutzer anlegen'}
 					</button>
+				{:else if currentView === 'ml'}
+					<h3 class="sub-heading">ML Training</h3>
+					<button class="submit-btn" onclick={startMlTrain} disabled={mlTrainStatus === 'starte…' || mlTrainStatus === 'running…'}>
+						{mlTrainStatus ? mlTrainStatus : 'Training starten'}
+					</button>
+					{#if mlTrainResult?.metrics}
+						<h4 class="sub-heading" style="margin-top:1rem">Ergebnisse</h4>
+						{#each mlTrainResult.metrics as m}
+							<p class="hint">Horizont {m.horizon}h: Baseline MAE {m.baseline_mae.toFixed(1)}, Modell MAE {m.model_mae.toFixed(1)}, Splits {m.n_splits}</p>
+						{/each}
+					{/if}
+
+					<hr style="margin:1rem 0;border:none;border-top:1px solid var(--color-border)" />
+
+					<h3 class="sub-heading">ML Evaluation</h3>
+					<button class="submit-btn" onclick={startMlEvaluate} disabled={mlEvalStatus === 'starte…' || mlEvalStatus === 'running…'}>
+						{mlEvalStatus ? mlEvalStatus : 'Evaluation starten'}
+					</button>
+					{#if mlEvalResult?.summaries}
+						<h4 class="sub-heading" style="margin-top:1rem">Zusammenfassung</h4>
+						{#each mlEvalResult.summaries as s}
+							<p class="hint">Horizont {s.horizon}h (v{s.model_version}): MAE {s.mae.toFixed(1)}, {s.matched_points} Punkte, {s.completed_runs}/{s.run_count} Runs</p>
+						{/each}
+					{/if}
 				{/if}
 
 				{#if error}

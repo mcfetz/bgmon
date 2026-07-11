@@ -1,5 +1,7 @@
 """Global and user settings management."""
 
+import logging
+import threading
 from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request
@@ -12,6 +14,12 @@ from bgmon_api.models import GlobalSettings, Threshold, User, UserRole
 from bgmon_api.utils import transactional_session
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")
+logger = logging.getLogger(__name__)
+
+# ── async ML job tracking ────────────────────────────────────────────────
+
+_ml_jobs: dict[str, dict] = {}
+_ml_jobs_lock = threading.Lock()
 
 
 @settings_bp.route("/libre/reload-history", methods=["POST"])
@@ -317,3 +325,138 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         with transactional_session():
             pass  # commit handled by context manager
         return jsonify({"error": f"Twilio call failed: {exc}"}), HTTPStatus.SERVICE_UNAVAILABLE
+
+
+# ── ML endpoints ─────────────────────────────────────────────────────────
+
+
+def _run_train(job_id: str) -> None:
+    from pathlib import Path  # noqa: PLC0415
+
+    from bgmon_api.commands.train_predictor import _collect_training_data  # noqa: PLC0415
+    from bgmon_api.services.model_publisher import publish_model  # noqa: PLC0415
+    from bgmon_api.services.model_trainer import (  # noqa: PLC0415
+        ModelTrainer,
+        TrainingInsufficientError,
+    )
+
+    try:
+        target_dir = Path(Config.model_dir())
+        training_input = _collect_training_data()
+        trainer = ModelTrainer(cv_splits=min(5, max(2, training_input.sample_count - 1)))
+        result = trainer.train(training_input)
+        publish_model(result, target_dir)
+
+        with _ml_jobs_lock:
+            _ml_jobs[job_id] = {
+                "status": "completed",
+                "samples": training_input.sample_count,
+                "metrics": [
+                    {"horizon": m.horizon_minutes, "baseline_mae": round(m.baseline_mae, 1),
+                     "model_mae": round(m.model_mae, 1), "n_splits": m.n_splits}
+                    for m in result.metrics
+                ],
+            }
+    except TrainingInsufficientError:
+        with _ml_jobs_lock:
+            _ml_jobs[job_id] = {
+                "status": "failed",
+                "error": "Nicht genügend Trainingsdaten (mind. 3 Samples nötig).",
+            }
+    except Exception:
+        logger.exception("ML training job %s failed", job_id)
+        with _ml_jobs_lock:
+            _ml_jobs[job_id] = {"status": "failed", "error": "Training fehlgeschlagen."}
+
+
+@settings_bp.route("/ml/train", methods=["POST"])
+def ml_train_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+    if user.role != UserRole.ADMIN:
+        return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+
+    import uuid  # noqa: PLC0415
+
+    job_id = uuid.uuid4().hex[:12]
+    with _ml_jobs_lock:
+        _ml_jobs[job_id] = {"status": "running"}
+
+    thread = threading.Thread(target=_run_train, args=(job_id,))
+    thread.start()
+
+    return jsonify({"job_id": job_id, "status": "running"})
+
+
+@settings_bp.route("/ml/train/<job_id>", methods=["GET"])
+def ml_train_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+
+    with _ml_jobs_lock:
+        job = _ml_jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
+    return jsonify(job)
+
+
+def _run_evaluate(job_id: str) -> None:
+    """Execute flask predictor evaluate in a background thread."""
+    from bgmon_api.services.prediction_evaluator import (  # noqa: PLC0415
+        evaluate_saved_predictions,
+    )
+
+    try:
+        report = evaluate_saved_predictions()
+        summaries = [
+            {
+                "horizon": s.horizon_minutes,
+                "model_version": s.model_version,
+                "mae": round(s.mae, 1) if s.mae is not None else None,
+                "matched_points": s.matched_points,
+                "completed_runs": s.completed_runs,
+                "run_count": s.run_count,
+            }
+            for s in report.aggregate_summaries
+        ]
+        with _ml_jobs_lock:
+            _ml_jobs[job_id] = {"status": "completed", "summaries": summaries}
+    except Exception:
+        logger.exception("ML evaluation job %s failed", job_id)
+        with _ml_jobs_lock:
+            _ml_jobs[job_id] = {"status": "failed", "error": "Evaluierung fehlgeschlagen."}
+
+
+@settings_bp.route("/ml/evaluate", methods=["POST"])
+def ml_evaluate_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+    if user.role != UserRole.ADMIN:
+        return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+
+    import uuid  # noqa: PLC0415
+
+    job_id = uuid.uuid4().hex[:12]
+    with _ml_jobs_lock:
+        _ml_jobs[job_id] = {"status": "running"}
+
+    thread = threading.Thread(target=_run_evaluate, args=(job_id,))
+    thread.start()
+
+    return jsonify({"job_id": job_id, "status": "running"})
+
+
+@settings_bp.route("/ml/evaluate/<job_id>", methods=["GET"])
+def ml_evaluate_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+
+    with _ml_jobs_lock:
+        job = _ml_jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
+    return jsonify(job)
