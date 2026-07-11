@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
+import pytest
+
 from bgmon_api.models import LogEntry, LogEntryType
 from bgmon_api.utils import compute_glucose_stats
 
@@ -58,7 +60,8 @@ def test_history_with_date_range(client, patient_user, glucose_readings, auth_he
     assert [item["sgv"] for item in data] == [reading.sgv for reading in glucose_readings[5:10]]
 
 
-def test_stats(client, patient_user, glucose_readings, thresholds, global_settings, auth_headers):
+@pytest.mark.usefixtures("thresholds", "global_settings")
+def test_stats(client, patient_user, glucose_readings, auth_headers):
     response = client.get(
         "/api/dashboard/stats",
         headers=auth_headers(patient_user),
