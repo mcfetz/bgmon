@@ -291,11 +291,12 @@ def predictions() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             model_mae: float | None = None
             baseline_mae: float | None = None
             try:
-                from bgmon_api.config import Config
-                manifest_path = Config.model_dir() / "manifest.json"
+                import json as _json
+                from pathlib import Path as _Path
+
+                manifest_path = _Path(Config.model_dir()) / "manifest.json"
                 if manifest_path.exists():
-                    import json
-                    manifest = json.loads(manifest_path.read_text())
+                    manifest = _json.loads(manifest_path.read_text())
                     for m in manifest.get("metrics", []):
                         if m.get("horizon_minutes") == run.horizon_minutes:
                             model_mae = m["model_mae"]

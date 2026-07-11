@@ -29,8 +29,8 @@ def publish_model(
     """Persist model artifacts and return path to the published manifest.
 
     1. Create *model_dir* if it does not exist.
-    2. Write ``model_60m.joblib`` and ``model_120m.joblib`` as temp files,
-       then atomically rename them into place.
+    2. Write ``model_<horizon>m.joblib`` for each horizon in result as temp
+       files, then atomically rename them into place.
     3. Write *manifest_filename* last as the atomic "ready" signal.
 
     Returns:
@@ -39,9 +39,12 @@ def publish_model(
     model_dir = model_dir.resolve()
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write model artifacts (temp → rename)
-    _write_joblib(result.model_60m, model_dir, "model_60m.joblib")
-    _write_joblib(result.model_120m, model_dir, "model_120m.joblib")
+    model_files: dict[str, str] = {}
+    for horizon in sorted(result.models):
+        key = f"{horizon}m"
+        filename = f"model_{horizon}m.joblib"
+        _write_joblib(result.models[horizon], model_dir, filename)
+        model_files[key] = filename
 
     # Build manifest
     manifest = {
@@ -76,10 +79,7 @@ def publish_model(
             }
             for m in result.metrics
         ],
-        "model_files": {
-            "60m": "model_60m.joblib",
-            "120m": "model_120m.joblib",
-        },
+        "model_files": model_files,
     }
 
     manifest_path = model_dir / manifest_filename

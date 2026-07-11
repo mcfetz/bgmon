@@ -1,9 +1,9 @@
 """Offline model training pipeline for BG prediction v1.
 
-Trains separate scikit-learn regressors for each forecast horizon (60m, 120m)
-using walk-forward (TimeSeriesSplit) validation, exposes feature-aligned
-targets via the existing feature builder, and returns structured training
-results ready for publishing.
+Trains separate scikit-learn regressors for each forecast horizon
+(configured via BGMON_ML_HORIZONS) using walk-forward (TimeSeriesSplit)
+validation, exposes feature-aligned targets via the existing feature
+builder, and returns structured training results ready for publishing.
 
 This module does NOT touch the database directly — callers feed in-memory
 lists of GlucoseReading, LogEntry, etc.
@@ -19,6 +19,7 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
 
+from bgmon_api.config import Config
 from bgmon_api.services.feature_builder import (
     FeatureBuilder,
     FeatureContext,
@@ -62,8 +63,7 @@ class HorizonMetrics:
 class TrainerResult:
     """Complete output of a training run."""
 
-    model_60m: LinearRegression
-    model_120m: LinearRegression
+    models: dict[int, LinearRegression]
     metrics: list[HorizonMetrics]
     feature_names: list[str]
     feature_version: str = "f1"
@@ -75,7 +75,7 @@ class TrainerResult:
     @property
     def horizons(self) -> list[int]:
         """Sorted horizon minutes present in this result."""
-        return [m.horizon_minutes for m in self.metrics]
+        return sorted(self.models)
 
 
 @dataclass(slots=True)
@@ -84,12 +84,12 @@ class TrainingInput:  # noqa: MUTABLE_OK — accumulator
 
     .add_context builds features per row; rows with insufficient context
     (e.g. first readings of the history window) are silently skipped.
-    .to_arrays() returns filtered (X, y_60m, y_120m) numpy arrays.
+    .to_arrays() returns filtered (X, y_by_horizon) — only rows where
+    ALL horizon targets are non-None survive.
     """
 
     feature_rows: list[list[float]] = field(default_factory=list)
-    targets_60m: list[float | None] = field(default_factory=list)
-    targets_120m: list[float | None] = field(default_factory=list)
+    targets: dict[int, list[float | None]] = field(default_factory=dict)
     window_start: datetime | None = None
     window_end: datetime | None = None
 
@@ -101,8 +101,7 @@ class TrainingInput:  # noqa: MUTABLE_OK — accumulator
     def add_context(
         self,
         ref_time: datetime,
-        target_60m_val: float | None,
-        target_120m_val: float | None,
+        targets: dict[int, float | None],
         glucose_readings: list[GlucoseReading],
         log_entries: list[LogEntry],
         basal_rate: BasalRateHistory | None,
@@ -122,31 +121,37 @@ class TrainingInput:  # noqa: MUTABLE_OK — accumulator
             return
 
         self.feature_rows.append(feature_vec)
-        self.targets_60m.append(target_60m_val)
-        self.targets_120m.append(target_120m_val)
+        for horizon, val in targets.items():
+            self.targets.setdefault(horizon, []).append(val)
 
         if self.window_start is None or ref_time < self.window_start:
             self.window_start = ref_time
         if self.window_end is None or ref_time > self.window_end:
             self.window_end = ref_time
 
-    def to_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Return (feat_matrix, y_60m, y_120m) with None-target rows dropped."""
+    def to_arrays(self) -> tuple[np.ndarray, dict[int, np.ndarray]]:
+        """Return (feat_matrix, {horizon: y_array}) with None-target rows dropped.
+
+        A row is dropped if ANY horizon has None as its target value.
+        """
+        if not self.targets:
+            return np.empty((0, 0)), {}
+
+        # Build mask: True if ALL horizons have non-None targets
+        data = list(self.targets.values())
         mask = np.array(
-            [t60 is not None and t120 is not None
-             for t60, t120 in zip(self.targets_60m, self.targets_120m, strict=False)],
+            [all(v is not None for v in vals) for vals in zip(*data, strict=False)],
             dtype=bool,
         )
-        feat = np.array(self.feature_rows, dtype=np.float64)[mask]  # noqa: N806
-        y60 = np.array(
-            [v for v, ok in zip(self.targets_60m, mask, strict=False) if ok],
-            dtype=np.float64,
-        )
-        y120 = np.array(
-            [v for v, ok in zip(self.targets_120m, mask, strict=False) if ok],
-            dtype=np.float64,
-        )
-        return feat, y60, y120
+
+        feat = np.array(self.feature_rows, dtype=np.float64)[mask]
+        y_by_horizon: dict[int, np.ndarray] = {}
+        for horizon, vals in self.targets.items():
+            y_by_horizon[horizon] = np.array(
+                [v for v, ok in zip(vals, mask, strict=False) if ok],
+                dtype=np.float64,
+            )
+        return feat, y_by_horizon
 
 
 # ── walk-forward split helper ────────────────────────────────────────────
@@ -195,13 +200,13 @@ class ModelTrainer:
     # ── public API ──────────────────────────────────────────────────
 
     def train(self, training_input: TrainingInput) -> TrainerResult:
-        """Train two horizon-specific regressors and return structured results.
+        """Train horizon-specific regressors for each configured horizon.
 
         Raises:
             TrainingInsufficientError: when fewer than ``cv_splits + 1``
                 valid (non-None-target) samples remain after alignment.
         """
-        feat, y60, y120 = training_input.to_arrays()  # noqa: N806
+        feat, y_by_horizon = training_input.to_arrays()  # noqa: N806
 
         if len(feat) < self._cv_splits + 1:
             raise TrainingInsufficientError(
@@ -209,25 +214,27 @@ class ModelTrainer:
                 f"got {len(feat)}"
             )
 
-        metrics_60 = self._train_one_horizon(
-            feat, y60, horizon_minutes=60, n_splits=self._cv_splits
-        )
-        metrics_120 = self._train_one_horizon(
-            feat, y120, horizon_minutes=120, n_splits=self._cv_splits
-        )
+        metrics: list[HorizonMetrics] = []
+        models: dict[int, LinearRegression] = {}
 
-        # Fit final production models on ALL data
-        model_60 = LinearRegression()
-        model_60.fit(feat, y60)
-        model_120 = LinearRegression()
-        model_120.fit(feat, y120)
+        for horizon in Config.ML_HORIZONS:
+            y = y_by_horizon[horizon]
+
+            horizon_metrics = self._train_one_horizon(
+                feat, y, horizon_minutes=horizon, n_splits=self._cv_splits
+            )
+            metrics.append(horizon_metrics)
+
+            # Fit final production model on ALL data
+            model = LinearRegression()
+            model.fit(feat, y)
+            models[horizon] = model
 
         trained_at = datetime.now(UTC)
 
         return TrainerResult(
-            model_60m=model_60,
-            model_120m=model_120,
-            metrics=[metrics_60, metrics_120],
+            models=models,
+            metrics=metrics,
             feature_names=_canonical_feature_names().copy(),
             model_version=trained_at.strftime("bgpred-%Y%m%dT%H%M%SZ"),
             train_window_start=training_input.window_start,

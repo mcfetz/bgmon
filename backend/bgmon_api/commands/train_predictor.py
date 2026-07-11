@@ -117,17 +117,20 @@ def _collect_training_data():
     """Collect training samples from the database.
 
     Strategy: For each GlucoseReading that has a future reading at exactly
-    the horizon offset (±5 min), build a feature row at the reading's
-    timestamp and record the future SGV as the target.  Persisted
+    the configured horizon offsets (±5 min), build a feature row at the
+    reading's timestamp and record the future SGV as the target.  Persisted
     GlobalSettings and the most recent BasalRateHistory at or before each
     reference time are included for richer context.
     """
+    from bgmon_api.config import Config
     from bgmon_api.models import (
         BasalRateHistory,
         GlobalSettings,
         GlucoseReading,
         LogEntry,
     )
+
+    horizons = Config.ML_HORIZONS
 
     # Fetch all readings ordered by timestamp
     readings: list[GlucoseReading] = (
@@ -171,28 +174,26 @@ def _collect_training_data():
 
         ref_time = r.timestamp.replace(tzinfo=r.timestamp.tzinfo)
 
-        # Look up future targets
-        t60_epoch = int((ref_time + timedelta(minutes=60)).timestamp())
-        t120_epoch = int((ref_time + timedelta(minutes=120)).timestamp())
+        # Look up future targets for all configured horizons
+        target_vals: dict[int, float | None] = {}
+        all_none = True
+        for h in horizons:
+            t_epoch = int((ref_time + timedelta(minutes=h)).timestamp())
+            val = ts_to_sgv.get(t_epoch)
 
-        target_60 = ts_to_sgv.get(t60_epoch)
-        target_120 = ts_to_sgv.get(t120_epoch)
+            # ±5 min tolerance
+            if val is None:
+                for delta_sec in range(-5 * 60, 6 * 60, 60):
+                    val = ts_to_sgv.get(t_epoch + delta_sec)
+                    if val is not None:
+                        break
 
-        # Also allow ±5 min tolerance
-        if target_60 is None:
-            for delta_sec in range(-5 * 60, 6 * 60, 60):
-                target_60 = ts_to_sgv.get(t60_epoch + delta_sec)
-                if target_60 is not None:
-                    break
+            target_vals[h] = float(val) if val is not None else None
+            if val is not None:
+                all_none = False
 
-        if target_120 is None:
-            for delta_sec in range(-5 * 60, 6 * 60, 60):
-                target_120 = ts_to_sgv.get(t120_epoch + delta_sec)
-                if target_120 is not None:
-                    break
-
-        # Skip rows where neither target is available
-        if target_60 is None and target_120 is None:
+        # Skip rows where no horizon has a target
+        if all_none:
             continue
 
         # Build context: readings up to and including ref_time
@@ -216,8 +217,7 @@ def _collect_training_data():
 
         training_input.add_context(
             ref_time=ref_time,
-            target_60m_val=float(target_60) if target_60 is not None else None,
-            target_120m_val=float(target_120) if target_120 is not None else None,
+            targets=target_vals,
             glucose_readings=context_readings,
             log_entries=context_logs,
             basal_rate=basal_rate,
