@@ -684,3 +684,69 @@ class UserSnooze(db.Model):
     @property
     def is_active(self) -> bool:
         return self.snooze_until > datetime.now(UTC)
+
+
+# ── Prediction Models ────────────────────────────────────────────────────
+
+
+class PredictionRun(db.Model):
+    """A single forecast generation run with metadata.
+
+    Each run covers one or more forecast horizons and produces a set of
+    ``PredictionPoint`` rows.  Runs are immutable after creation — a new
+    run is generated each time the predictor executes.
+    """
+
+    __tablename__ = "prediction_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    context_end_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    horizon_minutes: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    feature_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    points: Mapped[list["PredictionPoint"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="PredictionPoint.timestamp"
+    )
+
+    __table_args__ = (
+        # Fast lookup of recent runs for a given horizon.
+        {"sqlite_autoincrement": True},
+    )
+
+
+class PredictionPoint(db.Model):
+    """A single predicted glucose value at a future timestamp.
+
+    Each point belongs to exactly one ``PredictionRun``.  Duplicate
+    points within a run (same run_id + timestamp) are prevented by a
+    unique constraint.
+    """
+
+    __tablename__ = "prediction_points"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("prediction_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    predicted_sgv: Mapped[float] = mapped_column(Float, nullable=False)
+    lower_bound: Mapped[float | None] = mapped_column(Float, nullable=True)
+    upper_bound: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    run: Mapped["PredictionRun"] = relationship(back_populates="points")
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "timestamp", name="uq_prediction_point_run_ts"),
+        {"sqlite_autoincrement": True},
+    )
