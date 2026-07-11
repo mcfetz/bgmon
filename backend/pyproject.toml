@@ -20,6 +20,9 @@ dependencies = [
     "flask-cors>=4.0.0",
     "flask-limiter>=3.8.0",
     "gunicorn>=21.0.0",
+    "scikit-learn>=1.5.0",
+    "joblib>=1.4.0",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +57,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "migrations/*" = ["D", "E501", "W291", "I001", "SIM105", "ARG001"]
-"tests/*" = ["D103"]
+"tests/*" = ["D103", "D102"]
 "bgmon_api/routes/*" = ["D103"]
 "bgmon_api/models.py" = ["D102"]
 "bgmon_api/services/leader.py" = ["D102"]
