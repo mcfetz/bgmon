@@ -33,6 +33,35 @@
 - **Streak-Tracking** für konsequente Eintragungen
 - **TIR-Statistik** (Time-in-Range) auf Wochen-/Monatsbasis
 
+### BG-Prognose (ML)
+
+Die BG-Prognose sagt den Blutzucker in 30, 60 und 120 Minuten voraus — basierend auf
+den letzten Messwerten, Kohlenhydraten, Insulin, Basalrate und Tageszeit.
+
+**Features (15 Eingabewerte pro Vorhersage):**
+
+| Signal | Fenster |
+|---|---|
+| Aktueller BG, ∅ BG 30/60/120 min | 30 s–2 h |
+| BG-Steigung (Trend) | 30 min, 60 min |
+| Kohlenhydrate (KE) | 2 h, 4 h |
+| Insulin (IE) | 2 h, 4 h |
+| Basalrate, Wirkzeit, Korrekturfaktor | aus Settings |
+| Tageszeit (sin/cos) | 24 h-Zyklus |
+
+**Modell**: Pro Horizont eine separate `LinearRegression`, trainiert mit
+Walk-Forward-Cross-Validation auf den historischen Daten.
+
+**Aktivierung**: `BGMON_ML_ENABLED=true` in `.env`, dann einmalig `flask predictor train`
+ausführen. Training und Evaluierung sind auch über Einstellungen → ML im Frontend
+verfügbar (Admin-only, asynchron mit Status-Polling).
+
+**Anzeige**: Im Dashboard erscheinen farbige Prognose-Linien im GlucoseGraph
+(Türkis = 30 min, Gelb = 60 min) mit Konfidenzbändern, sowie Prognose-Karten
+in der StatsCard.
+
+> Die Prognose ist display-only — keine Alarmierung, keine Behandlungsempfehlung.
+
 ### PWA
 - **Offline-fähig** via Service Worker
 - **Installierbar** auf iOS, Android, Desktop
