@@ -13,10 +13,14 @@ from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
 
 from bgmon_api.auth_utils import get_current_user
+from bgmon_api.config import Config
 from bgmon_api.models import (
+    BasalRateHistory,
     GlobalSettings,
     GlucoseReading,
     LogEntry,
+    PredictionPoint,
+    PredictionRun,
     Threshold,
     User,
     UserRole,
@@ -143,6 +147,170 @@ def logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         }
         for e in entries
     ])
+
+
+# ── predictions ───────────────────────────────────────────────────────
+
+
+@dashboard_bp.route("/predictions", methods=["GET"])
+def predictions() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    """Return blood-glucose forecast for a requested horizon.
+
+    Query params:
+        minutes (int): forecast horizon in minutes (default: 60).
+                       Must be a positive integer matching one of the
+                       configured ``BGMON_ML_HORIZONS`` values.
+
+    Returns structured responses keyed by outcome kind:
+        - ``ready``: 200 with run metadata + ordered future points
+        - ``disabled``: 503 with status/reason
+        - ``unavailable``: 503 with status/reason
+        - ``insufficient_context``: 422 with status/reason
+        - ``invalid minutes``: 400 with error message
+    """
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+
+    # ── parse & validate minutes ───────────────────────────────────────
+    minutes_raw = request.args.get("minutes", "")
+    if not minutes_raw:
+        return jsonify({"error": "missing_query_param", "param": "minutes"}), HTTPStatus.BAD_REQUEST
+
+    try:
+        minutes = int(minutes_raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid_minutes", "value": minutes_raw}), HTTPStatus.BAD_REQUEST
+
+    horizons = Config.ml_horizons()
+    if minutes not in horizons:
+        return jsonify({
+            "error": "unsupported_horizon",
+            "value": minutes,
+            "supported": horizons,
+        }), HTTPStatus.BAD_REQUEST
+
+    if minutes <= 0:
+        return jsonify({"error": "invalid_minutes", "value": minutes}), HTTPStatus.BAD_REQUEST
+
+    # ── find patient & gather context ──────────────────────────────────
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if not patient:
+        return jsonify({"error": "no_patient"}), HTTPStatus.NOT_FOUND
+
+    # Fetch recent glucose readings (last 6h for feature window)
+    now = datetime.now(UTC)
+    window_start = now - timedelta(hours=6)
+    glucose_readings = (
+        GlucoseReading.query
+        .filter(GlucoseReading.timestamp >= window_start)
+        .order_by(GlucoseReading.timestamp.asc())
+        .all()
+    )
+
+    # Fetch recent log entries (last 4h for carb/insulin windows)
+    log_window_start = now - timedelta(hours=4)
+    log_entries = (
+        LogEntry.query
+        .filter_by(user_id=patient.id)
+        .filter(LogEntry.created_at >= log_window_start)
+        .order_by(LogEntry.created_at.asc())
+        .all()
+    )
+
+    basal_rate = (
+        BasalRateHistory.query
+        .filter_by(user_id=patient.id)
+        .order_by(BasalRateHistory.changed_at.desc())
+        .first()
+    )
+
+    global_settings = GlobalSettings.query.first()
+
+    # ── build context & call predictor ─────────────────────────────────
+    from bgmon_api.services.feature_builder import FeatureContext
+    from bgmon_api.services.predictor import (
+        DisabledOutcome,
+        InsufficientContextOutcome,
+        ReadyOutcome,
+        UnavailableOutcome,
+        predict,
+    )
+
+    context = FeatureContext(
+        glucose_readings=glucose_readings,
+        log_entries=log_entries,
+        basal_rate=basal_rate,
+        global_settings=global_settings,
+        reference_time=now,
+    )
+
+    outcome = predict(
+        user_id=patient.id,
+        feature_context=context,
+        horizon_minutes=minutes,
+    )
+
+    # ── map outcome to HTTP response ───────────────────────────────────
+    match outcome:
+        case DisabledOutcome():
+            return jsonify({
+                "status": outcome.kind,
+                "reason": outcome.reason,
+            }), HTTPStatus.SERVICE_UNAVAILABLE
+
+        case UnavailableOutcome():
+            return jsonify({
+                "status": outcome.kind,
+                "reason": outcome.reason,
+            }), HTTPStatus.SERVICE_UNAVAILABLE
+
+        case InsufficientContextOutcome():
+            return jsonify({
+                "status": outcome.kind,
+                "reason": outcome.reason,
+            }), HTTPStatus.UNPROCESSABLE_ENTITY
+
+        case ReadyOutcome():
+            # Query the persisted run + points
+            run = PredictionRun.query.filter_by(id=outcome.run_id).first()
+            if not run:
+                return jsonify({
+                    "status": "unavailable",
+                    "reason": "run_not_found",
+                }), HTTPStatus.SERVICE_UNAVAILABLE
+
+            points = (
+                PredictionPoint.query
+                .filter_by(run_id=run.id)
+                .order_by(PredictionPoint.timestamp)
+                .all()
+            )
+
+            return jsonify({
+                "status": outcome.kind,
+                "run_id": run.id,
+                "generated_at": run.generated_at.isoformat() if run.generated_at else None,
+                "context_end_at": run.context_end_at.isoformat() if run.context_end_at else None,
+                "horizon_minutes": run.horizon_minutes,
+                "model_version": run.model_version,
+                "reused": outcome.reused,
+                "points": [
+                    {
+                        "timestamp": p.timestamp.isoformat() if p.timestamp else None,
+                        "predicted_sgv": p.predicted_sgv,
+                        "lower_bound": p.lower_bound,
+                        "upper_bound": p.upper_bound,
+                    }
+                    for p in points
+                ],
+            })
+
+        case _:
+            return jsonify({
+                "status": "error",
+                "reason": "unexpected_outcome",
+            }), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 def _calculate_weekly_scores(
@@ -709,13 +877,12 @@ def check_and_log_streak() -> None:
             pass  # commit handled by context manager
 
         note = f"Neuer Rekord-Streak: {longest_q * 15} Min. im grünen Bereich!"
-        entry = LogEntry(
-            user_id=patient.id,
-            entry_type=LogEntryType.SUCCESS,
-            value=0,
-            unit="",
-            notes=note,
-        )
+        entry = LogEntry()
+        entry.user_id = patient.id
+        entry.entry_type = LogEntryType.SUCCESS
+        entry.value = 0
+        entry.unit = ""
+        entry.notes = note
         with transactional_session():
             db.session.add(entry)
     else:
