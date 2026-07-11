@@ -2,7 +2,7 @@
 	import type { PredictionPoint } from '$lib/api/dashboard';
 
 	let {
-		open = false,
+		open = $bindable(false),
 		predictions30 = [] as PredictionPoint[],
 		predictions60 = [] as PredictionPoint[],
 		predictions120 = [] as PredictionPoint[],
