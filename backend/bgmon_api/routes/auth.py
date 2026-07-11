@@ -1,20 +1,24 @@
 """Authentication blueprint — login, logout, session."""
 
+import logging
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from bgmon_api.auth_utils import get_current_user
-from bgmon_api.extensions import db
+from bgmon_api.extensions import db, limiter
 from bgmon_api.models import Session, User
 from bgmon_api.utils import transactional_session
 
 auth_bp = Blueprint("auth", __name__)
+logger = logging.getLogger(__name__)
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("10 per minute;30 per hour")
 def login() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     data = request.get_json(silent=True) or {}
     email = data.get("email", "")
@@ -28,24 +32,25 @@ def login() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         return jsonify({"error": "account deactivated"}), HTTPStatus.UNAUTHORIZED
 
     user_data = {
-            "id": user.id,
-            "email": user.email,
-            "display_name": user.display_name,
-            "role": user.role.value,
-            "is_active": user.is_active,
-        }
+        "id": user.id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role.value,
+        "is_active": user.is_active,
+    }
 
     try:
         with transactional_session():
-            session = Session(
-                user_id=user.id,
-                expires_at=datetime.now(UTC) + timedelta(days=30),
-            )
+            session = Session()
+            session.user_id = user.id
+            session.expires_at = datetime.now(UTC) + timedelta(days=30)
             db.session.add(session)
+            db.session.flush()
             token = session.token
 
         return jsonify({"token": token, "user": user_data})
-    except Exception:
+    except SQLAlchemyError:
+        logger.exception("Failed to create session for user_id=%s", user.id)
         return jsonify({"error": "Failed to create session"}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -58,7 +63,7 @@ def me() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 @auth_bp.route("/logout", methods=["POST"])
-def logout() -> FlaskResponse:
+def logout() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         token = auth.removeprefix("Bearer ")
@@ -67,6 +72,10 @@ def logout() -> FlaskResponse:
             try:
                 with transactional_session():
                     db.session.delete(session)
-            except Exception:
-                pass  # Logout should always succeed even if DB fails
+            except SQLAlchemyError:
+                logger.exception("Failed to revoke session for user_id=%s", session.user_id)
+                return (
+                    jsonify({"error": "Failed to revoke session"}),
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
     return jsonify({"status": "ok"})

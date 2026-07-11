@@ -8,11 +8,9 @@ from typing import cast
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, Response, jsonify, send_from_directory
 from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 
 from bgmon_api.config import Config
-from bgmon_api.extensions import db, migrate
+from bgmon_api.extensions import db, limiter, migrate
 
 logger = logging.getLogger(__name__)
 
@@ -113,13 +111,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     migrate.init_app(app, db)
 
     CORS(app, resources={r"/api/*": {"origins": "*"}})
-
-    _limiter = Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=["200 per day", "50 per hour"],
-        storage_uri="memory://",
-    )
+    limiter.init_app(app)
 
     import bgmon_api.models  # noqa: F401
     from bgmon_api.routes.alarms import alarms_bp
@@ -144,7 +136,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(shifts_bp, url_prefix="/api/shifts")
     app.register_blueprint(users_bp, url_prefix="/api/users")
 
+    from bgmon_api.commands.train_predictor import register_commands
     from bgmon_api.seed import bootstrap_admin
+
+    register_commands(app)
 
     with app.app_context():
         bootstrap_admin()
