@@ -52,7 +52,9 @@
 	let logRefreshTrigger = $state(0);
 	let bgModalOpen = $state(false);
 	let highlightedTimestamp = $state<string | null>(null);
-	let predictionStatus = $state<'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'>('idle');
+	let predictionStatus = $state<
+		'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'
+	>('idle');
 	let predictionPoints = $state<PredictionPoint[]>([]);
 
 	// Time window state

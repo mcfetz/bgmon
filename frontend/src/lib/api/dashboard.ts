@@ -122,11 +122,7 @@ export interface PredictionPoint {
 	upper_bound: number | null;
 }
 
-export type PredictionStatus =
-	| 'ready'
-	| 'disabled'
-	| 'unavailable'
-	| 'insufficient_context';
+export type PredictionStatus = 'ready' | 'disabled' | 'unavailable' | 'insufficient_context';
 
 export interface PredictionReady {
 	status: 'ready';
@@ -146,9 +142,7 @@ export interface PredictionUnavailable {
 
 export type PredictionResponse = PredictionReady | PredictionUnavailable;
 
-export async function fetchPrediction(
-	minutes: number = 60
-): Promise<PredictionResponse | null> {
+export async function fetchPrediction(minutes: number = 60): Promise<PredictionResponse | null> {
 	const res = await apiFetch(`${BASE}/predictions?minutes=${minutes}`);
 	if (!res.ok) return null;
 	return res.json();

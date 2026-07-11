@@ -148,9 +148,7 @@
 
 	const forecastLinePath = $derived(
 		forecastPoints.length > 0
-			? forecastPoints
-					.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`)
-					.join(' ')
+			? forecastPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ')
 			: ''
 	);
 
