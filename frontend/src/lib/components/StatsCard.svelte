@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { StatsData } from '$lib/api/dashboard';
+	import type { StatsData, PredictionPoint } from '$lib/api/dashboard';
 	import TirModal from './TirModal.svelte';
 	import DailyScoreModal from './DailyScoreModal.svelte';
 	import BadgeModal from './BadgeModal.svelte';
@@ -7,7 +7,8 @@
 
 	let {
 		stats = null as StatsData | null,
-		thresholds = { criticalLow: 54, low: 70, high: 180, criticalHigh: 250 }
+		thresholds = { criticalLow: 54, low: 70, high: 180, criticalHigh: 250 },
+		predictions = [] as PredictionPoint[]
 	} = $props();
 
 	let tirModalOpen = $state(false);
@@ -88,6 +89,24 @@
 		<span class="label">Messwerte</span>
 		<span class="value">{stats?.readings ?? 0}</span>
 		<span class="unit">Stk.</span>
+	</div>
+
+	<div class="stat-card">
+		<span class="label">Prognose +60min</span>
+		{#if predictions.length > 0}
+			{@const last = predictions[predictions.length - 1]}
+			<span class="value">{last.predicted_sgv.toFixed(0)}</span>
+			<span class="unit">
+				{#if last.lower_bound != null && last.upper_bound != null}
+					{last.lower_bound.toFixed(0)}–{last.upper_bound.toFixed(0)} mg/dL
+				{:else}
+					mg/dL
+				{/if}
+			</span>
+		{:else}
+			<span class="value">—</span>
+			<span class="unit">Keine Prognose</span>
+		{/if}
 	</div>
 </div>
 

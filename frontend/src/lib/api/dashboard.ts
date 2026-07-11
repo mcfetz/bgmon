@@ -114,3 +114,42 @@ export async function fetchGlobalSettings(): Promise<GlobalSettings | null> {
 	if (!res.ok) return null;
 	return res.json();
 }
+
+export interface PredictionPoint {
+	timestamp: string;
+	predicted_sgv: number;
+	lower_bound: number | null;
+	upper_bound: number | null;
+}
+
+export type PredictionStatus =
+	| 'ready'
+	| 'disabled'
+	| 'unavailable'
+	| 'insufficient_context';
+
+export interface PredictionReady {
+	status: 'ready';
+	run_id: number;
+	generated_at: string;
+	context_end_at: string;
+	horizon_minutes: number;
+	model_version: string;
+	reused: boolean;
+	points: PredictionPoint[];
+}
+
+export interface PredictionUnavailable {
+	status: 'disabled' | 'unavailable' | 'insufficient_context';
+	reason: string;
+}
+
+export type PredictionResponse = PredictionReady | PredictionUnavailable;
+
+export async function fetchPrediction(
+	minutes: number = 60
+): Promise<PredictionResponse | null> {
+	const res = await apiFetch(`${BASE}/predictions?minutes=${minutes}`);
+	if (!res.ok) return null;
+	return res.json();
+}

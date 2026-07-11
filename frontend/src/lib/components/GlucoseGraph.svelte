@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { GlucoseReading, LogEntryReading } from '$lib/api/dashboard';
+	import type { GlucoseReading, LogEntryReading, PredictionPoint } from '$lib/api/dashboard';
 
 	let {
 		readings = [] as GlucoseReading[],
@@ -10,7 +10,8 @@
 		criticalHigh = 250,
 		insulinActionHours = 4,
 		onswipe = ((_ratio: number) => {}) as (ratio: number) => void,
-		highlightedTimestamp = null as string | null
+		highlightedTimestamp = null as string | null,
+		predictions = [] as PredictionPoint[]
 	} = $props();
 
 	const width = 600;
@@ -42,11 +43,18 @@
 	const plotWidth = $derived(width - pad.left - pad.right);
 	const plotHeight = $derived(height - pad.top - pad.bottom);
 
-	const timeRange = $derived(
-		timePoints.length > 1
-			? { min: timePoints[0].ts, max: timePoints[timePoints.length - 1].ts }
-			: null
-	);
+	const timeRange = $derived.by(() => {
+		let min = timePoints.length > 0 ? timePoints[0].ts : null;
+		let max = timePoints.length > 0 ? timePoints[timePoints.length - 1].ts : null;
+
+		for (const p of predictions) {
+			const ts = new Date(p.timestamp).getTime();
+			if (min === null || ts < min) min = ts;
+			if (max === null || ts > max) max = ts;
+		}
+
+		return min !== null && max !== null ? { min, max } : null;
+	});
 
 	const minY = $derived(
 		timePoints.length > 0 ? Math.min(low - 20, ...timePoints.map((p) => p.sgv), 40) : 40
@@ -123,6 +131,48 @@
 			value: p.sgv,
 			timestamp: p.timestamp
 		}))
+	);
+
+	const forecastPoints = $derived(
+		predictions
+			.filter((p) => p.predicted_sgv != null)
+			.map((p) => ({
+				ts: new Date(p.timestamp).getTime(),
+				sgv: p.predicted_sgv,
+				lower: p.lower_bound,
+				upper: p.upper_bound,
+				timestamp: p.timestamp
+			}))
+			.sort((a, b) => a.ts - b.ts)
+	);
+
+	const forecastLinePath = $derived(
+		forecastPoints.length > 0
+			? forecastPoints
+					.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`)
+					.join(' ')
+			: ''
+	);
+
+	const forecastBandPath = $derived.by(() => {
+		if (forecastPoints.length < 2) return '';
+		const upper = forecastPoints.map((p) => `${xPos(p.ts)},${yPos(p.upper ?? p.sgv)}`).join(' L');
+		const lower = [...forecastPoints]
+			.reverse()
+			.map((p) => `${xPos(p.ts)},${yPos(p.lower ?? p.sgv)}`)
+			.join(' L');
+		return `M${upper} L${lower} Z`;
+	});
+
+	const forecastTerminalDot = $derived(
+		forecastPoints.length > 0
+			? {
+					cx: xPos(forecastPoints[forecastPoints.length - 1].ts),
+					cy: yPos(forecastPoints[forecastPoints.length - 1].sgv),
+					value: forecastPoints[forecastPoints.length - 1].sgv,
+					timestamp: forecastPoints[forecastPoints.length - 1].timestamp
+				}
+			: null
 	);
 
 	const highlightX = $derived.by(() => {
@@ -416,6 +466,34 @@
 			<!-- Glucose line -->
 			{#if linePath}
 				<path d={linePath} fill="none" stroke="#14b8a6" stroke-width="2" />
+			{/if}
+
+			<!-- Prediction band -->
+			{#if forecastBandPath}
+				<path d={forecastBandPath} fill="#14b8a6" opacity="0.1" />
+			{/if}
+
+			<!-- Prediction line (dashed) -->
+			{#if forecastLinePath}
+				<path
+					d={forecastLinePath}
+					fill="none"
+					stroke="#14b8a6"
+					stroke-width="2"
+					stroke-dasharray="6,4"
+					opacity="0.6"
+				/>
+			{/if}
+
+			<!-- Prediction terminal dot -->
+			{#if forecastTerminalDot}
+				<circle
+					cx={forecastTerminalDot.cx}
+					cy={forecastTerminalDot.cy}
+					r="5"
+					fill="#14b8a6"
+					opacity="0.7"
+				/>
 			{/if}
 
 			<!-- Data dots -->

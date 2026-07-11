@@ -15,9 +15,16 @@
 		fetchLogsRange,
 		fetchStatsRange,
 		fetchThresholds,
-		fetchGlobalSettings
+		fetchGlobalSettings,
+		fetchPrediction
 	} from '$lib/api/dashboard';
-	import type { GlucoseReading, LogEntryReading, StatsData } from '$lib/api/dashboard';
+	import type {
+		GlucoseReading,
+		LogEntryReading,
+		PredictionPoint,
+		PredictionResponse,
+		StatsData
+	} from '$lib/api/dashboard';
 
 	let current = $state<{ sgv: number | null; direction: string | null } | null>(null);
 	let readings = $state<GlucoseReading[]>([]);
@@ -45,6 +52,8 @@
 	let logRefreshTrigger = $state(0);
 	let bgModalOpen = $state(false);
 	let highlightedTimestamp = $state<string | null>(null);
+	let predictionStatus = $state<'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'>('idle');
+	let predictionPoints = $state<PredictionPoint[]>([]);
 
 	// Time window state
 	const initialWindowDurationMs = 3600 * 1000; // default 1h
@@ -121,6 +130,17 @@
 		}
 	}
 
+	async function loadPrediction() {
+		const result = await fetchPrediction(60);
+		if (!result) {
+			predictionStatus = 'idle';
+			predictionPoints = [];
+			return;
+		}
+		predictionStatus = result.status;
+		predictionPoints = result.status === 'ready' ? result.points : [];
+	}
+
 	function onLogSaved() {
 		loadDashboard();
 		logRefreshTrigger++;
@@ -156,9 +176,11 @@
 	onMount(() => {
 		checkAuth();
 		loadDashboard();
+		loadPrediction();
 		checkHealth();
 		const interval = setInterval(() => {
 			loadDashboard().catch((e) => console.error('Auto-refresh failed:', e));
+			loadPrediction().catch((e) => console.error('Prediction refresh failed:', e));
 			checkHealth();
 		}, 30_000);
 		const nowInterval = setInterval(() => {
@@ -359,6 +381,7 @@
 			{insulinActionHours}
 			onswipe={shiftWindow}
 			{highlightedTimestamp}
+			predictions={predictionPoints}
 		/>
 		<LogHistory
 			refreshTrigger={logRefreshTrigger}
@@ -367,7 +390,7 @@
 			{highlightedTimestamp}
 			onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
 		/>
-		<StatsCard {stats} />
+		<StatsCard {stats} predictions={predictionPoints} />
 	</div>
 </div>
 
