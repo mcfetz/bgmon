@@ -40,6 +40,17 @@ def client(app):
     return app.test_client()
 
 
+@pytest.fixture(autouse=True)
+def limiter_reset(app):
+    from bgmon_api.extensions import limiter as _limiter
+
+    with app.app_context():
+        _limiter.reset()
+    yield
+    with app.app_context():
+        _limiter.reset()
+
+
 @pytest.fixture
 def db_session(app):
     from bgmon_api.extensions import db as _db
@@ -77,7 +88,12 @@ def _create_user(db_session, email, display_name, role, **kwargs):
 @pytest.fixture
 def patient_user(db_session):
     from bgmon_api.models import UserRole
-    user, session = _create_user(db_session, "patient@example.com", "Test Patient", UserRole.PATIENT)
+    user, session = _create_user(
+        db_session,
+        "patient@example.com",
+        "Test Patient",
+        UserRole.PATIENT,
+    )
     user._session = session
     return user
 
@@ -126,7 +142,13 @@ def auth_headers():
 @pytest.fixture
 def thresholds(db_session, patient_user):
     from bgmon_api.models import Threshold
-    t = Threshold(user_id=patient_user.id, critical_low=54.0, low=70.0, high=180.0, critical_high=250.0)
+    t = Threshold(
+        user_id=patient_user.id,
+        critical_low=54.0,
+        low=70.0,
+        high=180.0,
+        critical_high=250.0,
+    )
     db_session.add(t)
     db_session.commit()
     return t
@@ -135,15 +157,28 @@ def thresholds(db_session, patient_user):
 @pytest.fixture
 def notification_profile_with_assignments(db_session, patient_user):
     from bgmon_api.models import (
-        NotificationArea, NotificationAssignment, NotificationProfile,
-        NotificationThreshold, UserActiveProfile,
+        NotificationArea,
+        NotificationAssignment,
+        NotificationProfile,
+        NotificationThreshold,
+        UserActiveProfile,
     )
-    profile = NotificationProfile(user_id=patient_user.id, name="Default", icon="bell", is_active=True)
+    profile = NotificationProfile(
+        user_id=patient_user.id,
+        name="Default",
+        icon="bell",
+        is_active=True,
+    )
     db_session.add(profile)
     db_session.flush()
     for th in ["critical_low", "low", "high", "critical_high"]:
-        db_session.add(NotificationAssignment(
-            profile_id=profile.id, threshold=NotificationThreshold(th), area=NotificationArea.PUSH))
+        db_session.add(
+            NotificationAssignment(
+                profile_id=profile.id,
+                threshold=NotificationThreshold(th),
+                area=NotificationArea.PUSH,
+            )
+        )
     db_session.add(UserActiveProfile(user_id=patient_user.id, profile_id=profile.id))
     db_session.commit()
     return profile
@@ -152,15 +187,34 @@ def notification_profile_with_assignments(db_session, patient_user):
 @pytest.fixture
 def notification_profile_with_call(db_session, patient_user):
     from bgmon_api.models import (
-        NotificationArea, NotificationAssignment, NotificationProfile,
-        NotificationThreshold, UserActiveProfile,
+        NotificationArea,
+        NotificationAssignment,
+        NotificationProfile,
+        NotificationThreshold,
+        UserActiveProfile,
     )
-    profile = NotificationProfile(user_id=patient_user.id, name="Call Profile", icon="phone", is_active=True)
+    profile = NotificationProfile(
+        user_id=patient_user.id,
+        name="Call Profile",
+        icon="phone",
+        is_active=True,
+    )
     db_session.add(profile)
     db_session.flush()
-    for th, area in [("critical_low", "CALL"), ("low", "PUSH"), ("high", "PUSH"), ("critical_high", "CALL")]:
-        db_session.add(NotificationAssignment(
-            profile_id=profile.id, threshold=NotificationThreshold(th), area=NotificationArea(area)))
+    threshold_areas = [
+        ("critical_low", "CALL"),
+        ("low", "PUSH"),
+        ("high", "PUSH"),
+        ("critical_high", "CALL"),
+    ]
+    for th, area in threshold_areas:
+        db_session.add(
+            NotificationAssignment(
+                profile_id=profile.id,
+                threshold=NotificationThreshold(th),
+                area=NotificationArea(area),
+            )
+        )
     db_session.add(UserActiveProfile(user_id=patient_user.id, profile_id=profile.id))
     db_session.commit()
     return profile
