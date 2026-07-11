@@ -3,7 +3,7 @@
 ## Offen / In Arbeit
 
 ### 1. Notification-Profile komplett testen
-- [ ] Profil im Header-Dropdown auswählen → wird in DB gespeichert (bestätigt)
+- [x] Profil im Header-Dropdown auswählen → wird in DB gespeichert
 - [ ] BG > 180 → Alarm-Evaluator triggert Twilio-Call
 - [ ] Logbuch zeigt Benachrichtigung
 - [ ] Snooze (15 min) verhindert Folge-Alarme
@@ -15,19 +15,21 @@
 - [ ] Anzeige: "Stumm bis HH:MM" wenn aktiv
 
 ### 3. Push-Benachrichtigungen implementieren
-- [ ] `dispatch_via_profile` für `push` area ist implementiert (`_dispatch_push`)
+- [x] `dispatch_via_profile` für `push` area ist implementiert (`_dispatch_push`)
 - [ ] Web Push Service (`web_push.py`) testen
 - [ ] User-Subscription-Management
 
-### 4. Code-Qualität
-- [ ] Ruff Issues fixen (1 E501 übrig, nicht auto-fixable)
-- [ ] ty Warnings prüfen (db.Model dynamic base = erwartet)
+### 4. Security / Production-Hardening
+- [ ] Webhook-Auth / Public-Webhook-Design in `notifications.py` separat neu aufsetzen
+- [ ] Rate-Limit-Storage für Production auf Shared-Backend umstellen (statt `memory://`)
+- [ ] Proxy-/Client-IP-Handling für `get_remote_address` vor Production prüfen
+- [ ] Migration-Downgrades auf Datenverlust prüfen
+
+### 5. Code-Qualität
+- [ ] Pre-existing Test-Typing/LSP-Rauschen in `backend/tests/conftest.py` bereinigen
+- [ ] `redundant-cast` Warning in `backend/bgmon_api/app.py` bereinigen
 - [ ] Debug-Code aus alarm_evaluator.py entfernen
 - [ ] Doppelte Funktionsdefinitionen VERMEIDEN (bereits 1x passiert!)
-
-### 5. Leader Election Fix
-- [ ] `_alarm_job` läuft aktuell OHNE Leader-Check (Test-Modus)
-- [ ] Für Production: Leader-Check wieder einbauen ODER Single-Instance-Logik
 
 ## Erledigt (diese Session)
 
@@ -45,6 +47,12 @@
 - [x] `place_call(user, sgv, title)` mit BG-Wert in TwiML
 - [x] `extensions.py` für saubere `db`/`migrate` Imports
 - [x] Alarm-Logs im Logbuch (Benachrichtigung an X via Y)
+- [x] Flask-Limiter zentral in `extensions.py` + `app.py` init
+- [x] Login-Rate-Limit auf `POST /api/auth/login` (`10/min`, `30/hour`)
+- [x] Login-Rate-Limit-Tests gehärtet inkl. Limiter-Reset pro Test
+- [x] Logout gibt 500 zurück, wenn Session-Revocation in der DB fehlschlägt
+- [x] Login-/Logout-DB-Fehler werden serverseitig geloggt
+- [x] Leader-Check wieder aktiv für Alarm/Profile/Streak-Jobs
 
 ### Frontend
 - [x] snipsel-ähnliches Layout (pill-shaped header, glass effect)
