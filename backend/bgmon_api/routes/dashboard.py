@@ -778,12 +778,13 @@ def _analyze_streaks(low: int, high: int) -> tuple[datetime | None, int, datetim
     readings = (
         db.session.execute(
             db.select(GlucoseReading)
-            .order_by(GlucoseReading.timestamp.asc())
+            .order_by(GlucoseReading.timestamp.desc())
             .limit(5000)
         )
         .scalars()
         .all()
     )
+    readings.reverse()  # restore ascending order for streak logic
     if not readings:
         return None, 0, None
 
