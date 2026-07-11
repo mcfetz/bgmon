@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_ML_ARTIFACT_SUBDIR: Final = "ml_models/bg_prediction_v1"
-DEFAULT_ML_HORIZONS: Final = "60,120"
+DEFAULT_ML_HORIZONS: Final = "30,60,120"
 ML_MANIFEST_FILENAME: Final = "manifest.json"
 
 MlRuntimeStatus = Literal["disabled", "unavailable", "ready"]

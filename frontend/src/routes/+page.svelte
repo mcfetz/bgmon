@@ -55,7 +55,8 @@
 	let predictionStatus = $state<
 		'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'
 	>('idle');
-	let predictionPoints = $state<PredictionPoint[]>([]);
+	let predictionPoints60 = $state<PredictionPoint[]>([]);
+	let predictionPoints30 = $state<PredictionPoint[]>([]);
 
 	// Time window state
 	const initialWindowDurationMs = 3600 * 1000; // default 1h
@@ -133,14 +134,16 @@
 	}
 
 	async function loadPrediction() {
-		const result = await fetchPrediction(60);
-		if (!result) {
+		const [result30, result60] = await Promise.all([fetchPrediction(30), fetchPrediction(60)]);
+		// Use 60min result for predictionStatus
+		if (!result60) {
 			predictionStatus = 'idle';
-			predictionPoints = [];
-			return;
+			predictionPoints60 = [];
+		} else {
+			predictionStatus = result60.status;
+			predictionPoints60 = result60.status === 'ready' ? result60.points : [];
 		}
-		predictionStatus = result.status;
-		predictionPoints = result.status === 'ready' ? result.points : [];
+		predictionPoints30 = result30?.status === 'ready' ? result30.points : [];
 	}
 
 	function onLogSaved() {
@@ -383,7 +386,8 @@
 			{insulinActionHours}
 			onswipe={shiftWindow}
 			{highlightedTimestamp}
-			predictions={predictionPoints}
+			predictions30={predictionPoints30}
+			predictions60={predictionPoints60}
 		/>
 		<LogHistory
 			refreshTrigger={logRefreshTrigger}
@@ -392,7 +396,7 @@
 			{highlightedTimestamp}
 			onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
 		/>
-		<StatsCard {stats} predictions={predictionPoints} />
+		<StatsCard {stats} predictions60={predictionPoints60} predictions30={predictionPoints30} />
 	</div>
 </div>
 

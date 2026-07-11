@@ -11,7 +11,8 @@
 		insulinActionHours = 4,
 		onswipe = ((_ratio: number) => {}) as (ratio: number) => void,
 		highlightedTimestamp = null as string | null,
-		predictions = [] as PredictionPoint[]
+		predictions30 = [] as PredictionPoint[],
+		predictions60 = [] as PredictionPoint[]
 	} = $props();
 
 	const width = 600;
@@ -47,11 +48,15 @@
 		let min = timePoints.length > 0 ? timePoints[0].ts : null;
 		let max = timePoints.length > 0 ? timePoints[timePoints.length - 1].ts : null;
 
-		for (const p of predictions) {
-			const ts = new Date(p.timestamp).getTime();
-			if (min === null || ts < min) min = ts;
-			if (max === null || ts > max) max = ts;
+		function extendTime(pts: PredictionPoint[]) {
+			for (const p of pts) {
+				const ts = new Date(p.timestamp).getTime();
+				if (min === null || ts < min) min = ts;
+				if (max === null || ts > max) max = ts;
+			}
 		}
+		extendTime(predictions30);
+		extendTime(predictions60);
 
 		return min !== null && max !== null ? { min, max } : null;
 	});
@@ -133,8 +138,8 @@
 		}))
 	);
 
-	const forecastPoints = $derived(
-		predictions
+	function computeForecast(pts: PredictionPoint[]) {
+		const points = pts
 			.filter((p) => p.predicted_sgv != null)
 			.map((p) => ({
 				ts: new Date(p.timestamp).getTime(),
@@ -143,35 +148,38 @@
 				upper: p.upper_bound,
 				timestamp: p.timestamp
 			}))
-			.sort((a, b) => a.ts - b.ts)
-	);
+			.sort((a, b) => a.ts - b.ts);
 
-	const forecastLinePath = $derived(
-		forecastPoints.length > 0
-			? forecastPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ')
-			: ''
-	);
+		const linePath =
+			points.length > 0
+				? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ')
+				: '';
 
-	const forecastBandPath = $derived.by(() => {
-		if (forecastPoints.length < 2) return '';
-		const upper = forecastPoints.map((p) => `${xPos(p.ts)},${yPos(p.upper ?? p.sgv)}`).join(' L');
-		const lower = [...forecastPoints]
-			.reverse()
-			.map((p) => `${xPos(p.ts)},${yPos(p.lower ?? p.sgv)}`)
-			.join(' L');
-		return `M${upper} L${lower} Z`;
-	});
+		let bandPath = '';
+		if (points.length >= 2) {
+			const upper = points.map((p) => `${xPos(p.ts)},${yPos(p.upper ?? p.sgv)}`).join(' L');
+			const lower = [...points]
+				.reverse()
+				.map((p) => `${xPos(p.ts)},${yPos(p.lower ?? p.sgv)}`)
+				.join(' L');
+			bandPath = `M${upper} L${lower} Z`;
+		}
 
-	const forecastTerminalDot = $derived(
-		forecastPoints.length > 0
-			? {
-					cx: xPos(forecastPoints[forecastPoints.length - 1].ts),
-					cy: yPos(forecastPoints[forecastPoints.length - 1].sgv),
-					value: forecastPoints[forecastPoints.length - 1].sgv,
-					timestamp: forecastPoints[forecastPoints.length - 1].timestamp
-				}
-			: null
-	);
+		const terminalDot =
+			points.length > 0
+				? {
+						cx: xPos(points[points.length - 1].ts),
+						cy: yPos(points[points.length - 1].sgv),
+						value: points[points.length - 1].sgv,
+						timestamp: points[points.length - 1].timestamp
+					}
+				: null;
+
+		return { linePath, bandPath, terminalDot };
+	}
+
+	const forecast30 = $derived(computeForecast(predictions30));
+	const forecast60 = $derived(computeForecast(predictions60));
 
 	const highlightX = $derived.by(() => {
 		if (!highlightedTimestamp || !timeRange) return null;
@@ -466,15 +474,43 @@
 				<path d={linePath} fill="none" stroke="#14b8a6" stroke-width="2" />
 			{/if}
 
-			<!-- Prediction band -->
-			{#if forecastBandPath}
-				<path d={forecastBandPath} fill="#14b8a6" opacity="0.1" />
+			<!-- 60min prediction band -->
+			{#if forecast60.bandPath}
+				<path d={forecast60.bandPath} fill="#f59e0b" opacity="0.08" />
 			{/if}
 
-			<!-- Prediction line (dashed) -->
-			{#if forecastLinePath}
+			<!-- 60min prediction line (dashed, amber) -->
+			{#if forecast60.linePath}
 				<path
-					d={forecastLinePath}
+					d={forecast60.linePath}
+					fill="none"
+					stroke="#f59e0b"
+					stroke-width="2"
+					stroke-dasharray="6,4"
+					opacity="0.6"
+				/>
+			{/if}
+
+			<!-- 60min prediction terminal dot -->
+			{#if forecast60.terminalDot}
+				<circle
+					cx={forecast60.terminalDot.cx}
+					cy={forecast60.terminalDot.cy}
+					r="5"
+					fill="#f59e0b"
+					opacity="0.7"
+				/>
+			{/if}
+
+			<!-- 30min prediction band -->
+			{#if forecast30.bandPath}
+				<path d={forecast30.bandPath} fill="#14b8a6" opacity="0.1" />
+			{/if}
+
+			<!-- 30min prediction line (dashed, teal) -->
+			{#if forecast30.linePath}
+				<path
+					d={forecast30.linePath}
 					fill="none"
 					stroke="#14b8a6"
 					stroke-width="2"
@@ -483,11 +519,11 @@
 				/>
 			{/if}
 
-			<!-- Prediction terminal dot -->
-			{#if forecastTerminalDot}
+			<!-- 30min prediction terminal dot -->
+			{#if forecast30.terminalDot}
 				<circle
-					cx={forecastTerminalDot.cx}
-					cy={forecastTerminalDot.cy}
+					cx={forecast30.terminalDot.cx}
+					cy={forecast30.terminalDot.cy}
 					r="5"
 					fill="#14b8a6"
 					opacity="0.7"

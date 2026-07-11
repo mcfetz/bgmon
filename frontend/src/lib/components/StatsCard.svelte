@@ -8,7 +8,9 @@
 	let {
 		stats = null as StatsData | null,
 		thresholds = { criticalLow: 54, low: 70, high: 180, criticalHigh: 250 },
-		predictions = [] as PredictionPoint[]
+		predictions = [] as PredictionPoint[],
+		predictions30 = [] as PredictionPoint[],
+		predictions60 = [] as PredictionPoint[]
 	} = $props();
 
 	let tirModalOpen = $state(false);
@@ -92,9 +94,27 @@
 	</div>
 
 	<div class="stat-card">
+		<span class="label">Prognose +30min</span>
+		{#if predictions30.length > 0}
+			{@const last = predictions30[predictions30.length - 1]}
+			<span class="value">{last.predicted_sgv.toFixed(0)}</span>
+			<span class="unit">
+				{#if last.lower_bound != null && last.upper_bound != null}
+					{last.lower_bound.toFixed(0)}–{last.upper_bound.toFixed(0)} mg/dL
+				{:else}
+					mg/dL
+				{/if}
+			</span>
+		{:else}
+			<span class="value">—</span>
+			<span class="unit">Keine Prognose</span>
+		{/if}
+	</div>
+
+	<div class="stat-card">
 		<span class="label">Prognose +60min</span>
-		{#if predictions.length > 0}
-			{@const last = predictions[predictions.length - 1]}
+		{#if predictions60.length > 0}
+			{@const last = predictions60[predictions60.length - 1]}
 			<span class="value">{last.predicted_sgv.toFixed(0)}</span>
 			<span class="unit">
 				{#if last.lower_bound != null && last.upper_bound != null}
