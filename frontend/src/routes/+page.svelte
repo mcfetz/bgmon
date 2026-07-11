@@ -57,6 +57,11 @@
 	>('idle');
 	let predictionPoints60 = $state<PredictionPoint[]>([]);
 	let predictionPoints30 = $state<PredictionPoint[]>([]);
+	let predictionPoints120 = $state<PredictionPoint[]>([]);
+	let modelMae30 = $state<number | null>(null);
+	let modelMae60 = $state<number | null>(null);
+	let modelMae120 = $state<number | null>(null);
+	let modelVersion = $state('');
 
 	// Time window state
 	const initialWindowDurationMs = 3600 * 1000; // default 1h
@@ -134,7 +139,11 @@
 	}
 
 	async function loadPrediction() {
-		const [result30, result60] = await Promise.all([fetchPrediction(30), fetchPrediction(60)]);
+		const [result30, result60, result120] = await Promise.all([
+			fetchPrediction(30),
+			fetchPrediction(60),
+			fetchPrediction(120),
+		]);
 		// Use 60min result for predictionStatus
 		if (!result60) {
 			predictionStatus = 'idle';
@@ -142,8 +151,13 @@
 		} else {
 			predictionStatus = result60.status;
 			predictionPoints60 = result60.status === 'ready' ? result60.points : [];
+			modelMae60 = result60.status === 'ready' ? (result60 as any).model_mae ?? null : null;
+			modelVersion = result60.status === 'ready' ? (result60 as any).model_version ?? '' : '';
 		}
 		predictionPoints30 = result30?.status === 'ready' ? result30.points : [];
+		modelMae30 = result30?.status === 'ready' ? (result30 as any).model_mae ?? null : null;
+		predictionPoints120 = result120?.status === 'ready' ? result120.points : [];
+		modelMae120 = result120?.status === 'ready' ? (result120 as any).model_mae ?? null : null;
 	}
 
 	function onLogSaved() {
@@ -396,7 +410,18 @@
 			{highlightedTimestamp}
 			onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
 		/>
-		<StatsCard {stats} predictions60={predictionPoints60} predictions30={predictionPoints30} />
+		<StatsCard
+			{stats}
+			predictions30={predictionPoints30}
+			predictions60={predictionPoints60}
+			predictions120={predictionPoints120}
+			{modelMae30}
+			{modelMae60}
+			{modelMae120}
+			{modelVersion}
+			lastBg={current?.sgv ?? null}
+			lastBgTime={lastUpdate}
+		/>
 	</div>
 </div>
 

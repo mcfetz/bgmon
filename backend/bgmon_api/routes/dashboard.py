@@ -287,6 +287,23 @@ def predictions() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
                 .all()
             )
 
+            # Read model metrics from manifest
+            model_mae: float | None = None
+            baseline_mae: float | None = None
+            try:
+                from bgmon_api.config import Config
+                manifest_path = Config.model_dir() / "manifest.json"
+                if manifest_path.exists():
+                    import json
+                    manifest = json.loads(manifest_path.read_text())
+                    for m in manifest.get("metrics", []):
+                        if m.get("horizon_minutes") == run.horizon_minutes:
+                            model_mae = m["model_mae"]
+                            baseline_mae = m.get("baseline_mae")
+                            break
+            except Exception:
+                pass
+
             return jsonify({
                 "status": outcome.kind,
                 "run_id": run.id,
@@ -294,6 +311,8 @@ def predictions() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
                 "context_end_at": run.context_end_at.isoformat() if run.context_end_at else None,
                 "horizon_minutes": run.horizon_minutes,
                 "model_version": run.model_version,
+                "model_mae": model_mae,
+                "baseline_mae": baseline_mae,
                 "reused": outcome.reused,
                 "points": [
                     {

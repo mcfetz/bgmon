@@ -4,19 +4,28 @@
 	import DailyScoreModal from './DailyScoreModal.svelte';
 	import BadgeModal from './BadgeModal.svelte';
 	import StreakModal from './StreakModal.svelte';
+	import PredictionModal from './PredictionModal.svelte';
 
 	let {
 		stats = null as StatsData | null,
 		thresholds = { criticalLow: 54, low: 70, high: 180, criticalHigh: 250 },
 		predictions = [] as PredictionPoint[],
 		predictions30 = [] as PredictionPoint[],
-		predictions60 = [] as PredictionPoint[]
+		predictions60 = [] as PredictionPoint[],
+		predictions120 = [] as PredictionPoint[],
+		modelMae30 = null as number | null,
+		modelMae60 = null as number | null,
+		modelMae120 = null as number | null,
+		modelVersion = '',
+		lastBg = null as number | null,
+		lastBgTime = ''
 	} = $props();
 
 	let tirModalOpen = $state(false);
 	let dailyScoreModalOpen = $state(false);
 	let badgeModalOpen = $state(false);
 	let streakModalOpen = $state(false);
+	let predictionModalOpen = $state(false);
 
 	function formatStreakHM(intervals: number | null | undefined): string {
 		const v = intervals ?? 0;
@@ -93,7 +102,7 @@
 		<span class="unit">Stk.</span>
 	</div>
 
-	<div class="stat-card">
+	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
 		<span class="label">Prognose +30min</span>
 		{#if predictions30.length > 0}
 			{@const last = predictions30[predictions30.length - 1]}
@@ -104,14 +113,17 @@
 				{:else}
 					mg/dL
 				{/if}
+				{#if modelMae30 !== null}
+					<span class="mae-label">±{modelMae30.toFixed(0)}</span>
+				{/if}
 			</span>
 		{:else}
 			<span class="value">—</span>
 			<span class="unit">Keine Prognose</span>
 		{/if}
-	</div>
+	</button>
 
-	<div class="stat-card">
+	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
 		<span class="label">Prognose +60min</span>
 		{#if predictions60.length > 0}
 			{@const last = predictions60[predictions60.length - 1]}
@@ -122,12 +134,15 @@
 				{:else}
 					mg/dL
 				{/if}
+				{#if modelMae60 !== null}
+					<span class="mae-label">±{modelMae60.toFixed(0)}</span>
+				{/if}
 			</span>
 		{:else}
 			<span class="value">—</span>
 			<span class="unit">Keine Prognose</span>
 		{/if}
-	</div>
+	</button>
 </div>
 
 <TirModal bind:open={tirModalOpen} {stats} />
@@ -143,6 +158,18 @@
 	bestStreakAchievedAt={stats?.best_streak_achieved_at ?? null}
 	currentStreakHours={stats?.streak_hours ?? 0}
 	streakStartedAt={stats?.streak_started_at ?? null}
+/>
+<PredictionModal
+	bind:open={predictionModalOpen}
+	{predictions30}
+	{predictions60}
+	{predictions120}
+	{modelMae30}
+	{modelMae60}
+	{modelMae120}
+	{modelVersion}
+	{lastBg}
+	{lastBgTime}
 />
 
 <style>
@@ -199,6 +226,17 @@
 	.unit {
 		color: var(--color-text-muted);
 		font-size: 0.8rem;
+	}
+
+	.mae-label {
+		display: inline-block;
+		margin-left: 0.4rem;
+		padding: 0.1rem 0.35rem;
+		border-radius: 4px;
+		background: rgba(255, 193, 7, 0.15);
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: #b8860b;
 	}
 
 	.tir-bar {

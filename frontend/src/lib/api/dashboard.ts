@@ -131,6 +131,8 @@ export interface PredictionReady {
 	context_end_at: string;
 	horizon_minutes: number;
 	model_version: string;
+	model_mae?: number | null;
+	baseline_mae?: number | null;
 	reused: boolean;
 	points: PredictionPoint[];
 }
