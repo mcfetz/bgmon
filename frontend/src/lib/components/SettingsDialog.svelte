@@ -189,7 +189,7 @@
 		endpoint: string,
 		jobId: string,
 		setStatus: (s: string) => void,
-		setResult: (r: any) => void
+		setResult: (r: Record<string, unknown>) => void
 	) {
 		const interval = setInterval(async () => {
 			try {
