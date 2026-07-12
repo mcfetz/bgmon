@@ -155,13 +155,26 @@ docker compose up -d --build
 
 Die App ist unter <http://localhost:5000> erreichbar.
 
-#### 3. VAPID-Keys generieren (einmalig)
+> **Wichtig:** Der Scheduler läuft als **separater Prozess** (nicht in Gunicorn).
+> Im Docker-Setup wird er automatisch via `docker compose` als zweiter Service
+> gestartet. Bei manuellem Deployment:
+> ```bash
+> cd backend
+> python3 run_scheduler.py
+> ```
+
+#### 3. ML-Modell trainieren (einmalig)
+```bash
+docker compose exec backend flask predictor train
+```
+
+#### 4. VAPID-Keys generieren (einmalig)
 ```bash
 ./scripts/generate-vapid-keys.sh
 # Ausgabe in .env eintragen
 ```
 
-#### 4. Docker Swarm (Hochverfügbarkeit)
+#### 5. Docker Swarm (Hochverfügbarkeit)
 ```bash
 make swarm-deploy
 make swarm-ps
@@ -213,11 +226,27 @@ Alle Einstellungen werden über Umgebungsvariablen konfiguriert (siehe `.env.exa
 | `VAPID_PRIVATE_KEY` | Serverseitig zum Signieren                            |
 | `VAPID_SUBJECT`     | `mailto:admin@example.com` oder `https://example.com` |
 
-### Sonstige
+### ML-Prognose (optional)
+| Variable                 | Beschreibung                                            |
+|--------------------------|---------------------------------------------------------|
+| `BGMON_ML_ENABLED`       | `true` aktiviert die BG-Prognose (Default: `false`)      |
+| `BGMON_ML_MODEL_PATH`    | Pfad zu den trainierten Modell-Artifakten                |
+| `BGMON_ML_HORIZONS`      | Komma-getrennte Vorhersage-Horizonte (Default: `30,60,120`) |
+
+### Scheduler
+| Variable                     | Beschreibung                                            |
+|------------------------------|---------------------------------------------------------|
+| `BGMON_DISABLE_SCHEDULER`    | `true` deaktiviert den Scheduler (Default: Scheduler aktiv) |
+
+### Bootstrap (einmalig beim ersten Start)
 | Variable                       | Beschreibung                                       |
 |--------------------------------|----------------------------------------------------|
 | `BGMON_BOOTSTRAP_ADMIN_EMAIL`  | Initiales Admin-Konto (nur beim ersten Start)      |
 | `BGMON_BOOTSTRAP_ADMIN_PASSWORD` | Initiales Passwort                                |
+
+### Leader-Election (Multi-Instance)
+| Variable                       | Beschreibung                                       |
+|--------------------------------|----------------------------------------------------|
 | `BGMON_LEASE_TTL_S`            | Leader-Election TTL (Default: 30)                 |
 | `BGMON_LEADER_RENEW_S`         | Leader-Renew-Intervall (Default: 10)               |
 
