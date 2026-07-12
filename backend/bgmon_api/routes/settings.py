@@ -17,9 +17,35 @@ settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")
 logger = logging.getLogger(__name__)
 
 # ── async ML job tracking ────────────────────────────────────────────────
+# File-backed to survive Gunicorn multi-worker: all workers share the same
+# JSON file instead of an in-memory dict that's per-process.
 
-_ml_jobs: dict[str, dict] = {}
-_ml_jobs_lock = threading.Lock()
+_ML_JOBS_FILE = "/tmp/bgmon-ml-jobs.json"
+
+
+def _load_jobs() -> dict[str, dict]:
+    try:
+        import json as _j
+        with open(_ML_JOBS_FILE) as _f:
+            return _j.load(_f)
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def _save_jobs(jobs: dict[str, dict]) -> None:
+    import json as _j
+    with open(_ML_JOBS_FILE, "w") as _f:
+        _j.dump(jobs, _f)
+
+
+def _get_job(job_id: str) -> dict | None:
+    return _load_jobs().get(job_id)
+
+
+def _put_job(job_id: str, data: dict) -> None:
+    jobs = _load_jobs()
+    jobs[job_id] = data
+    _save_jobs(jobs)
 
 
 @settings_bp.route("/libre/reload-history", methods=["POST"])
@@ -347,8 +373,7 @@ def _run_train(job_id: str) -> None:
         result = trainer.train(training_input)
         publish_model(result, target_dir)
 
-        with _ml_jobs_lock:
-            _ml_jobs[job_id] = {
+        _put_job(job_id, {
                 "status": "completed",
                 "samples": training_input.sample_count,
                 "metrics": [
@@ -356,17 +381,15 @@ def _run_train(job_id: str) -> None:
                      "model_mae": round(m.model_mae, 1), "n_splits": m.n_splits}
                     for m in result.metrics
                 ],
-            }
+            })
     except TrainingInsufficientError:
-        with _ml_jobs_lock:
-            _ml_jobs[job_id] = {
-                "status": "failed",
-                "error": "Nicht genügend Trainingsdaten (mind. 3 Samples nötig).",
-            }
+        _put_job(job_id, {
+            "status": "failed",
+            "error": "Nicht genügend Trainingsdaten (mind. 3 Samples nötig).",
+        })
     except Exception:
         logger.exception("ML training job %s failed", job_id)
-        with _ml_jobs_lock:
-            _ml_jobs[job_id] = {"status": "failed", "error": "Training fehlgeschlagen."}
+        _put_job(job_id, {"status": "failed", "error": "Training fehlgeschlagen."})
 
 
 @settings_bp.route("/ml/train", methods=["POST"])
@@ -380,8 +403,7 @@ def ml_train_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     import uuid  # noqa: PLC0415
 
     job_id = uuid.uuid4().hex[:12]
-    with _ml_jobs_lock:
-        _ml_jobs[job_id] = {"status": "running"}
+    _put_job(job_id, {"status": "running"})
 
     thread = threading.Thread(target=_run_train, args=(job_id,))
     thread.start()
@@ -395,8 +417,7 @@ def ml_train_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
     if isinstance(user, tuple):
         return jsonify(user[0]), user[1]
 
-    with _ml_jobs_lock:
-        job = _ml_jobs.get(job_id)
+    job = _get_job(job_id)
     if not job:
         return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
     return jsonify(job)
@@ -421,12 +442,10 @@ def _run_evaluate(job_id: str) -> None:
             }
             for s in report.aggregate_summaries
         ]
-        with _ml_jobs_lock:
-            _ml_jobs[job_id] = {"status": "completed", "summaries": summaries}
+        _put_job(job_id, {"status": "completed", "summaries": summaries})
     except Exception:
         logger.exception("ML evaluation job %s failed", job_id)
-        with _ml_jobs_lock:
-            _ml_jobs[job_id] = {"status": "failed", "error": "Evaluierung fehlgeschlagen."}
+        _put_job(job_id, {"status": "failed", "error": "Evaluierung fehlgeschlagen."})
 
 
 @settings_bp.route("/ml/evaluate", methods=["POST"])
@@ -440,8 +459,7 @@ def ml_evaluate_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     import uuid  # noqa: PLC0415
 
     job_id = uuid.uuid4().hex[:12]
-    with _ml_jobs_lock:
-        _ml_jobs[job_id] = {"status": "running"}
+    _put_job(job_id, {"status": "running"})
 
     thread = threading.Thread(target=_run_evaluate, args=(job_id,))
     thread.start()
@@ -455,8 +473,7 @@ def ml_evaluate_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTP
     if isinstance(user, tuple):
         return jsonify(user[0]), user[1]
 
-    with _ml_jobs_lock:
-        job = _ml_jobs.get(job_id)
+    job = _get_job(job_id)
     if not job:
         return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
     return jsonify(job)
