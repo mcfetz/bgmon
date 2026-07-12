@@ -359,8 +359,7 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 def _run_train(job_id: str) -> None:
     from pathlib import Path  # noqa: PLC0415
 
-    from flask import current_app  # noqa: PLC0415
-
+    from bgmon_api.app import _app  # noqa: PLC0415
     from bgmon_api.commands.train_predictor import _collect_training_data  # noqa: PLC0415
     from bgmon_api.services.model_publisher import publish_model  # noqa: PLC0415
     from bgmon_api.services.model_trainer import (  # noqa: PLC0415
@@ -368,8 +367,12 @@ def _run_train(job_id: str) -> None:
         TrainingInsufficientError,
     )
 
+    if _app is None:
+        _put_job(job_id, {"status": "failed", "error": "App not initialized"})
+        return
+
     try:
-        with current_app.app_context():
+        with _app.app_context():
             target_dir = Path(Config.model_dir())
             training_input = _collect_training_data()
             trainer = ModelTrainer(cv_splits=min(5, max(2, training_input.sample_count - 1)))
@@ -429,14 +432,17 @@ def ml_train_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
 
 def _run_evaluate(job_id: str) -> None:
     """Execute flask predictor evaluate in a background thread."""
-    from flask import current_app  # noqa: PLC0415
-
+    from bgmon_api.app import _app  # noqa: PLC0415
     from bgmon_api.services.prediction_evaluator import (  # noqa: PLC0415
         evaluate_saved_predictions,
     )
 
+    if _app is None:
+        _put_job(job_id, {"status": "failed", "error": "App not initialized"})
+        return
+
     try:
-        with current_app.app_context():
+        with _app.app_context():
             report = evaluate_saved_predictions()
             db.session.remove()
             summaries = [
