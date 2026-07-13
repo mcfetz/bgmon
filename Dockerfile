@@ -16,12 +16,12 @@ RUN npx svelte-kit sync && npm run build
 
 
 # =============================================================================
-# Stage 2: Install Python dependencies into a wheel-equivalent layout
+# Stage 2: Install Python dependencies (compiled against system libpq)
 # =============================================================================
 FROM python:3.14-slim AS backend-deps
 WORKDIR /app/backend
 
-# libpq-dev + gcc are needed to build psycopg2-binary on slim images
+# system libpq + gcc for compiling psycopg2 (not psycopg2-binary)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq-dev gcc \
     && rm -rf /var/lib/apt/lists/*
@@ -29,7 +29,7 @@ RUN apt-get update \
 # Copy build metadata first for layer caching
 COPY backend/pyproject.toml backend/README.md* ./
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir .
+    && pip install --no-cache-dir --no-binary psycopg2 .
 
 # Copy the actual source so editable install / package discovery works
 COPY backend/ /app/backend/
@@ -41,7 +41,7 @@ COPY backend/ /app/backend/
 FROM python:3.14-slim AS runtime
 WORKDIR /app/backend
 
-# Runtime libs only (libpq5, no gcc)
+# Runtime libs: libpq5 (shared lib for psycopg2), curl (healthcheck)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq5 curl \
     && rm -rf /var/lib/apt/lists/* \
