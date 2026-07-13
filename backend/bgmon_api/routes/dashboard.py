@@ -909,3 +909,106 @@ def check_and_log_streak() -> None:
     else:
         with transactional_session():
             pass  # commit handled by context manager
+
+
+@dashboard_bp.route("/predict/simulate", methods=["POST"])
+def predict_simulate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+
+    data = request.get_json(silent=True) or {}
+    carbs_grams = data.get("carbs_grams", 0)
+    insulin_units = data.get("insulin_units", 0)
+
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if not patient:
+        return jsonify({"error": "no_patient"}), HTTPStatus.NOT_FOUND
+
+    now = datetime.now(UTC)
+    glucose_readings = (
+        GlucoseReading.query
+        .filter(GlucoseReading.timestamp >= now - timedelta(hours=6))
+        .order_by(GlucoseReading.timestamp.asc())
+        .all()
+    )
+
+    log_window_start = now - timedelta(hours=4)
+    log_entries: list[LogEntry] = list(
+        LogEntry.query
+        .filter_by(user_id=patient.id)
+        .filter(LogEntry.created_at >= log_window_start)
+        .order_by(LogEntry.created_at.asc())
+        .all()
+    )
+
+    from bgmon_api.models import LogEntryType  # noqa: PLC0415
+
+    if carbs_grams > 0:
+        fake_carbs = LogEntry()
+        fake_carbs.user_id = patient.id
+        fake_carbs.entry_type = LogEntryType.CARBS
+        fake_carbs.value = float(carbs_grams)
+        fake_carbs.unit = "g"
+        fake_carbs.created_at = now
+        log_entries.append(fake_carbs)
+
+    if insulin_units > 0:
+        fake_insulin = LogEntry()
+        fake_insulin.user_id = patient.id
+        fake_insulin.entry_type = LogEntryType.INSULIN
+        fake_insulin.value = float(insulin_units)
+        fake_insulin.unit = "U"
+        fake_insulin.created_at = now
+        log_entries.append(fake_insulin)
+
+    basal_rate = (
+        BasalRateHistory.query
+        .filter_by(user_id=patient.id)
+        .order_by(BasalRateHistory.changed_at.desc())
+        .first()
+    )
+
+    global_settings = GlobalSettings.query.first()
+
+    from bgmon_api.services.feature_builder import FeatureContext
+    from bgmon_api.services.predictor import (
+        ReadyOutcome,
+        predict,
+    )
+
+    context = FeatureContext(
+        glucose_readings=glucose_readings,
+        log_entries=log_entries,
+        basal_rate=basal_rate,
+        global_settings=global_settings,
+        reference_time=now,
+    )
+
+    results: dict[str, dict] = {}
+    for horizon in Config.ml_horizons():
+        outcome = predict(user_id=patient.id, feature_context=context, horizon_minutes=horizon)
+        match outcome:
+            case ReadyOutcome():
+                points = (
+                    PredictionPoint.query
+                    .filter_by(run_id=outcome.run_id)
+                    .order_by(PredictionPoint.timestamp)
+                    .all()
+                )
+                results[str(horizon)] = {
+                    "status": "ready",
+                    "points": [
+                        {
+                            "timestamp": pt.timestamp.isoformat() if pt.timestamp else None,
+                            "predicted_sgv": pt.predicted_sgv,
+                            "lower_bound": pt.lower_bound,
+                            "upper_bound": pt.upper_bound,
+                        }
+                        for pt in points
+                    ],
+                }
+            case _:
+                results[str(horizon)] = {"status": outcome.kind, "reason": outcome.reason}
+
+    return jsonify(results)

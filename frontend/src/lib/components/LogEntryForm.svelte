@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { createLog, fetchCarbFactor, fetchLogs, fetchGlobalSettings } from '$lib/api/log';
 	import { fetchCurrent } from '$lib/api/dashboard';
+	import { apiFetch } from '$lib/auth';
 
 	let {
 		onsaved,
@@ -42,6 +43,49 @@
 	// Date/time state
 	let dateStr = $state('');
 	let timeStr = $state('');
+
+	// Simulation prediction state
+	let simulationResult = $state<Record<string, { status: string; points: { predicted_sgv: number; lower_bound: number; upper_bound: number }[] }> | null>(null);
+	let simulationLoading = $state(false);
+	let simulationTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function updateSimulation() {
+		const carbs = tabValues.carbs.value;
+		const insulin = tabValues.insulin.value;
+		if ((carbs === '' || carbs === 0) && (insulin === '' || insulin === 0)) {
+			simulationResult = null;
+			return;
+		}
+		simulationLoading = true;
+		try {
+			const res = await apiFetch('/api/predict/simulate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					carbs_grams: carbs === '' ? 0 : Number(carbs),
+					insulin_units: insulin === '' ? 0 : Number(insulin)
+				})
+			});
+			if (res.ok) {
+				simulationResult = await res.json();
+			}
+		} catch {
+			simulationResult = null;
+		} finally {
+			simulationLoading = false;
+		}
+	}
+
+	$effect(() => {
+		// React to carbValue and insulinValue changes (accessed via tabValues)
+		const _ = tabValues.carbs.value;
+		const __ = tabValues.insulin.value;
+		if (simulationTimer) clearTimeout(simulationTimer);
+		simulationTimer = setTimeout(updateSimulation, 500);
+		return () => {
+			if (simulationTimer) clearTimeout(simulationTimer);
+		};
+	});
 
 	const units: Record<string, string> = {
 		carbs: 'g',
@@ -562,6 +606,26 @@
 					<div class="validation-error">{validateValue(value, activeTab)}</div>
 				{/if}
 
+				<!-- Simulation forecast preview -->
+				{#if simulationResult && !simulationLoading}
+					<div class="forecast-bar">
+						<span class="forecast-label">📈</span>
+						{#each Object.entries(simulationResult) as [key, data], i}
+							{#if data.points?.[0]?.predicted_sgv}
+								{@const sgv = data.points[0].predicted_sgv}
+								<span
+									class="forecast-value"
+									class:forecast-green={sgv >= 70 && sgv <= 180}
+									class:forecast-yellow={sgv > 180 && sgv <= 250}
+									class:forecast-red={sgv < 70 || sgv > 250}
+								>
+									{i > 0 ? ' | ' : ''}{key}min: {sgv}
+								</span>
+							{/if}
+						{/each}
+					</div>
+				{/if}
+
 				<button
 					class="submit-btn"
 					onclick={submit}
@@ -1000,5 +1064,38 @@
 		color: #f87171;
 		font-size: 0.85rem;
 		text-align: center;
+	}
+
+	.forecast-bar {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 6px 8px;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		font-size: 0.8rem;
+		flex-wrap: wrap;
+	}
+
+	.forecast-label {
+		font-size: 0.9rem;
+		margin-right: 2px;
+	}
+
+	.forecast-value {
+		font-variant-numeric: tabular-nums;
+	}
+
+	.forecast-green {
+		color: #4ade80;
+	}
+
+	.forecast-yellow {
+		color: #eab308;
+	}
+
+	.forecast-red {
+		color: #f87171;
 	}
 </style>
