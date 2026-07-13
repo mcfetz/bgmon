@@ -127,8 +127,11 @@ class TestActiveProfile:
         assert resp.status_code == HTTPStatus.NOT_FOUND
 
     def test_webhook_activate_profile(self, client, notification_profile_with_assignments):
-        resp = client.get(f"/api/notifications/active/{notification_profile_with_assignments.id}")
+        profile = notification_profile_with_assignments
+        profile.generate_webhook_token()
+        resp = client.post(f"/api/notifications/webhook/{profile.webhook_token}")
         assert resp.status_code == HTTPStatus.OK
+        assert resp.get_json()["status"] == "activated"
 
 
 class TestSnooze:
