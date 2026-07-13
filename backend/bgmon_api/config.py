@@ -77,13 +77,6 @@ class Config:
         if "pytest" not in sys.modules:
             raise RuntimeError("BGMON_DATABASE_URL must be set")
         _db_url = "postgresql://bgmon:bgmon@localhost:5432/bgmon_test"
-    # Append connection keepalive params if not already present
-    if "?" not in _db_url:
-        _db_url += (
-            "?connect_timeout=10&keepalives=1"
-            "&keepalives_idle=30&keepalives_interval=5"
-            "&keepalives_count=5"
-        )
     SQLALCHEMY_DATABASE_URI = _db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_POOL_SIZE = 5
