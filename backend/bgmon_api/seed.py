@@ -14,7 +14,11 @@ def bootstrap_admin() -> None:
     """Create admin user from env vars if no users exist."""
     if not Config.BOOTSTRAP_ADMIN_EMAIL or not Config.BOOTSTRAP_ADMIN_PASSWORD:
         return
-    if User.query.first() is not None:
+    try:
+        if User.query.first() is not None:
+            return
+    except Exception:
+        # Tables not yet created (first deploy before migration)
         return
 
     admin = User(
