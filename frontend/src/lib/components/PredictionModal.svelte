@@ -90,12 +90,11 @@
 			<div class="disclaimer">
 				<strong>⚠️ Experimentell</strong>
 				<p>
-					Die Prognose basiert auf einem statistischen Modell (LinearRegression) und
-					ersetzt keine medizinische Beratung. Die Vorhersage berücksichtigt aktuelle
-					BG-Werte, Kohlenhydrate und Insulin der letzten Stunden — aber nicht ob
-					gerade gegessen oder gespritzt wird. Ein MAE (mittlere Abweichung) von
-					z. B. 46 mg/dL bedeutet, dass der tatsächliche Wert im Schnitt 46 mg/dL
-					von der Vorhersage abweicht.
+					Die Prognose basiert auf einem statistischen Modell (LinearRegression) und ersetzt keine
+					medizinische Beratung. Die Vorhersage berücksichtigt aktuelle BG-Werte, Kohlenhydrate und
+					Insulin der letzten Stunden — aber nicht ob gerade gegessen oder gespritzt wird. Ein MAE
+					(mittlere Abweichung) von z. B. 46 mg/dL bedeutet, dass der tatsächliche Wert im Schnitt
+					46 mg/dL von der Vorhersage abweicht.
 				</p>
 			</div>
 		</div>

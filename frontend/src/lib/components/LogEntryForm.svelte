@@ -45,7 +45,13 @@
 	let timeStr = $state('');
 
 	// Simulation prediction state
-	let simulationResult = $state<Record<string, { status: string; points: { predicted_sgv: number; lower_bound: number; upper_bound: number }[] }> | null>(null);
+	let simulationResult = $state<Record<
+		string,
+		{
+			status: string;
+			points: { predicted_sgv: number; lower_bound: number; upper_bound: number }[];
+		}
+	> | null>(null);
 	let simulationLoading = $state(false);
 	let simulationTimer: ReturnType<typeof setTimeout> | null = null;
 

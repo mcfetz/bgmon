@@ -142,7 +142,7 @@
 		const [result30, result60, result120] = await Promise.all([
 			fetchPrediction(30),
 			fetchPrediction(60),
-			fetchPrediction(120),
+			fetchPrediction(120)
 		]);
 		// Use 60min result for predictionStatus
 		if (!result60) {
@@ -151,13 +151,13 @@
 		} else {
 			predictionStatus = result60.status;
 			predictionPoints60 = result60.status === 'ready' ? result60.points : [];
-			modelMae60 = result60.status === 'ready' ? (result60 as any).model_mae ?? null : null;
-			modelVersion = result60.status === 'ready' ? (result60 as any).model_version ?? '' : '';
+			modelMae60 = result60.status === 'ready' ? ((result60 as any).model_mae ?? null) : null;
+			modelVersion = result60.status === 'ready' ? ((result60 as any).model_version ?? '') : '';
 		}
 		predictionPoints30 = result30?.status === 'ready' ? result30.points : [];
-		modelMae30 = result30?.status === 'ready' ? (result30 as any).model_mae ?? null : null;
+		modelMae30 = result30?.status === 'ready' ? ((result30 as any).model_mae ?? null) : null;
 		predictionPoints120 = result120?.status === 'ready' ? result120.points : [];
-		modelMae120 = result120?.status === 'ready' ? (result120 as any).model_mae ?? null : null;
+		modelMae120 = result120?.status === 'ready' ? ((result120 as any).model_mae ?? null) : null;
 	}
 
 	function onLogSaved() {
