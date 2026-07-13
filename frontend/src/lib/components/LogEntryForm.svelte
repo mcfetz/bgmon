@@ -64,7 +64,7 @@
 		}
 		simulationLoading = true;
 		try {
-			const res = await apiFetch('/api/predict/simulate', {
+			const res = await apiFetch('/api/dashboard/predict/simulate', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
