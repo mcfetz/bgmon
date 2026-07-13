@@ -28,10 +28,16 @@ def upgrade():
         batch_op.drop_index(batch_op.f('ix_carb_factor_history_user_changed'))
 
     with op.batch_alter_table('global_settings', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('correction_factor', sa.Float(), nullable=False))
+        batch_op.add_column(sa.Column('correction_factor', sa.Float(), nullable=True))
         batch_op.add_column(sa.Column('streak_started_at', sa.DateTime(timezone=True), nullable=True))
-        batch_op.add_column(sa.Column('best_streak_hours', sa.Integer(), nullable=False))
+        batch_op.add_column(sa.Column('best_streak_hours', sa.Integer(), nullable=True))
         batch_op.add_column(sa.Column('best_streak_achieved_at', sa.DateTime(timezone=True), nullable=True))
+    # Fill defaults for existing rows
+    op.execute("UPDATE global_settings SET correction_factor = 1.0 WHERE correction_factor IS NULL")
+    op.execute("UPDATE global_settings SET best_streak_hours = 0 WHERE best_streak_hours IS NULL")
+    with op.batch_alter_table('global_settings', schema=None) as batch_op:
+        batch_op.alter_column('correction_factor', nullable=False)
+        batch_op.alter_column('best_streak_hours', nullable=False)
 
     with op.batch_alter_table('glucose_readings', schema=None) as batch_op:
         batch_op.drop_constraint(batch_op.f('uq_glucose_readings_timestamp'), type_='unique')
