@@ -577,6 +577,9 @@ class NotificationProfile(db.Model):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    webhook_token: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True, index=True
+    )
 
     user: Mapped[User] = relationship(back_populates="notification_profiles")
     assignments: Mapped[list["NotificationAssignment"]] = relationship(
@@ -592,7 +595,14 @@ class NotificationProfile(db.Model):
             "start_time": self.start_time.strftime("%H:%M") if self.start_time else None,
             "assignments": [a.to_dict() for a in self.assignments],
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "webhook_token": self.webhook_token,
         }
+
+    def generate_webhook_token(self) -> str:
+        import secrets
+        token = secrets.token_urlsafe(16)
+        self.webhook_token = token
+        return token
 
 
 class NotificationAssignment(db.Model):

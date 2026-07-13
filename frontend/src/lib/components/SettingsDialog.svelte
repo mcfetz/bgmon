@@ -98,6 +98,7 @@
 		is_active: boolean;
 		start_time: string | null;
 		assignments: NotificationAssignment[];
+		webhook_token: string | null;
 	}
 
 	const PROFILE_ICON_SUGGESTIONS = ['☀️', '🌙', '🏠', '🔇', '📱', '🔊', '🔔'];
@@ -137,7 +138,7 @@
 	let pushPublicKey = $state('');
 	let pushTesting = $state(false);
 	let pushTestMessage = $state('');
-	let copyState = $state<number | null>(null);
+	let copyState = $state<string | null>(null);
 
 	interface UserRow {
 		id: number;
@@ -304,17 +305,17 @@
 		newUserLoading = false;
 	}
 
-	function webhookUrl(profileId: number): string {
-		return `${window.location.origin}/api/notifications/active/${profileId}`;
+	function webhookUrl(token: string): string {
+		return `${window.location.origin}/api/notifications/webhook/${token}`;
 	}
 
-	async function copyWebhook(profileId: number) {
+	async function copyWebhook(token: string) {
 		try {
-			await navigator.clipboard.writeText(webhookUrl(profileId));
+			await navigator.clipboard.writeText(webhookUrl(token));
 		} catch {}
-		copyState = profileId;
+		copyState = token;
 		setTimeout(() => {
-			if (copyState === profileId) copyState = null;
+			if (copyState === token) copyState = null;
 		}, 1500);
 	}
 
@@ -1064,23 +1065,25 @@
 												</select>
 											</div>
 										{/each}
+										{#if profile.webhook_token}
 										<div class="field">
 											<label>Webhook (aktiviert dieses Profil)</label>
 											<div class="webhook-row">
 												<input
 													type="text"
 													readonly
-													value={webhookUrl(profile.id)}
+													value={webhookUrl(profile.webhook_token)}
 													class="webhook-input"
 												/>
 												<button
 													type="button"
 													class="test-btn"
-													onclick={() => copyWebhook(profile.id)}
-													>{copyState === profile.id ? '✓' : 'Kopieren'}</button
+													onclick={() => { if (profile.webhook_token) copyWebhook(profile.webhook_token); }}
+													>{copyState === profile.webhook_token ? '✓' : 'Kopieren'}</button
 												>
 											</div>
 										</div>
+									{/if}
 										<div class="button-row">
 											<button class="submit-btn" onclick={saveProfile}>Speichern</button>
 											<button class="test-btn" onclick={() => deleteProfile(profile.id)}

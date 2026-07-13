@@ -93,6 +93,7 @@ def create_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         return err
 
     profile = NotificationProfile(user_id=user.id, name=name, icon=icon)
+    profile.generate_webhook_token()
     db.session.add(profile)
     db.session.flush()
 
@@ -221,24 +222,34 @@ def set_active_profile() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     return jsonify(active.to_dict())
 
 
-@notifications_bp.route("/active/<int:profile_id>", methods=["GET"])
-def webhook_activate_profile(profile_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
-    profile = NotificationProfile.query.get(profile_id)
+@notifications_bp.route("/webhook/<token>", methods=["POST"])
+def webhook_activate_by_token(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    profile = NotificationProfile.query.filter_by(webhook_token=token).first()
     if not profile:
-        return jsonify({"error": "profile not found"}), HTTPStatus.NOT_FOUND
+        return jsonify({"error": "invalid_token"}), HTTPStatus.NOT_FOUND
 
     owner_id = profile.user_id
     active = UserActiveProfile.query.get(owner_id)
     if not active:
-        active = UserActiveProfile(user_id=owner_id, profile_id=profile_id)
+        active = UserActiveProfile(user_id=owner_id, profile_id=profile.id)
         db.session.add(active)
     else:
-        active.profile_id = profile_id
+        active.profile_id = profile.id
     with transactional_session():
-        pass  # commit handled by context manager
+        pass
+
+    snooze_minutes = request.args.get("snooze_minutes", type=int)
+    if snooze_minutes and snooze_minutes > 0 and snooze_minutes <= 480:
+        snooze = UserSnooze.query.get(owner_id) or UserSnooze(user_id=owner_id)
+        snooze.snooze_until = datetime.now(UTC) + timedelta(minutes=snooze_minutes)
+        snooze.reason = f"Webhook: {profile.name}"
+        with transactional_session():
+            pass
 
     return jsonify({
-        "message": f"Active profile set to '{profile.name}' (id={profile_id}) for user {owner_id}."
+        "status": "activated",
+        "profile": profile.name,
+        "profile_id": profile.id,
     })
 
 
