@@ -68,7 +68,7 @@
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					carbs_grams: carbs === '' ? 0 : Number(carbs),
+					carbs_grams: carbs === '' ? 0 : Number(carbs) * 10,
 					insulin_units: insulin === '' ? 0 : Number(insulin)
 				})
 			});
@@ -94,7 +94,7 @@
 	});
 
 	const units: Record<string, string> = {
-		carbs: 'g',
+		carbs: 'KE',
 		insulin: 'U',
 		basal: 'U',
 		note: ''
