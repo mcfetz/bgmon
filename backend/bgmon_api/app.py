@@ -265,6 +265,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     def index() -> Response:
         return send_from_directory(app.static_folder or "static/dist", "index.html")
 
+    @app.get("/<path:filename>")
+    def static_files(filename: str) -> Response:
+        return send_from_directory(app.static_folder or "static/dist", filename)
+
     _app = app
     return app
 
