@@ -21,16 +21,15 @@ RUN npx svelte-kit sync && npm run build
 FROM python:3.14-slim AS backend-deps
 WORKDIR /app/backend
 
-# libpq-dev + gcc ensure the native psycopg2 driver links against
-# the system libpq instead of bundling a potentially incompatible one.
+# libpq-dev + gcc + python3-dev are needed to compile psycopg2 from source
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev gcc \
+    && apt-get install -y --no-install-recommends libpq-dev gcc python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy build metadata first for layer caching
 COPY backend/pyproject.toml backend/README.md* ./
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir --no-binary psycopg2-binary .
+    && pip install --no-cache-dir .
 
 # Copy the actual source so editable install / package discovery works
 COPY backend/ /app/backend/
