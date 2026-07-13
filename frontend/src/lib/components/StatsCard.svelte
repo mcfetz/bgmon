@@ -51,11 +51,25 @@
 		{/if}
 	</button>
 
-	<button class="stat-card clickable" type="button" onclick={() => (streakModalOpen = true)}>
-		<span class="label">Streak 🏆</span>
-		<span class="value">{formatStreakHM(stats?.best_streak_hours ?? stats?.streak_hours ?? 0)}</span
-		>
-		<span class="unit">h:mm</span>
+	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
+		<span class="label">Prognose +30min</span>
+		{#if predictions30.length > 0}
+			{@const last = predictions30[predictions30.length - 1]}
+			<span class="value">{last.predicted_sgv.toFixed(0)}</span>
+			<span class="unit">
+				{#if last.lower_bound != null && last.upper_bound != null}
+					{last.lower_bound.toFixed(0)}–{last.upper_bound.toFixed(0)} mg/dL
+				{:else}
+					mg/dL
+				{/if}
+				{#if modelMae30 !== null}
+					<span class="mae-label">±{modelMae30.toFixed(0)}</span>
+				{/if}
+			</span>
+		{:else}
+			<span class="value">—</span>
+			<span class="unit">Keine Prognose</span>
+		{/if}
 	</button>
 
 	<button
@@ -71,6 +85,13 @@
 			<div class="tir-segment range" style="width: {stats?.tir_percent ?? 0}%"></div>
 			<div class="tir-segment above" style="width: {stats?.tir_above ?? 0}%"></div>
 		</div>
+	</button>
+
+	<button class="stat-card clickable" type="button" onclick={() => (streakModalOpen = true)}>
+		<span class="label">Streak 🏆</span>
+		<span class="value">{formatStreakHM(stats?.best_streak_hours ?? stats?.streak_hours ?? 0)}</span
+		>
+		<span class="unit">h:mm</span>
 	</button>
 
 	<div class="stat-card">
@@ -101,29 +122,6 @@
 		<span class="value">{stats?.readings ?? 0}</span>
 		<span class="unit">Stk.</span>
 	</div>
-
-	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
-		<span class="label">Prognose +30min</span>
-		{#if predictions30.length > 0}
-			{@const last = predictions30[predictions30.length - 1]}
-			<span class="value">{last.predicted_sgv.toFixed(0)}</span>
-			<span class="unit">
-				{#if last.lower_bound != null && last.upper_bound != null}
-					{last.lower_bound.toFixed(0)}–{last.upper_bound.toFixed(0)} mg/dL
-				{:else}
-					mg/dL
-				{/if}
-				{#if modelMae30 !== null}
-					<span class="mae-label">±{modelMae30.toFixed(0)}</span>
-				{/if}
-			</span>
-		{:else}
-			<span class="value">—</span>
-			<span class="unit">Keine Prognose</span>
-		{/if}
-	</button>
-
-
 </div>
 
 <TirModal bind:open={tirModalOpen} {stats} />
