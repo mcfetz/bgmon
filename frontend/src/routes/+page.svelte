@@ -345,6 +345,9 @@
 	color={glucoseColor(current?.sgv ?? null)}
 	{lastUpdate}
 	{previousSgv}
+	predictions30={predictionPoints30}
+	predictions60={predictionPoints60}
+	predictions120={predictionPoints120}
 />
 
 <div class="dashboard">

@@ -3,13 +3,18 @@
 	import { apiFetch } from '$lib/auth';
 	import SnoozeModal from './SnoozeModal.svelte';
 
+	import type { PredictionPoint } from '$lib/api/dashboard';
+
 	let {
 		open = $bindable(false),
 		sgv = 0,
 		direction = null as string | null,
 		color = '#22c55e',
 		lastUpdate = null as string | null,
-		previousSgv = null as number | null
+		previousSgv = null as number | null,
+		predictions30 = [] as PredictionPoint[],
+		predictions60 = [] as PredictionPoint[],
+		predictions120 = [] as PredictionPoint[]
 	}: {
 		open?: boolean;
 		sgv?: number;
@@ -17,6 +22,9 @@
 		color?: string;
 		lastUpdate?: string | null;
 		previousSgv?: number | null;
+		predictions30?: PredictionPoint[];
+		predictions60?: PredictionPoint[];
+		predictions120?: PredictionPoint[];
 	} = $props();
 
 	const delta = $derived(previousSgv !== null ? sgv - previousSgv : null);
@@ -190,6 +198,32 @@
 			{/if}
 			<div class="bg-trend" style="color: {color}">{trendArrow(direction)}</div>
 			<div class="bg-time">{timeAgo(lastUpdate)}</div>
+
+			{#if predictions30.length > 0 || predictions60.length > 0 || predictions120.length > 0}
+				<div class="prediction-row">
+					{#if predictions30.length > 0}
+						{@const p = predictions30[predictions30.length - 1]}
+						<div class="prediction-card">
+							<span class="pred-label">+30</span>
+							<span class="pred-value">{p.predicted_sgv.toFixed(0)}</span>
+						</div>
+					{/if}
+					{#if predictions60.length > 0}
+						{@const p = predictions60[predictions60.length - 1]}
+						<div class="prediction-card">
+							<span class="pred-label">+60</span>
+							<span class="pred-value">{p.predicted_sgv.toFixed(0)}</span>
+						</div>
+					{/if}
+					{#if predictions120.length > 0}
+						{@const p = predictions120[predictions120.length - 1]}
+						<div class="prediction-card">
+							<span class="pred-label">+120</span>
+							<span class="pred-value">{p.predicted_sgv.toFixed(0)}</span>
+						</div>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</div>
 
@@ -320,6 +354,43 @@
 		color: var(--color-text-muted);
 		font-weight: 500;
 		font-variant-numeric: tabular-nums;
+	}
+
+	.prediction-row {
+		display: flex;
+		gap: clamp(0.5rem, 2vw, 1.5rem);
+		margin-top: clamp(0.5rem, 2vh, 1.5rem);
+	}
+
+	.prediction-card {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.15rem;
+		padding: clamp(0.3rem, 1vw, 0.75rem) clamp(0.6rem, 2vw, 1.25rem);
+		border-radius: var(--radius, 12px);
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.pred-label {
+		font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		opacity: 0.7;
+	}
+
+	.pred-value {
+		font-size: clamp(1.3rem, 4vw, 2rem);
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
+	}
+
+	@media (prefers-color-scheme: dark) {
+		.prediction-card {
+			background: rgba(255, 255, 255, 0.08);
+		}
 	}
 
 	.snooze-display {
