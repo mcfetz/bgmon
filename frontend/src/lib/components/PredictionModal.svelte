@@ -81,6 +81,20 @@
 						{/if}
 					</div>
 				{/if}
+				{#if predictions120.length > 0}
+					{@const last = lastPoint(predictions120)}
+					<div class="horizon-card">
+						<span class="horizon-label">{horizonLabel(120)}</span>
+						<span class="horizon-value">{last?.predicted_sgv.toFixed(0) ?? '—'}</span>
+						<span class="horizon-range">
+							{last?.lower_bound?.toFixed(0) ?? '?'}–{last?.upper_bound?.toFixed(0) ?? '?'} mg/dL
+						</span>
+						{#if modelMae120 !== null}
+							<span class="horizon-mae">MAE {modelMae120.toFixed(1)} mg/dL</span>
+							<span class="horizon-hint">{maeHint(modelMae120)}</span>
+						{/if}
+					</div>
+				{/if}
 			</div>
 
 			{#if modelVersion}

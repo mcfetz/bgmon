@@ -123,26 +123,7 @@
 		{/if}
 	</button>
 
-	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
-		<span class="label">Prognose +60min</span>
-		{#if predictions60.length > 0}
-			{@const last = predictions60[predictions60.length - 1]}
-			<span class="value">{last.predicted_sgv.toFixed(0)}</span>
-			<span class="unit">
-				{#if last.lower_bound != null && last.upper_bound != null}
-					{last.lower_bound.toFixed(0)}–{last.upper_bound.toFixed(0)} mg/dL
-				{:else}
-					mg/dL
-				{/if}
-				{#if modelMae60 !== null}
-					<span class="mae-label">±{modelMae60.toFixed(0)}</span>
-				{/if}
-			</span>
-		{:else}
-			<span class="value">—</span>
-			<span class="unit">Keine Prognose</span>
-		{/if}
-	</button>
+
 </div>
 
 <TirModal bind:open={tirModalOpen} {stats} />
