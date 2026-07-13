@@ -420,7 +420,7 @@
 			{modelMae120}
 			{modelVersion}
 			lastBg={current?.sgv ?? null}
-			lastBgTime={lastUpdate}
+			lastBgTime={lastUpdate ?? undefined}
 		/>
 	</div>
 </div>

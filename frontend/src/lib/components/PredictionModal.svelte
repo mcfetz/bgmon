@@ -11,7 +11,7 @@
 		modelMae120 = null as number | null,
 		modelVersion = '',
 		lastBg = null as number | null,
-		lastBgTime = ''
+		lastBgTime = '' as string | null,
 	} = $props();
 
 	function formatTime(iso: string): string {
