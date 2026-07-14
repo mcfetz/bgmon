@@ -17,16 +17,16 @@ settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")
 logger = logging.getLogger(__name__)
 
 # ── async ML job tracking ────────────────────────────────────────────────
-# File-backed to survive Gunicorn multi-worker: all workers share the same
-# JSON file instead of an in-memory dict that's per-process.
 
-_ML_JOBS_FILE = "/tmp/bgmon-ml-jobs.json"
+def _ml_jobs_path() -> str:
+    from bgmon_api.config import Config
+    return f"{Config.model_dir()}/ml-jobs.json"
 
 
 def _load_jobs() -> dict[str, dict]:
     try:
         import json as _j
-        with open(_ML_JOBS_FILE) as _f:
+        with open(_ml_jobs_path()) as _f:
             return _j.load(_f)
     except (FileNotFoundError, ValueError):
         return {}
@@ -34,7 +34,7 @@ def _load_jobs() -> dict[str, dict]:
 
 def _save_jobs(jobs: dict[str, dict]) -> None:
     import json as _j
-    with open(_ML_JOBS_FILE, "w") as _f:
+    with open(_ml_jobs_path(), "w") as _f:
         _j.dump(jobs, _f)
 
 
