@@ -275,13 +275,17 @@ def set_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     minutes = int(data.get("minutes", 15))
     reason = data.get("reason")
 
-    snooze = UserSnooze.query.get(user.id) or UserSnooze(user_id=user.id)
+    snooze = db.session.get(UserSnooze, user.id) or UserSnooze(user_id=user.id)
     snooze.snooze_until = datetime.now(UTC) + timedelta(minutes=minutes)
     snooze.reason = reason
     if snooze not in db.session:
         db.session.add(snooze)
     with transactional_session():
         pass  # commit handled by context manager
+    # Re-fetch to ensure fully populated
+    snooze = db.session.get(UserSnooze, user.id)
+    if not snooze:
+        return jsonify({"error": "snooze error"}), HTTPStatus.INTERNAL_SERVER_ERROR
     return jsonify({**snooze.to_dict(), "active": True})
 
 
