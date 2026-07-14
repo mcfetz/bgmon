@@ -1090,47 +1090,58 @@
 					<div class="help-content">
 						<h3>Was ist bgmon?</h3>
 						<p>
-							bgmon zeigt den aktuellen Blutzucker live an. Du kannst Kohlenhydrate (KE) und
-							Insulin eintragen, wirst bei gefährlichen Werten alarmiert und bekommst eine
-							Vorhersage für die nächsten 30/60/120 Minuten.
+							bgmon zeigt den aktuellen Blutzucker live an — alle 60 Sekunden von LibreLinkUp.
+							Du kannst KE und Insulin eintragen, wirst bei gefährlichen Werten alarmiert und
+							bekommst eine Vorhersage für 30/60/120 Minuten.
 						</p>
 
 						<h3>Dashboard</h3>
 						<ul>
-							<li><strong>BG-Wert + Trendpfeil</strong> — Grün = im Bereich (70–180), Gelb = grenzwertig, Rot = kritisch</li>
-							<li><strong>Zoombare Kurve</strong> — Buttons −1h / −6h / −12h / −1t / −1w / Jetzt</li>
-							<li><strong>Kacheln</strong> — Tagespunkte, Prognose, Time-in-Range, Streak, Badges, GMI</li>
-							<li><strong>Großer BG-Bildschirm</strong> — Auf den Wert tippen für Nachtmodus-Ansicht mit Prognose</li>
+							<li><strong>BG-Wert</strong> — Grün (70–180), Gelb, Rot. Trendpfeil + Delta</li>
+							<li><strong>Zeitangabe</strong> unter dem Wert: „vor X Min." — über 10 Min. = Sensor prüfen</li>
+							<li><strong>Graph</strong> — Zoom-Buttons (-1h … -1w), Jetzt, Wischgeste, Punkt antippen</li>
+							<li><strong>Großer BG-Bildschirm</strong> — Auf den Wert tippen, bleibt mit Wake Lock an</li>
 						</ul>
 
 						<h3>Eintragungen</h3>
 						<ul>
-							<li><strong>KE</strong> — 1 KE = 10 g Kohlenhydrate. Nur ganze Zahlen</li>
-							<li><strong>Insulin</strong> — In 0,5er-Schritten. Automatischer Vorschlag aus KE × Faktor + Korrektur</li>
-							<li><strong>Basal</strong> — Einmal täglich. Letzter Wert wird vorgeschlagen</li>
-							<li><strong>Simulationsvorschau</strong> — Gestrichelte Linie im Graph vor dem Speichern</li>
+							<li><strong>KE</strong> — 1 KE = 10 g, nur ganze Zahlen</li>
+							<li><strong>Insulin</strong> — 0,5er-Schritte, automatischer Vorschlag aus KE×Faktor+Korrektur</li>
+							<li><strong>Basal</strong> — Einmal täglich, letzter Wert als Vorschlag</li>
+							<li><strong>Notiz</strong> — Freitext</li>
+							<li><strong>Simulation</strong> — Gestrichelte Linie im Graph beim Eintippen (vor dem Speichern)</li>
+							<li><strong>Löschen</strong> — Log-Einträge mit 🗑️-Button entfernen</li>
 						</ul>
 
-						<h3>Alarme</h3>
+						<h3>Alarme & Push</h3>
 						<ul>
-							<li>Bei Unter-/Überschreitung der Schwellwerte: Push-Benachrichtigung + optional Telefonanruf</li>
 							<li>Schwellwerte: &lt;54 kritisch, &lt;70 niedrig, &gt;180 hoch, &gt;250 kritisch (anpassbar)</li>
-							<li>Nach Alarm: 15 Min. Snooze, damit keine Alarm-Flut entsteht</li>
-							<li>Notification-Profile: Unterschiedliche Benachrichtigungen für Tag/Nacht</li>
+							<li>Push: Nur mit installierter App (Homescreen). Bei Erstabfrage „Erlauben" wählen</li>
+							<li>Telefonanruf (Twilio): Automatischer Anruf mit Sprachansage</li>
+							<li>15-Min-Snooze nach jedem Alarm</li>
+							<li>Notification-Profile: Profile für Tag/Nacht, je Schwellwert Push/Anruf wählbar</li>
+						</ul>
+
+						<h3>Familie-Dashboard</h3>
+						<ul>
+							<li>Öffentlicher Link für Oma/Opa/Betreuer ohne Login</li>
+							<li>Token aus Notification-Profil: <code>/api/family/&lt;token&gt;</code></li>
 						</ul>
 
 						<h3>Prognose (ML)</h3>
 						<ul>
-							<li>Vorhersage für 30, 60 und 120 Minuten aus aktuellen Werten und Eingaben</li>
-							<li>Angezeigt als gestrichelte Linie im Graph + Kachel mit Konfidenzintervall</li>
-							<li>Genauigkeit verbessert sich mit mehr Trainingsdaten</li>
+							<li>30/60/120 Min. Vorhersage im Graph (gestrichelt), Kachel und BG-Modal</li>
+							<li>MAE = Genauigkeit (wird besser mit mehr Daten)</li>
 						</ul>
 
-						<h3>Tipps</h3>
+						<h3>Einstellungen</h3>
 						<ul>
-							<li>App auf dem Homescreen installieren für Push-Benachrichtigungen</li>
-							<li>Jede Mahlzeit eintragen für korrekte Statistiken und Prognosen</li>
-							<li>Simulationsvorschau vor dem Spritzen prüfen</li>
+							<li><strong>Behandlung</strong>: KE-Faktor, Korrekturfaktor, Insulinwirkzeit</li>
+							<li><strong>Schwellwerte</strong>: Alarmgrenzen pro Benutzer</li>
+							<li><strong>Benachrichtigungen</strong>: Profile, Push/Anruf, Nachtzeiten, Webhook</li>
+							<li><strong>Twilio</strong>: Telefonnummern, Testanruf</li>
+							<li><strong>Benutzer</strong>: Anlegen/Verwalten (Admin)</li>
+							<li><strong>ML</strong>: Modell trainieren + evaluieren</li>
 						</ul>
 					</div>
 				{/if}

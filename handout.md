@@ -2,19 +2,15 @@
 
 ## Was ist bgmon?
 
-bgmon zeigt dir jederzeit den aktuellen Blutzuckerwert deines Kindes an — live, auf dem Handy, Tablet oder Computer. Du kannst Kohlenhydrate (KE) und Insulin eintragen, wirst bei gefährlichen Werten alarmiert und bekommst sogar eine Vorhersage, wohin sich der Blutzucker entwickelt.
+bgmon zeigt dir jederzeit den aktuellen Blutzuckerwert an — live, auf dem Handy, Tablet oder Computer. Du kannst Kohlenhydrate (KE) und Insulin eintragen, wirst bei gefährlichen Werten alarmiert und bekommst sogar eine Vorhersage, wohin sich der Blutzucker entwickelt.
 
 Die App ist eine **PWA** (Progressive Web App): Du kannst sie auf deinem Homescreen installieren wie eine normale App. Sie funktioniert auch ohne Internetzugang (die letzten Werte bleiben sichtbar).
+
+**Datenquelle:** Die Blutzuckerwerte kommen vom Libre-Sensor über die LibreLinkUp-API. bgmon holt die Daten **alle 60 Sekunden** ab. Ob die Verbindung zu Libre steht, siehst du an der Zeitangabe unter dem BG-Wert im Dashboard („vor X Min."). Solange hier unter 5 Minuten steht, kommen die Daten aktuell rein.
 
 ---
 
 ## Erste Schritte
-
-### Anmelden
-
-1. Öffne die App-URL im Browser (z. B. `https://bgmon.familie-heise.de`)
-2. Melde dich mit deiner E-Mail und deinem Passwort an
-3. Du bleibst eingeloggt — auch nach Schließen des Browsers
 
 ### Auf dem Homescreen installieren (empfohlen)
 
@@ -22,133 +18,186 @@ Die App ist eine **PWA** (Progressive Web App): Du kannst sie auf deinem Homescr
 - **Android:** Im Chrome-Menü → „App installieren" oder „Zum Startbildschirm hinzufügen"
 - **Desktop:** In der Browser-Adressleiste rechts auf das Installations-Symbol klicken
 
+### Anmelden
+
+1. Öffne die App-URL im Browser (z. B. `https://bgmon.familie-heise.de`)
+2. Melde dich mit deiner E-Mail und deinem Passwort an
+3. Du bleibst eingeloggt — auch nach Schließen des Browsers
+
 ---
 
 ## Das Dashboard
 
-Das Dashboard ist deine Startseite. Es zeigt:
+Das Dashboard ist deine Startseite.
 
-| Bereich | Was du siehst |
-|---|---|
-| **Großer BG-Wert** | Der aktuelle Blutzucker in mg/dL. Farbig: Grün = im Zielbereich (70–180), Gelb = grenzwertig, Rot = kritisch |
-| **Trendpfeil** | Zeigt an, ob der Blutzucker steigt (↑), fällt (↓) oder stabil ist (→) |
-| **Verlaufsgraph** | Die letzten Stunden als Kurve. Du kannst mit den Buttons (`-1h`, `-6h`, `-12h`, `-1t`, `-1w`) rein- und rauszoomen oder mit `Jetzt` zur aktuellen Zeit springen |
-| **Stats-Kacheln** | Siehe unten |
+### Aktueller BG-Wert
+
+- Großer farbiger Wert in mg/dL: **Grün** = im Zielbereich (70–180), **Gelb** = grenzwertig, **Rot** = kritisch
+- **Trendpfeil** darunter: ⇈/↑/↗ = steigend, ⇊/↓/↘ = fallend, → = stabil. Entspricht der Libre-Trendanzeige.
+- **Delta** zum vorherigen Wert (z. B. "+5" oder "−3" mg/dL)
+- **Zeitangabe** (z. B. „vor 2 Min.") — zeigt an, wie aktuell die Daten sind. Über 10 Minuten → Sensor-Verbindung prüfen!
+
+### Verlaufsgraph
+
+Die Blutzuckerkurve zeigt den Verlauf über den gewählten Zeitraum.
+
+- **Zoom-Buttons** über dem Graph: `-1h`, `-6h`, `-12h`, `-1t` (Tag), `-1w` (Woche)
+- **Jetzt-Button** springt zur aktuellen Zeit
+- **Wischgeste (Swipe)** im Graph: horizontal nach links/rechts blättern
+- Auf einen Punkt im Graph **tippen/hovern** zeigt den genauen Wert zu diesem Zeitpunkt
 
 ### Stats-Kacheln
 
-- **Heute ⭐** — Deine Tagespunkte und dein Level. Tippen für Details
-- **Prognose +30min** — Der vorhergesagte Blutzucker in 30 Minuten. Tippen für alle Zeithorizonte (30/60/120 min) mit Genauigkeit
-- **Time in Range** — Wie viel Prozent der Zeit der Blutzucker im Zielbereich (70–180 mg/dL) lag. Der farbige Balken zeigt an: Rot = zu niedrig, Grün = im Bereich, Orange = zu hoch
-- **Streak 🏆** — Wie lange der Blutzucker schon ununterbrochen im Zielbereich liegt. Tippen für Details
-- **Min / Ø / Max** — Der niedrigste, durchschnittliche und höchste Wert der letzten Stunde
-- **Badges 🏅** — Freigeschaltete Erfolge. Tippen für die Sammlung
-- **GMI (eA1c)** — Geschätzter Langzeitblutzuckerwert (wie der HbA1c beim Arzt)
+- **Heute ⭐** — Tagespunkte und Level. Tippen öffnet Detailansicht mit Wochenübersicht
+- **Prognose +30min** — Vorhergesagter Wert mit Konfidenzintervall (z. B. „142  (128–156) mg/dL"). Tippen öffnet Modal mit allen Horizonten + MAE (Genauigkeit)
+- **Time in Range** — Prozentuale Zeit im Zielbereich. Farbbalken: Rot = zu niedrig, Grün = im Bereich, Orange = zu hoch. Tippen für Details
+- **Streak 🏆** — Längste ununterbrochene Zeit im Zielbereich (in h:mm). Tippen für aktuellen + besten Streak
+- **Min / Ø / Max** — Niedrigster, durchschnittlicher, höchster Wert
+- **Badges 🏅** — Freigeschaltete Erfolge. Tippen für Sammlung
+- **GMI (eA1c)** — Geschätzter Langzeitwert (vergleichbar mit HbA1c)
 - **Messwerte** — Anzahl der Messungen in der aktuellen Ansicht
 
 ### Großer BG-Bildschirm
 
-Tippe auf den aktuellen Blutzuckerwert, um eine vergrößerte Ansicht zu öffnen — ideal für nachts oder aus der Entfernung. Dort siehst du auch die Prognose für die nächsten 30/60/120 Minuten.
+**Auf den großen BG-Wert tippen** öffnet eine Vollbild-Ansicht. Der Bildschirm bleibt mit **Wake Lock** dauerhaft an — ideal für nachts. Unten erscheinen die Prognose-Werte (+30/+60/+120).
 
 ---
 
 ## Eintragungen (Logbuch)
 
-Das Logbuch erfasst, was du deinem Kind gibst:
+Das Logbuch findest du unter dem Dashboard. Vier Tabs: **KE**, **Insulin**, **Basal**, **Notiz**
 
-### Kohlenhydrate (KE)
-1 KE = 10 g Kohlenhydrate. Gib einfach die Anzahl der KE ein, z. B. `5` für 50 g.
+### KE (Kohlenhydrate)
+- 1 KE = 10 g Kohlenhydrate
+- Nur **ganze Zahlen** (z. B. `5` für 50 g)
+- Der KE-Wert wird für den Insulin-Vorschlag verwendet
 
 ### Insulin
-Gib die Insulineinheiten ein. Das System errechnet automatisch einen Vorschlag basierend auf:
-- Deiner KE-Eingabe × KE-Faktor
-- + Korrekturwert anhand des aktuellen Blutzuckers
+- Einheiten in **0,5er-Schritten** (mit ± Buttons)
+- **Automatischer Vorschlag:** Wird aus KE-Wert × KE-Faktor + Korrektur aus BG berechnet
+- Zusätzlich kannst du einen **Korrekturwert** manuell eingeben
+- Zeitpunkt einstellbar (Datum/Uhrzeit-Felder)
 
 ### Basal (Basalrate)
-Das Basalinsulin wird nur einmal pro Tag eingetragen. Das System zeigt den letzten Wert an.
+- Nur **einmal pro Tag** — der **letzte Wert** wird als Button angezeigt, drauftippen zum Übernehmen
+- ± Buttons in 0,5er-Schritten
 
-### Notizen
-Freitext für besondere Vorkommnisse („Sport gemacht", „krank", etc.)
+### Notiz
+- Freitext für besondere Vorkommnisse („Sport", „krank", etc.)
 
 ### Simulationsvorschau
-Sobald du KE oder Insulin eintippst, erscheint eine **gestrichelte Linie im Graph** — das ist die Simulation, wie sich der Blutzucker mit dieser Eingabe entwickeln könnte. Noch nicht gespeichert — du siehst die Auswirkung vor dem Abschicken.
+Sobald du KE oder Insulin eintippst, erscheint nach ~0,5 Sek. eine **gestrichelte Linie im Graph**. Das ist die Vorschau, wie sich der BG mit dieser Eingabe entwickeln würde — **vor dem Speichern**.
+
+### Einträge löschen
+Im unteren Bereich (Logbuch-Verlauf) erscheinen alle gespeicherten Einträge. Jeder Eintrag hat einen **🗑️ Löschen-Button** mit Bestätigungsabfrage.
 
 ---
 
 ## Alarme
 
-bgmon überwacht den Blutzucker automatisch und alarmiert dich, wenn Werte gefährlich werden.
+bgmon überwacht alle 30 Sekunden den Blutzucker und alarmiert bei Gefahr.
 
-### Schwellwerte
+### Schwellwerte (Einstellungen → Schwellwerte)
 
-| Stufe | Standard | Bedeutung |
+| Stufe | Standard | Farbcode |
 |---|---|---|
-| Kritisch niedrig | < 54 mg/dL | Sofort handeln! |
-| Niedrig | < 70 mg/dL | Bald Kohlenhydrate geben |
-| Hoch | > 180 mg/dL | Bald korrigieren |
-| Kritisch hoch | > 250 mg/dL | Sofort handeln! |
+| Kritisch niedrig | < 54 mg/dL | 🔴 Rot |
+| Niedrig | < 70 mg/dL | 🟡 Gelb |
+| Hoch | > 180 mg/dL | 🟡 Gelb |
+| Kritisch hoch | > 250 mg/dL | 🔴 Rot |
 
-### So wirst du alarmiert
+### Alarm-Arten
 
-- **Push-Benachrichtigung** auf deinem Handy (auch wenn der Browser geschlossen ist)
-- **Telefonanruf** (Twilio) mit gesprochener Ansage des aktuellen Werts (wenn konfiguriert)
-- Nach einem Alarm wird für 15 Minuten **stummgeschaltet** (Snooze), damit keine Alarm-Flut entsteht
+- **Push-Benachrichtigung** — Erscheint auf deinem Handy (auch bei geschlossenem Browser, wenn App installiert ist)
+- **Telefonanruf (Twilio)** — Automatischer Anruf mit gesprochener Ansage: „Der aktuelle Blutzuckerwert beträgt X Milligramm pro Deziliter. [Titel]. Bitte überprüfen Sie den Blutzuckerwert des Patienten."
+- **15-Minuten-Snooze** — Nach einem Alarm wird für 15 Minuten stummgeschaltet, um Alarm-Fluten zu vermeiden
+
+### Push aktivieren
+
+1. App auf dem **Homescreen installieren** (siehe oben)
+2. Beim ersten Besuch fragt der Browser nach Push-Erlaubnis → **„Erlauben"** wählen
+3. Unter **Einstellungen → Push** siehst du den aktuellen Status
+4. Falls abgelehnt: In den Browser-Einstellungen manuell erlauben
 
 ### Notification-Profile
 
-Du kannst für verschiedene Tageszeiten unterschiedliche Profile anlegen (z. B. „Nachts nur Anruf", „Tagsüber Push + Anruf"). Jedes Profil wird einem Schwellwert zugeordnet.
+Unter **Einstellungen → Benachrichtigungen** kannst du verschiedene Profile anlegen:
+
+- Jedes Profil hat einen **Namen** (z. B. „Tagsüber", „Nachts") und ein **Icon**
+- Pro Profil legst du für jeden Schwellwert fest: **Push** und/oder **Anruf**
+- Profile können per **Zeitplan** automatisch aktiviert werden (Nachtprofil)
+- Das **aktive Profil** wird oben im Dashboard angezeigt
 
 ---
 
-## Nachtmodus
+## Nachtprofil
 
-Wenn du eine **Nachtschicht** startest, wechselt die App in ein augenschonendes Design mit reduzierter Helligkeit. Der große BG-Bildschirm zeigt den aktuellen Wert in maximaler Größe.
-
----
-
-## Familie-Dashboard
-
-Du kannst einen **öffentlichen Link** erstellen, den du mit anderen teilst (z. B. Großeltern, Betreuer). Der Link zeigt den aktuellen Blutzuckerwert ohne Login — nur lesen, keine Eingaben möglich.
+Unter **Einstellungen → Benachrichtigungen** kannst du für jedes Notification-Profil eine Start- und Endzeit festlegen. Während der eingestellten Zeit wird dieses Profil automatisch aktiv — z. B. „nachts nur Anruf, kein Push".
 
 ---
 
 ## Schicht-Management
 
-Wenn mehrere Personen die Betreuung übernehmen, können Schichten geplant und dokumentiert werden. So weiß jeder, wer gerade zuständig ist.
+Wenn mehrere Personen betreuen: Schichten können im Dashboard **gestartet und beendet** werden. Sichtbar für alle, die eingeloggt sind.
 
 ---
 
-## Einstellungen
+## Familie-Dashboard (öffentlicher Link)
 
-In den Einstellungen (erreichbar über das Zahnrad-Icon oben rechts) kannst du:
+Für Großeltern, Betreuer oder andere Personen ohne eigenen Account:
 
-- **Schwellwerte** ändern (pro Benutzer)
-- **KE-Faktor** und **Korrekturfaktor** anpassen
-- **Benutzer verwalten** (Admin)
-- **Notification-Profile** erstellen
-- **Snooze anpassen** / aufheben
-- **Twilio-Nummern** verwalten
-- **BG-Prognose trainieren** (ML-Modell neu trainieren)
-- **Historische LibreLinkUp-Daten** laden
+1. In **Einstellungen → Benachrichtigungen** ein Profil auswählen
+2. Das **Webhook-Token** ist gleichzeitig das Family-Token
+3. Der Link lautet: `https://<deine-domain>/api/family/<token>`
+4. Zeigt den **aktuellen BG-Wert ohne Login** — nur lesen, keine Eingaben
 
 ---
 
 ## BG-Prognose (ML)
 
-Die App kann den Blutzucker für die nächsten 30, 60 und 120 Minuten vorhersagen. Die Prognose basiert auf:
+Die App sagt den Blutzucker für **30, 60 und 120 Minuten** voraus. Eingabedaten:
 
-- Dem aktuellen Blutzuckerwert und -verlauf
-- Eingegebenen Kohlenhydraten und Insulin
-- Der Tageszeit
+- Aktueller BG-Wert und Verlauf (Durchschnitt, Steigung)
+- Kohlenhydrate und Insulin der letzten 2–4 Stunden
+- Tageszeit (sin/cos-Kodierung)
 
-**Wichtig:** Die Prognose ist eine **statistische Schätzung** und ersetzt keine medizinische Beratung. Die Genauigkeit (MAE) wird dir im Prognose-Modal angezeigt. Sie verbessert sich mit mehr Trainingsdaten.
+### Wo sichtbar:
+- **Graph**: Gestrichelte Linien (Türkis=30 min, Gelb=60 min) mit transluzentem Konfidenzband
+- **Prognose-Kachel**: Wert mit Konfidenzintervall (z. B. „142  (128–156) mg/dL")
+- **Prognose-Modal**: Klick auf die Kachel → alle Horizonte + MAE + Disclaimer
+- **BG-Modal**: Unten +30/+60/+120
+
+### Genauigkeit (MAE)
+MAE = „Mean Absolute Error" — die durchschnittliche Abweichung in mg/dL. Beispiel: MAE 46 bedeutet, der wahre Wert liegt im Schnitt ±46 mg/dL vom vorhergesagten entfernt. **Je mehr Trainingsdaten, desto genauer.**
+
+> ⚠️ Die Prognose ist eine **statistische Schätzung** — kein Ersatz für medizinische Beratung.
+
+---
+
+## Einstellungen (⚙️)
+
+Oben rechts im Dashboard erreichbar:
+
+| Rubrik | Was du einstellen kannst |
+|---|---|
+| **Konto** 👤 | Name, E-Mail, Passwort ändern |
+| **Behandlung** 💊 | KE-Faktor, Korrekturfaktor, Insulinwirkzeit |
+| **Schwellwerte** 📊 | Alarmgrenzen (pro Benutzer) |
+| **Benachrichtigungen** 🔕 | Profile, Push/Anruf, Nachtzeiten |
+| **Push** 🔔 | Push-Status prüfen, neu abonnieren |
+| **Twilio** 📞 | Telefonnummern, Testanruf |
+| **Benutzer** 👥 | Benutzer verwalten (nur Admin) |
+| **ML** 🧠 | Prognose-Modell trainieren + evaluieren |
+| **Hilfe** ❓ | Diese Anleitung |
 
 ---
 
 ## Tipps für den Alltag
 
-1. **Trage jede Mahlzeit ein** — nur so kann die Prognose und die TIR-Statistik korrekt arbeiten
-2. **Installiere die App auf dem Homescreen** — dann bekommst du Push-Benachrichtigungen auch bei geschlossenem Browser
-3. **Nutze die Simulationsvorschau** — so siehst du vor dem Spritzen, wie sich Insulin und KE auf den Verlauf auswirken
-4. **Schau regelmäßig ins Logbuch** — hier siehst du alle vergangenen Einträge
-5. **Bei Problemen:** Schau in den Einstellungen unter „Hilfe" (diesen Text findest du auch dort)
+1. **App installieren** — Nur auf dem Homescreen bekommst du Push-Alarme bei geschlossenem Browser
+2. **Jede Mahlzeit eintragen** — Damit Prognose, TIR und Insulin-Vorschlag korrekt arbeiten
+3. **Simulationsvorschau nutzen** — Vor dem Spritzen die gestrichelte Linie im Graph prüfen
+4. **Aktualität checken** — Unter dem BG-Wert steht „vor X Min.". >10 Minuten = Sensor prüfen
+5. **Falsche Log-Einträge löschen** — Mit 🗑️ im Logbuch-Verlauf
+6. **BG-Modal nachts** — Auf den Wert tippen, Bildschirm bleibt an
+7. **Familie-Dashboard teilen** — Oma/Opa sehen den Wert ohne eigenes Login
