@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Family dashboard — read-only access via secret token URL.
 
 Primary storage: PostgreSQL (GlucoseReading model).
@@ -77,98 +78,53 @@ def current_glucose(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStat
 def viewer(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     entry = _verify_token(token)
     if not entry:
-        return FlaskResponse("<h1>Ungültiger Token</h1>", status=404)
+        return FlaskResponse("<h1>Ungultiger Token</h1>", status=404)
 
-    return FlaskResponse(_render_viewer(token), mimetype="text/html")
+    return FlaskResponse(_FAMILY_HTML.replace("{TOKEN}", token), mimetype="text/html")
 
 
-def _render_viewer(token: str) -> str:
-<!doctype html>
+_FAMILY_HTML = r"""<!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>bgmon — Familien-Dashboard</title>
+<title>bgmon &mdash; Familien-Dashboard</title>
 <style>
-  * {{ margin:0; padding:0; box-sizing:border-box; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-         background: #0f172a; color: #f8fafc; min-height: 100vh;
-         display: flex; flex-direction: column; align-items: center;
-         justify-content: center; padding: 1rem; }}
-  .loader {{ font-size: 1.2rem; color: #94a3b8; }}
-  .loading {{ text-align: center; }}
-  .error {{ color: #f87171; text-align: center; font-size: 1.1rem; }}
-  .value {{ font-size: min(20vw, 20vh, 180px); font-weight: 800;
-           line-height: 1; font-variant-numeric: tabular-nums; }}
-  .unit {{ font-size: clamp(1rem, 3vw, 1.5rem); color: #94a3b8; }}
-  .trend {{ font-size: min(15vw, 15vh, 120px); line-height: 1; }}
-  .time {{ font-size: 0.9rem; color: #64748b; margin-top: 0.5rem; }}
-  .in-range {{ color: #22c55e; }}
-  .borderline {{ color: #eab308; }}
-  .critical {{ color: #ef4444; }}
-  .no-data {{ display: none; }}
-  @media (prefers-color-scheme: light) {{
-    body {{ background: #f8fafc; color: #0f172a; }}
-    .unit {{ color: #64748b; }}
-    .time {{ color: #94a3b8; }}
-  }}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+background:#0f172a;color:#f8fafc;min-height:100vh;
+display:flex;flex-direction:column;align-items:center;
+justify-content:center;padding:1rem}
+.loader{font-size:1.2rem;color:#94a3b8}
+.loading{text-align:center}
+.error{color:#f87171;text-align:center;font-size:1.1rem}
+.value{font-size:min(20vw,20vh,180px);font-weight:800;line-height:1;
+font-variant-numeric:tabular-nums}
+.unit{font-size:clamp(1rem,3vw,1.5rem);color:#94a3b8}
+.trend{font-size:min(15vw,15vh,120px);line-height:1}
+.time{font-size:.9rem;color:#64748b;margin-top:.5rem}
+.in-range{color:#22c55e}
+.borderline{color:#eab308}
+.critical{color:#ef4444}
+@media(prefers-color-scheme:light){
+body{background:#f8fafc;color:#0f172a}
+.unit{color:#64748b}
+.time{color:#94a3b8}
+}
 </style>
 </head>
 <body>
-  <div id="app" class="loading"><span class="loader">Lade...</span></div>
-  <script>
-    const TOKEN = '{token}';
-    const API = '/api/family/' + TOKEN + '/current';
-
-    function trendArrow(d) {{
-      const m = {{ DoubleUp:'⇈', SingleUp:'↑', FortyFiveUp:'↗', Flat:'→',
-                  FortyFiveDown:'↘', SingleDown:'↓', DoubleDown:'⇊' }};
-      return m[d] || '→';
-    }}
-
-    function color(sgv) {{
-      if (sgv == null) return '';
-      if (sgv < 54 || sgv > 250) return 'critical';
-      if (sgv < 70 || sgv > 180) return 'borderline';
-      return 'in-range';
-    }}
-
-    function timeAgo(ts) {{
-      if (!ts) return '—';
-      const diff = Date.now() - new Date(ts).getTime();
-      const s = Math.floor(diff / 1000);
-      if (s < 60) return 'vor ' + s + ' Sek.';
-      const m = Math.floor(s / 60);
-      if (m < 60) return 'vor ' + m + ' Min.';
-      return 'vor ' + Math.floor(m / 60) + ' Std.';
-    }}
-
-    async function refresh() {{
-      try {{
-        const r = await fetch(API);
-        if (!r.ok) {{
-          document.getElementById('app').innerHTML = '<span class="error">Keine Daten</span>';
-          return;
-        }}
-        const d = await r.json();
-        const sgv = d.sgv;
-        if (sgv == null) {{
-          document.getElementById('app').innerHTML = '<span class="error">Keine Daten</span>';
-          return;
-        }}
-        document.getElementById('app').innerHTML = ''
-          + '<div class="value ' + color(sgv) + '">' + sgv + '</div>'
-          + '<div class="unit">mg/dL</div>'
-          + '<div class="trend ' + color(sgv) + '">' + trendArrow(d.direction) + '</div>'
-          + '<div class="time">' + timeAgo(d.timestamp) + '</div>';
-      }} catch (e) {{
-        document.getElementById('app').innerHTML = '<span class="error">Verbindungsfehler</span>';
-      }}
-    }}
-
-    refresh();
-    setInterval(refresh, 60000);
-  </script>
+<div id="app" class="loading"><span class="loader">Lade...</span></div>
+<script>
+var T="{TOKEN}";
+var A="/api/family/"+T+"/current";
+function t(d){return{DoubleUp:"\u21c8",SingleUp:"\u2191",FortyFiveUp:"\u2197",Flat:"\u2192",FortyFiveDown:"\u2198",SingleDown:"\u2193",DoubleDown:"\u21ca"}[d]||"\u2192"}
+function c(v){if(v==null)return"";if(v<54||v>250)return"critical";if(v<70||v>180)return"borderline";return"in-range"}
+function g(ts){if(!ts)return"\u2014";var d=Date.now()-new Date(ts).getTime();var s=Math.floor(d/1000);if(s<60)return"vor "+s+" Sek.";var m=Math.floor(s/60);if(m<60)return"vor "+m+" Min.";return"vor "+Math.floor(m/60)+" Std."}
+async function r(){try{var x=await fetch(A);if(!x.ok){E("Keine Daten");return}var j=await x.json();var v=j.sgv;if(v==null){E("Keine Daten");return}var h=document.getElementById("app");h.innerHTML='<div class="value '+c(v)+'">'+v+'</div><div class="unit">mg/dL</div><div class="trend '+c(v)+'">'+t(j.direction)+'</div><div class="time">'+g(j.timestamp)+'</div>'}catch(e){E("Verbindungsfehler")}}
+function E(m){document.getElementById("app").innerHTML='<span class="error">'+m+'</span>'}
+r();setInterval(r,60000);
+</script>
 </body>
 </html>
 """
