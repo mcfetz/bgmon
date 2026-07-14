@@ -66,6 +66,20 @@
 	let newVersionAvailable = $state(false);
 	let newVersionDismissed = $state(false);
 
+	let reloading = $state(false);
+	async function handleVersionReload() {
+		if (reloading) return;
+		reloading = true;
+		// Signal service worker to check for updates (PWA)
+		try {
+			const registration = await navigator.serviceWorker?.ready;
+			if (registration) {
+				await registration.update();
+			}
+		} catch {}
+		window.location.replace('/?v=' + Date.now());
+	}
+
 	async function checkVersion() {
 		try {
 			const res = await fetch('/api/version');
@@ -455,7 +469,7 @@
 	{#if newVersionAvailable && !newVersionDismissed}
 		<div class="version-banner">
 			<span>Neue Version verfügbar — </span>
-			<button class="version-reload" onclick={() => location.reload()}>Jetzt neu laden</button>
+			<button class="version-reload" onclick={handleVersionReload}>Jetzt neu laden</button>
 			<button class="version-dismiss" onclick={() => (newVersionDismissed = true)}>✕</button>
 		</div>
 	{/if}
