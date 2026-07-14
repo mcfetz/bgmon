@@ -11,7 +11,8 @@
 		| 'push'
 		| 'notifications'
 		| 'users'
-		| 'ml';
+		| 'ml'
+		| 'help';
 	let currentView = $state<View>('main');
 
 	const SECTIONS: { id: View; label: string; icon: string }[] = [
@@ -22,7 +23,8 @@
 		{ id: 'push', label: 'Push', icon: '🔔' },
 		{ id: 'twilio', label: 'Twilio', icon: '📞' },
 		{ id: 'users', label: 'Benutzer', icon: '👥' },
-		{ id: 'ml', label: 'ML', icon: '🧠' }
+		{ id: 'ml', label: 'ML', icon: '🧠' },
+		{ id: 'help', label: 'Hilfe', icon: '❓' }
 	];
 
 	const SECTION_LABELS: Record<View, string> = {
@@ -34,7 +36,8 @@
 		push: 'Push',
 		notifications: 'Benachrichtigungen',
 		users: 'Benutzer',
-		ml: 'ML'
+		ml: 'ML',
+		help: 'Hilfe'
 	};
 
 	function navigateTo(view: View) {
@@ -1083,7 +1086,54 @@
 												>
 											</div>
 										</div>
-									{/if}
+				{:else if currentView === 'help'}
+					<div class="help-content">
+						<h3>Was ist bgmon?</h3>
+						<p>
+							bgmon zeigt den aktuellen Blutzucker live an. Du kannst Kohlenhydrate (KE) und
+							Insulin eintragen, wirst bei gefährlichen Werten alarmiert und bekommst eine
+							Vorhersage für die nächsten 30/60/120 Minuten.
+						</p>
+
+						<h3>Dashboard</h3>
+						<ul>
+							<li><strong>BG-Wert + Trendpfeil</strong> — Grün = im Bereich (70–180), Gelb = grenzwertig, Rot = kritisch</li>
+							<li><strong>Zoombare Kurve</strong> — Buttons −1h / −6h / −12h / −1t / −1w / Jetzt</li>
+							<li><strong>Kacheln</strong> — Tagespunkte, Prognose, Time-in-Range, Streak, Badges, GMI</li>
+							<li><strong>Großer BG-Bildschirm</strong> — Auf den Wert tippen für Nachtmodus-Ansicht mit Prognose</li>
+						</ul>
+
+						<h3>Eintragungen</h3>
+						<ul>
+							<li><strong>KE</strong> — 1 KE = 10 g Kohlenhydrate. Nur ganze Zahlen</li>
+							<li><strong>Insulin</strong> — In 0,5er-Schritten. Automatischer Vorschlag aus KE × Faktor + Korrektur</li>
+							<li><strong>Basal</strong> — Einmal täglich. Letzter Wert wird vorgeschlagen</li>
+							<li><strong>Simulationsvorschau</strong> — Gestrichelte Linie im Graph vor dem Speichern</li>
+						</ul>
+
+						<h3>Alarme</h3>
+						<ul>
+							<li>Bei Unter-/Überschreitung der Schwellwerte: Push-Benachrichtigung + optional Telefonanruf</li>
+							<li>Schwellwerte: &lt;54 kritisch, &lt;70 niedrig, &gt;180 hoch, &gt;250 kritisch (anpassbar)</li>
+							<li>Nach Alarm: 15 Min. Snooze, damit keine Alarm-Flut entsteht</li>
+							<li>Notification-Profile: Unterschiedliche Benachrichtigungen für Tag/Nacht</li>
+						</ul>
+
+						<h3>Prognose (ML)</h3>
+						<ul>
+							<li>Vorhersage für 30, 60 und 120 Minuten aus aktuellen Werten und Eingaben</li>
+							<li>Angezeigt als gestrichelte Linie im Graph + Kachel mit Konfidenzintervall</li>
+							<li>Genauigkeit verbessert sich mit mehr Trainingsdaten</li>
+						</ul>
+
+						<h3>Tipps</h3>
+						<ul>
+							<li>App auf dem Homescreen installieren für Push-Benachrichtigungen</li>
+							<li>Jede Mahlzeit eintragen für korrekte Statistiken und Prognosen</li>
+							<li>Simulationsvorschau vor dem Spritzen prüfen</li>
+						</ul>
+					</div>
+				{/if}
 										<div class="button-row">
 											<button class="submit-btn" onclick={saveProfile}>Speichern</button>
 											<button class="test-btn" onclick={() => deleteProfile(profile.id)}
@@ -1702,5 +1752,30 @@
 
 	.time-input {
 		max-width: 120px;
+	}
+
+	.help-content {
+		font-size: 0.9rem;
+		line-height: 1.5;
+		color: var(--color-text);
+	}
+
+	.help-content h3 {
+		font-size: 1.05rem;
+		margin: 1.25rem 0 0.5rem;
+		color: var(--color-text);
+	}
+
+	.help-content h3:first-child {
+		margin-top: 0;
+	}
+
+	.help-content ul {
+		padding-left: 1.25rem;
+		margin: 0.25rem 0 0.5rem;
+	}
+
+	.help-content li {
+		margin-bottom: 0.3rem;
 	}
 </style>
