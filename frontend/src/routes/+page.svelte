@@ -70,7 +70,10 @@
 	async function handleVersionReload() {
 		if (reloading) return;
 		reloading = true;
-		// Signal service worker to check for updates (PWA)
+		// Store new version before reload so banner stays hidden
+		appVersion = localStorage.getItem('bgmon_version_pending') || appVersion;
+		localStorage.setItem('bgmon_version', appVersion);
+		localStorage.removeItem('bgmon_version_pending');
 		try {
 			const registration = await navigator.serviceWorker?.ready;
 			if (registration) {
@@ -90,6 +93,7 @@
 					appVersion = v;
 					localStorage.setItem('bgmon_version', v);
 				} else if (v !== appVersion) {
+					localStorage.setItem('bgmon_version_pending', v);
 					newVersionAvailable = true;
 				}
 			}
