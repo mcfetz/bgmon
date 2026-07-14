@@ -1086,6 +1086,20 @@
 												>
 											</div>
 										</div>
+									{/if}
+										<div class="button-row">
+											<button class="submit-btn" onclick={saveProfile}>Speichern</button>
+											<button class="test-btn" onclick={() => deleteProfile(profile.id)}
+												>Löschen</button
+											>
+										</div>
+									</div>
+								{/if}
+							</div>
+						{:else}
+							<p class="hint">Noch keine Profile. Erstelle eines oben.</p>
+						{/each}
+					</div>
 				{:else if currentView === 'help'}
 					<div class="help-content">
 						<h3>Was ist bgmon?</h3>
@@ -1143,20 +1157,6 @@
 							<li><strong>Benutzer</strong>: Anlegen/Verwalten (Admin)</li>
 							<li><strong>ML</strong>: Modell trainieren + evaluieren</li>
 						</ul>
-					</div>
-				{/if}
-										<div class="button-row">
-											<button class="submit-btn" onclick={saveProfile}>Speichern</button>
-											<button class="test-btn" onclick={() => deleteProfile(profile.id)}
-												>Löschen</button
-											>
-										</div>
-									</div>
-								{/if}
-							</div>
-						{:else}
-							<p class="hint">Noch keine Profile. Erstelle eines oben.</p>
-						{/each}
 					</div>
 				{:else if currentView === 'users'}
 					<div class="user-list">
