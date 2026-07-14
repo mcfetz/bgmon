@@ -287,7 +287,7 @@
 		const num = Number(val);
 		if (num <= 0) return 'Wert muss positiv sein';
 		if (type === 'carbs') {
-			if (!Number.isInteger(num)) return 'KE müssen ganze Zahlen sein';
+			if (!Number.isFinite(num)) return 'Ungültiger Wert';
 		}
 		if (type === 'insulin' || type === 'basal') {
 			// Only .0 or .5 allowed
@@ -580,7 +580,7 @@
 								bind:value
 								oninput={normalizeDecimal}
 								min="0"
-								step={activeTab === 'basal' ? '0.5' : '1'}
+								step={activeTab === 'carbs' ? '0.1' : '0.5'}
 								placeholder="0"
 							/>
 							{#if activeTab === 'basal'}
