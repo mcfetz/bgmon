@@ -280,6 +280,9 @@ def create_app(config_class: type[Config] = Config) -> Flask:
             sha = "unknown"
         return cast(Response, jsonify({"version": sha}))
 
+    _app = app
+    return app
+
 
 def _shutdown(signum: int, _frame: object) -> None:
     logging.info("Received signal %s, shutting down...", signum)
