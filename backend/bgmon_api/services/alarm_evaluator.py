@@ -255,8 +255,19 @@ def _dispatch_to_user(
             else None
         )
         if snooze_level == current_level:
+            snooze_until = getattr(snooze, 'snooze_until', None)
+            remaining = ""
+            if snooze_until:
+                remaining_min = max(0, (snooze_until - datetime.now(UTC)).total_seconds() // 60)
+                if snooze_until.tzinfo is None:
+                    snooze_until = snooze_until.replace(tzinfo=UTC)
+                remaining = (
+                    f" (noch {int(remaining_min)} min, "
+                    f"bis {snooze_until.strftime('%H:%M')})"
+                )
             logger.info(
-                "User %d is snoozed at level %s, skipping notification", user_id, current_level
+                "User %d is snoozed at level %s, skipping notification%s",
+                user_id, current_level, remaining,
             )
             return
         logger.info(
@@ -305,25 +316,37 @@ def _dispatch_to_user(
     area = assignment.area.value
     title = _alarm_title_for(threshold, sgv)
 
+    dispatched = False
     if area == "call":
-        _dispatch_call(user, title, sgv)
+        dispatched = _dispatch_call(user, title, sgv)
     elif area == "push":
-        _dispatch_push(user, title, sgv)
+        dispatched = _dispatch_push(user, title, sgv)
 
-    _set_snooze(user_id, reason=f"alarm:{threshold.value}")
+    if dispatched:
+        _set_snooze(user_id, reason=f"alarm:{threshold.value}")
 
 
-def _dispatch_call(user: User, title: str, sgv: int | None) -> None:
+def _dispatch_call(user: User, title: str, sgv: int | None) -> bool:
     if not user.phone_number:
         logger.warning("User %d has no phone_number, cannot call", user.id)
-        return
-    place_call(user, sgv, title)
+        return False
+    try:
+        place_call(user, sgv, title)
+        _log_notification(user, title, sgv)
+        return True
+    except Exception as exc:
+        logger.exception("Failed to place call for user %d: %s", user.id, exc)
+        return False
 
 
-def _dispatch_push(user: User, title: str, sgv: int | None) -> None:
+def _dispatch_push(user: User, title: str, sgv: int | None) -> bool:
     body = f"Aktueller Wert: {sgv} mg/dL" if sgv is not None else ""
-    send_push_to_user(user.id, title, body)
-    _log_notification(user, title, sgv)
+    try:
+        send_push_to_user(user.id, title, body)
+        _log_notification(user, title, sgv)
+        return True
+    except Exception:
+        return False
 
 
 def _set_snooze(user_id: int, reason: str | None = None) -> None:
