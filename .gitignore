@@ -61,3 +61,5 @@ secrets/
 # Omo (plan files, agent state, original backups)
 .omo/
 *.original.md
+
+backend/ml_models/
