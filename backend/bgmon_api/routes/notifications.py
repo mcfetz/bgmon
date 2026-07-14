@@ -277,7 +277,8 @@ def set_snooze() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     snooze = db.session.get(UserSnooze, user.id) or UserSnooze(user_id=user.id)
     snooze.snooze_until = datetime.now(UTC) + timedelta(minutes=minutes)
-    snooze.reason = reason
+    if not snooze.reason or not snooze.reason.startswith("alarm:"):
+        snooze.reason = reason
     if snooze not in db.session:
         db.session.add(snooze)
     with transactional_session():
