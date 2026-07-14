@@ -41,6 +41,10 @@ COPY backend/ /app/backend/
 FROM python:3.14-slim AS runtime
 WORKDIR /app/backend
 
+# Embed git SHA as version for /api/version endpoint
+ARG BGMON_VERSION=unknown
+ENV BGMON_VERSION=${BGMON_VERSION}
+
 # Runtime libs: libpq5 (shared lib for psycopg2), curl (healthcheck)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq5 curl \
