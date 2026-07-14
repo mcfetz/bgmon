@@ -574,7 +574,7 @@
 						<div class="value-input-row">
 							<input
 								type="text"
-								inputmode={activeTab === 'carbs' ? 'numeric' : 'decimal'}
+								inputmode="decimal"
 								enterkeyhint="done"
 								pattern="[0-9]*"
 								bind:value
