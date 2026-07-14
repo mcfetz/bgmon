@@ -28,8 +28,34 @@ def _check_pid() -> bool:
     return True
 
 
+_REQUIRED_ENV = [
+    "BGMON_DATABASE_URL",
+    "BGMON_LIBRE_EMAIL",
+    "BGMON_LIBRE_PASSWORD",
+    "BGMON_TWILIO_ACCOUNT_SID",
+    "BGMON_TWILIO_AUTH_TOKEN",
+    "VAPID_PUBLIC_KEY",
+    "VAPID_PRIVATE_KEY",
+]
+
+
+def _check_env() -> bool:
+    """Return True if all required env vars are set."""
+    missing = [v for v in _REQUIRED_ENV if not os.getenv(v)]
+    if missing:
+        logger.error(
+            "Missing required env vars: %s — scheduler cannot start",
+            ", ".join(missing),
+        )
+        return False
+    return True
+
+
 def main():
     if not _check_pid():
+        sys.exit(1)
+
+    if not _check_env():
         sys.exit(1)
 
     from bgmon_api.app import (
