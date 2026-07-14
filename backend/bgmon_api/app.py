@@ -269,8 +269,16 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     def static_files(filename: str) -> Response:
         return send_from_directory(app.static_folder or "static/dist", filename)
 
-    _app = app
-    return app
+    @app.get("/api/version")
+    def version_info() -> Response:
+        import subprocess
+        try:
+            sha = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], text=True
+            ).strip()
+        except Exception:
+            sha = "unknown"
+        return cast(Response, jsonify({"version": sha}))
 
 
 def _shutdown(signum: int, _frame: object) -> None:

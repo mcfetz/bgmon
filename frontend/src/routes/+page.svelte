@@ -62,6 +62,25 @@
 	let modelMae60 = $state<number | null>(null);
 	let modelMae120 = $state<number | null>(null);
 	let modelVersion = $state('');
+	let appVersion = $state(localStorage.getItem('bgmon_version') || '');
+	let newVersionAvailable = $state(false);
+	let newVersionDismissed = $state(false);
+
+	async function checkVersion() {
+		try {
+			const res = await fetch('/api/version');
+			if (res.ok) {
+				const data = await res.json();
+				const v = data.version;
+				if (!appVersion) {
+					appVersion = v;
+					localStorage.setItem('bgmon_version', v);
+				} else if (v !== appVersion) {
+					newVersionAvailable = true;
+				}
+			}
+		} catch {}
+	}
 
 	// Time window state
 	const initialWindowDurationMs = 3600 * 1000; // default 1h
@@ -197,16 +216,21 @@
 		loadDashboard();
 		loadPrediction();
 		checkHealth();
+		checkVersion();
 		const interval = setInterval(() => {
 			loadDashboard().catch((e) => console.error('Auto-refresh failed:', e));
 			loadPrediction().catch((e) => console.error('Prediction refresh failed:', e));
 			checkHealth();
 		}, 30_000);
+		// Check for new app version every 5 minutes
+		const versionInterval = setInterval(checkVersion, 5 * 60_000);
 		const nowInterval = setInterval(() => {
 			now = Date.now();
 		}, 1000);
 		return () => {
 			clearInterval(interval);
+			clearInterval(nowInterval);
+			clearInterval(versionInterval);
 			clearInterval(nowInterval);
 		};
 	});
@@ -405,6 +429,7 @@
 			{highlightedTimestamp}
 			predictions30={predictionPoints30}
 			predictions60={predictionPoints60}
+			{windowEnd}
 		/>
 		<LogHistory
 			refreshTrigger={logRefreshTrigger}
@@ -426,6 +451,19 @@
 			lastBgTime={lastUpdate ?? undefined}
 		/>
 	</div>
+
+	{#if newVersionAvailable && !newVersionDismissed}
+		<div class="version-banner">
+			<span>Neue Version verfügbar — </span>
+			<button class="version-reload" onclick={() => location.reload()}>Jetzt neu laden</button>
+			<button class="version-dismiss" onclick={() => (newVersionDismissed = true)}>✕</button>
+		</div>
+	{/if}
+	{#if appVersion}
+		<div class="version-footer">
+			<span>bgmon v{appVersion}</span>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -703,5 +741,53 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--spacing-lg);
+	}
+
+	.version-banner {
+		position: fixed;
+		bottom: 32px;
+		left: 50%;
+		transform: translateX(-50%);
+		background: #0f766e;
+		color: white;
+		padding: 0.6rem 1.2rem;
+		border-radius: 999px;
+		font-size: 0.85rem;
+		font-weight: 600;
+		z-index: 900;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+	}
+
+	.version-reload {
+		background: white;
+		color: #0f766e;
+		border: none;
+		padding: 0.3rem 0.8rem;
+		border-radius: 999px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.version-dismiss {
+		background: none;
+		border: none;
+		color: white;
+		font-size: 1rem;
+		cursor: pointer;
+		opacity: 0.7;
+		padding: 0 0.2rem;
+	}
+
+	.version-footer {
+		display: flex;
+		justify-content: center;
+		padding: 0.5rem;
+		font-size: 0.7rem;
+		color: var(--color-text-muted);
+		opacity: 0.5;
 	}
 </style>

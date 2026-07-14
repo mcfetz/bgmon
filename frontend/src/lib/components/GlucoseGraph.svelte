@@ -12,7 +12,8 @@
 		onswipe = ((_ratio: number) => {}) as (ratio: number) => void,
 		highlightedTimestamp = null as string | null,
 		predictions30 = [] as PredictionPoint[],
-		predictions60 = [] as PredictionPoint[]
+		predictions60 = [] as PredictionPoint[],
+		windowEnd = new Date() as Date
 	} = $props();
 
 	const width = 600;
@@ -178,8 +179,34 @@
 		return { linePath, bandPath, terminalDot };
 	}
 
+	const showPredictions = $derived(
+		Math.abs(windowEnd.getTime() - Date.now()) < 10 * 60 * 1000
+	);
+
 	const forecast30 = $derived(computeForecast(predictions30));
 	const forecast60 = $derived(computeForecast(predictions60));
+
+	const combinedPredLine = $derived.by(() => {
+		if (!showPredictions) return '';
+		const parts: string[] = [];
+		const last = readings.length > 0 ? readings[readings.length - 1] : null;
+		if (last && last.sgv != null && last.timestamp) {
+			parts.push(`M${xPos(new Date(last.timestamp).getTime())},${yPos(last.sgv)}`);
+		}
+		if (predictions30.length > 0) {
+			const p = predictions30[predictions30.length - 1];
+			if (p.predicted_sgv != null) {
+				parts.push(`L${xPos(new Date(p.timestamp).getTime())},${yPos(p.predicted_sgv)}`);
+			}
+		}
+		if (predictions60.length > 0) {
+			const p = predictions60[predictions60.length - 1];
+			if (p.predicted_sgv != null) {
+				parts.push(`L${xPos(new Date(p.timestamp).getTime())},${yPos(p.predicted_sgv)}`);
+			}
+		}
+		return parts.length >= 2 ? parts.join(' ') : '';
+	});
 
 	const highlightX = $derived.by(() => {
 		if (!highlightedTimestamp || !timeRange) return null;
@@ -474,59 +501,47 @@
 				<path d={linePath} fill="none" stroke="#14b8a6" stroke-width="2" />
 			{/if}
 
-			<!-- 60min prediction band -->
-			{#if forecast60.bandPath}
-				<path d={forecast60.bandPath} fill="#f59e0b" opacity="0.08" />
-			{/if}
-
-			<!-- 60min prediction line (dashed, amber) -->
-			{#if forecast60.linePath}
+			<!-- Combined prediction line + band (last BG → 30min → 60min) -->
+			{#if combinedPredLine}
 				<path
-					d={forecast60.linePath}
+					d={combinedPredLine}
 					fill="none"
-					stroke="#f59e0b"
-					stroke-width="2"
+					stroke="#8b5cf6"
+					stroke-width="2.5"
 					stroke-dasharray="6,4"
-					opacity="0.6"
+					opacity="0.7"
 				/>
 			{/if}
 
-			<!-- 60min prediction terminal dot -->
-			{#if forecast60.terminalDot}
+			<!-- 60min prediction band -->
+			{#if showPredictions && forecast60.bandPath}
+				<path d={forecast60.bandPath} fill="#8b5cf6" opacity="0.12" />
+			{/if}
+
+			<!-- 60min terminal dot -->
+			{#if showPredictions && forecast60.terminalDot}
 				<circle
 					cx={forecast60.terminalDot.cx}
 					cy={forecast60.terminalDot.cy}
-					r="5"
-					fill="#f59e0b"
-					opacity="0.7"
+					r="4"
+					fill="#8b5cf6"
+					opacity="0.8"
 				/>
 			{/if}
 
 			<!-- 30min prediction band -->
-			{#if forecast30.bandPath}
-				<path d={forecast30.bandPath} fill="#14b8a6" opacity="0.1" />
+			{#if showPredictions && forecast30.bandPath}
+				<path d={forecast30.bandPath} fill="#8b5cf6" opacity="0.12" />
 			{/if}
 
-			<!-- 30min prediction line (dashed, teal) -->
-			{#if forecast30.linePath}
-				<path
-					d={forecast30.linePath}
-					fill="none"
-					stroke="#14b8a6"
-					stroke-width="2"
-					stroke-dasharray="6,4"
-					opacity="0.6"
-				/>
-			{/if}
-
-			<!-- 30min prediction terminal dot -->
-			{#if forecast30.terminalDot}
+			<!-- 30min terminal dot -->
+			{#if showPredictions && forecast30.terminalDot}
 				<circle
 					cx={forecast30.terminalDot.cx}
 					cy={forecast30.terminalDot.cy}
-					r="5"
-					fill="#14b8a6"
-					opacity="0.7"
+					r="4"
+					fill="#8b5cf6"
+					opacity="0.8"
 				/>
 			{/if}
 
