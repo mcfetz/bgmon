@@ -300,7 +300,7 @@ def update_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 def _get_patient(current_user: User) -> User | None:
-    """Return the single patient user (Fiona)."""
+    """Return the single patient user."""
     if current_user.role == UserRole.PATIENT:
         return current_user
     return User.query.filter_by(role=UserRole.PATIENT).first()

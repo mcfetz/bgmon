@@ -26,7 +26,7 @@ from bgmon_api.extensions import db
 
 
 class UserRole(enum.StrEnum):
-    """User roles: patient (Fiona), observer (parents), admin."""
+    """User roles: patient, observer, admin."""
 
     PATIENT = "patient"
     OBSERVER = "observer"
@@ -58,7 +58,7 @@ class LogEntryType(enum.StrEnum):
 
 
 class User(db.Model):
-    """Users: patient (Fiona), observers (parents), admins."""
+    """Users: patient, observers, admins."""
 
     __tablename__ = "users"
 

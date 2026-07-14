@@ -30,16 +30,7 @@ def bootstrap_admin() -> None:
     db.session.add(admin)
     db.session.flush()
 
-    patient = User(
-        email="fiona@familie-heise.de",
-        display_name="Fiona",
-        role=UserRole.PATIENT,
-    )
-    patient.set_password(Config.BOOTSTRAP_ADMIN_PASSWORD)
-    db.session.add(patient)
-    db.session.flush()
-
-    for user in [admin, patient]:
+    for user in [admin]:
         defaults = Threshold(user_id=user.id)
         db.session.add(defaults)
         for label, mins in [
