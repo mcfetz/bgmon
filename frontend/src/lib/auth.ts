@@ -32,5 +32,5 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 export async function logout() {
 	await apiFetch('/api/auth/logout', { method: 'POST' });
 	clearAuthToken();
-	window.location.href = '/login';
+	window.location.href = '/';
 }
