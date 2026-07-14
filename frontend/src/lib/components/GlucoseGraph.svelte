@@ -45,19 +45,25 @@
 	const plotWidth = $derived(width - pad.left - pad.right);
 	const plotHeight = $derived(height - pad.top - pad.bottom);
 
+	const showPredictions = $derived(
+		Math.abs(windowEnd.getTime() - Date.now()) < 10 * 60 * 1000
+	);
+
 	const timeRange = $derived.by(() => {
 		let min = timePoints.length > 0 ? timePoints[0].ts : null;
 		let max = timePoints.length > 0 ? timePoints[timePoints.length - 1].ts : null;
 
-		function extendTime(pts: PredictionPoint[]) {
-			for (const p of pts) {
-				const ts = new Date(p.timestamp).getTime();
-				if (min === null || ts < min) min = ts;
-				if (max === null || ts > max) max = ts;
+		if (showPredictions) {
+			function extendTime(pts: PredictionPoint[]) {
+				for (const p of pts) {
+					const ts = new Date(p.timestamp).getTime();
+					if (min === null || ts < min) min = ts;
+					if (max === null || ts > max) max = ts;
+				}
 			}
+			extendTime(predictions30);
+			extendTime(predictions60);
 		}
-		extendTime(predictions30);
-		extendTime(predictions60);
 
 		return min !== null && max !== null ? { min, max } : null;
 	});
@@ -178,10 +184,6 @@
 
 		return { linePath, bandPath, terminalDot };
 	}
-
-	const showPredictions = $derived(
-		Math.abs(windowEnd.getTime() - Date.now()) < 10 * 60 * 1000
-	);
 
 	const forecast30 = $derived(computeForecast(predictions30));
 	const forecast60 = $derived(computeForecast(predictions60));
