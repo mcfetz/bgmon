@@ -188,24 +188,49 @@
 
 	const combinedPredLine = $derived.by(() => {
 		if (!showPredictions) return '';
-		const parts: string[] = [];
-		const last = readings.length > 0 ? readings[readings.length - 1] : null;
-		if (last && last.sgv != null && last.timestamp) {
-			parts.push(`M${xPos(new Date(last.timestamp).getTime())},${yPos(last.sgv)}`);
-		}
-		if (predictions30.length > 0) {
-			const p = predictions30[predictions30.length - 1];
-			if (p.predicted_sgv != null) {
-				parts.push(`L${xPos(new Date(p.timestamp).getTime())},${yPos(p.predicted_sgv)}`);
-			}
-		}
-		if (predictions60.length > 0) {
-			const p = predictions60[predictions60.length - 1];
-			if (p.predicted_sgv != null) {
-				parts.push(`L${xPos(new Date(p.timestamp).getTime())},${yPos(p.predicted_sgv)}`);
-			}
-		}
-		return parts.length >= 2 ? parts.join(' ') : '';
+		if (readings.length === 0) return '';
+		const last = readings[readings.length - 1];
+		if (!last || last.sgv == null || !last.timestamp) return '';
+
+		const lx = xPos(new Date(last.timestamp).getTime());
+		const ly = yPos(last.sgv);
+
+		const p30 = predictions30.length > 0 ? predictions30[predictions30.length - 1] : null;
+		const p60 = predictions60.length > 0 ? predictions60[predictions60.length - 1] : null;
+
+		if (!p30 || p30.predicted_sgv == null) return '';
+		const x30 = xPos(new Date(p30.timestamp).getTime());
+		const y30 = yPos(p30.predicted_sgv);
+
+		if (!p60 || p60.predicted_sgv == null) return '';
+		const x60 = xPos(new Date(p60.timestamp).getTime());
+		const y60 = yPos(p60.predicted_sgv);
+
+		return `M${lx},${ly} L${x30},${y30} L${x60},${y60}`;
+	});
+
+	const combinedBand = $derived.by(() => {
+		if (!showPredictions || readings.length === 0) return '';
+		const last = readings[readings.length - 1];
+		if (!last || last.sgv == null || !last.timestamp) return '';
+
+		const lx = xPos(new Date(last.timestamp).getTime());
+		const ly = yPos(last.sgv);
+
+		const p30 = predictions30.length > 0 ? predictions30[predictions30.length - 1] : null;
+		const p60 = predictions60.length > 0 ? predictions60[predictions60.length - 1] : null;
+
+		if (!p30 || p30.predicted_sgv == null) return '';
+		const x30 = xPos(new Date(p30.timestamp).getTime());
+		const lo30 = yPos(p30.lower_bound ?? p30.predicted_sgv);
+		const up30 = yPos(p30.upper_bound ?? p30.predicted_sgv);
+
+		if (!p60 || p60.predicted_sgv == null) return '';
+		const x60 = xPos(new Date(p60.timestamp).getTime());
+		const lo60 = yPos(p60.lower_bound ?? p60.predicted_sgv);
+		const up60 = yPos(p60.upper_bound ?? p60.predicted_sgv);
+
+		return `M${lx},${ly} L${x30},${lo30} L${x60},${lo60} L${x60},${up60} L${x30},${up30} Z`;
 	});
 
 	const highlightX = $derived.by(() => {
@@ -501,7 +526,12 @@
 				<path d={linePath} fill="none" stroke="#14b8a6" stroke-width="2" />
 			{/if}
 
-			<!-- Combined prediction line + band (last BG → 30min → 60min) -->
+			<!-- Combined prediction band (last BG → 30min CI → 60min CI) -->
+			{#if combinedBand}
+				<path d={combinedBand} fill="#8b5cf6" opacity="0.12" />
+			{/if}
+
+			<!-- Combined prediction line (last BG → 30min → 60min) -->
 			{#if combinedPredLine}
 				<path
 					d={combinedPredLine}
@@ -513,36 +543,14 @@
 				/>
 			{/if}
 
-			<!-- 60min prediction band -->
-			{#if showPredictions && forecast60.bandPath}
-				<path d={forecast60.bandPath} fill="#8b5cf6" opacity="0.12" />
-			{/if}
-
-			<!-- 60min terminal dot -->
-			{#if showPredictions && forecast60.terminalDot}
-				<circle
-					cx={forecast60.terminalDot.cx}
-					cy={forecast60.terminalDot.cy}
-					r="4"
-					fill="#8b5cf6"
-					opacity="0.8"
-				/>
-			{/if}
-
-			<!-- 30min prediction band -->
-			{#if showPredictions && forecast30.bandPath}
-				<path d={forecast30.bandPath} fill="#8b5cf6" opacity="0.12" />
-			{/if}
-
-			<!-- 30min terminal dot -->
+			<!-- Terminal dots -->
 			{#if showPredictions && forecast30.terminalDot}
-				<circle
-					cx={forecast30.terminalDot.cx}
-					cy={forecast30.terminalDot.cy}
-					r="4"
-					fill="#8b5cf6"
-					opacity="0.8"
-				/>
+				<circle cx={forecast30.terminalDot.cx} cy={forecast30.terminalDot.cy}
+					r="4" fill="#8b5cf6" opacity="0.8" />
+			{/if}
+			{#if showPredictions && forecast60.terminalDot}
+				<circle cx={forecast60.terminalDot.cx} cy={forecast60.terminalDot.cy}
+					r="4" fill="#8b5cf6" opacity="0.8" />
 			{/if}
 
 			<!-- Data dots -->
