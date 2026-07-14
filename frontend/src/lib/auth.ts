@@ -28,3 +28,9 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 		headers
 	});
 }
+
+export async function logout() {
+	await apiFetch('/api/auth/logout', { method: 'POST' });
+	clearAuthToken();
+	window.location.href = '/login';
+}

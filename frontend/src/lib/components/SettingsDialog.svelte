@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { apiFetch } from '$lib/auth';
+	import { logout } from '$lib/auth';
 
 	let open = $state(false);
 	type View =
@@ -843,6 +844,8 @@
 					</div>
 
 					<button class="submit-btn" onclick={saveAccount}>Speichern</button>
+
+					<button class="logout-btn" onclick={logout}>Abmelden</button>
 				{:else if currentView === 'thresholds'}
 					<div class="field">
 						<label>Kritisch niedrig (mg/dL)</label>
@@ -1458,6 +1461,22 @@
 	.submit-btn:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
+	}
+
+	.logout-btn {
+		margin-top: 0.5rem;
+		padding: var(--spacing-sm);
+		font-size: 0.95rem;
+		background: transparent;
+		color: #ef4444;
+		border: 1px solid #ef4444;
+		border-radius: var(--radius);
+		cursor: pointer;
+		font-weight: 600;
+	}
+
+	.logout-btn:hover {
+		background: rgba(239, 68, 68, 0.1);
 	}
 
 	.user-list {
