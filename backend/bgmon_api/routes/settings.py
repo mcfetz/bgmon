@@ -56,8 +56,10 @@ def get_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     return jsonify({
         "snooze_default_minutes": user.snooze_default_minutes,
         "color_mode": user.color_mode,
-        "color_bg": user.color_bg,
-        "color_primary": user.color_primary,
+        "color_bg_light": user.color_bg_light,
+        "color_primary_light": user.color_primary_light,
+        "color_bg_dark": user.color_bg_dark,
+        "color_primary_dark": user.color_primary_dark,
     })
 
 
@@ -74,16 +76,26 @@ def update_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         if mode in ("auto", "light", "dark"):
             user.color_mode = mode
     if "color_bg" in data:
-        user.color_bg = data["color_bg"] or None
+        user.color_bg_light = data["color_bg"] or None
     if "color_primary" in data:
-        user.color_primary = data["color_primary"] or None
+        user.color_primary_light = data["color_primary"] or None
+    if "color_bg_light" in data:
+        user.color_bg_light = data["color_bg_light"] or None
+    if "color_primary_light" in data:
+        user.color_primary_light = data["color_primary_light"] or None
+    if "color_bg_dark" in data:
+        user.color_bg_dark = data["color_bg_dark"] or None
+    if "color_primary_dark" in data:
+        user.color_primary_dark = data["color_primary_dark"] or None
     with transactional_session():
         pass
     return jsonify({
         "snooze_default_minutes": user.snooze_default_minutes,
         "color_mode": user.color_mode,
-        "color_bg": user.color_bg,
-        "color_primary": user.color_primary,
+        "color_bg_light": user.color_bg_light,
+        "color_primary_light": user.color_primary_light,
+        "color_bg_dark": user.color_bg_dark,
+        "color_primary_dark": user.color_primary_dark,
     })
 def reload_libre_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
