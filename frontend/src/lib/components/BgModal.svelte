@@ -303,16 +303,26 @@
 	}
 
 	@media (prefers-color-scheme: dark) {
-		.bg-modal {
+		.bg-modal:not([data-theme='light'] *) {
 			background: #000;
 			color: #f8fafc;
 		}
-		.close-btn {
+		.close-btn:not([data-theme='light'] *) {
 			color: #f8fafc;
 		}
-		.close-btn:hover {
+		.close-btn:not([data-theme='light'] *):hover {
 			background: rgba(255, 255, 255, 0.15);
 		}
+	}
+	[data-theme='dark'] .bg-modal {
+		background: #000;
+		color: #f8fafc;
+	}
+	[data-theme='dark'] .close-btn {
+		color: #f8fafc;
+	}
+	[data-theme='dark'] .close-btn:hover {
+		background: rgba(255, 255, 255, 0.15);
 	}
 
 	.bg-content {
@@ -388,9 +398,12 @@
 	}
 
 	@media (prefers-color-scheme: dark) {
-		.prediction-card {
+		.prediction-card:not([data-theme='light'] *) {
 			background: rgba(255, 255, 255, 0.08);
 		}
+	}
+	[data-theme='dark'] .prediction-card {
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.snooze-display {
