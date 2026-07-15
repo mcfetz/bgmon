@@ -530,12 +530,12 @@
 
 	function applyColorMode(mode: string) {
 		const root = document.documentElement;
-		if (mode === 'light') {
-			root.style.colorScheme = 'light';
-		} else if (mode === 'dark') {
-			root.style.colorScheme = 'dark';
+		if (mode === 'dark') {
+			root.setAttribute('data-theme', 'dark');
+		} else if (mode === 'light') {
+			root.setAttribute('data-theme', 'light');
 		} else {
-			root.style.colorScheme = '';
+			root.removeAttribute('data-theme');
 		}
 	}
 

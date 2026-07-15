@@ -45,6 +45,17 @@
 	}
 }
 
+:root[data-theme='dark'] {
+	--color-bg: #020617;
+	--color-surface: #0f172a;
+	--color-text: #f8fafc;
+	--color-text-muted: #94a3b8;
+	--color-border-subtle: rgba(255, 255, 255, 0.05);
+	--color-border-default: #1e293b;
+	--color-glass-bg: rgba(15, 23, 42, 0.8);
+	--color-glass-border: rgba(255, 255, 255, 0.1);
+}
+
 * {
 	box-sizing: border-box;
 	margin: 0;
