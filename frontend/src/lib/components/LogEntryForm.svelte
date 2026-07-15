@@ -487,6 +487,42 @@
 								>
 								<button type="button" class="adjust-btn" onclick={() => adjustValue(0.5)}>+</button>
 							</div>
+						{:else if activeTab === 'carbs'}
+							<label class="value-label">KE</label>
+							<div class="value-input-row">
+								<input
+									type="text"
+									inputmode="decimal"
+									enterkeyhint="done"
+									bind:value
+									oninput={normalizeDecimal}
+									min="0"
+									step="0.1"
+									placeholder="0"
+								/>
+							</div>
+						{:else if activeTab === 'basal'}
+							<label class="value-label">Basal (U)</label>
+							<div class="value-input-row">
+								<input
+									type="text"
+									inputmode="decimal"
+									enterkeyhint="done"
+									bind:value
+									oninput={normalizeDecimal}
+									min="0"
+									step="0.5"
+									placeholder="0"
+								/>
+								<button type="button" class="adjust-btn" onclick={() => adjustValue(-0.5)}>−</button
+								>
+								<button type="button" class="adjust-btn" onclick={() => adjustValue(0.5)}>+</button>
+							</div>
+							{#if lastBasalValue !== null}
+								<button class="last-value-hint" onclick={applyLastBasal}>
+									Letzter Wert: {lastBasalValue} U → übernehmen
+								</button>
+							{/if}
 						{/if}
 					</div>
 					<div class="field">
@@ -569,34 +605,6 @@
 						/>
 					</div>
 				{:else}
-					<div class="field value-field">
-						<label>Wert ({units[activeTab]})</label>
-						<div class="value-input-row">
-							<input
-								type="text"
-								inputmode="decimal"
-								enterkeyhint="done"
-								pattern="[0-9]*"
-								bind:value
-								oninput={normalizeDecimal}
-								min="0"
-								step={activeTab === 'carbs' ? '0.1' : '0.5'}
-								placeholder="0"
-							/>
-							{#if activeTab === 'basal'}
-								<button type="button" class="adjust-btn" onclick={() => adjustValue(-0.5)}>−</button
-								>
-								<button type="button" class="adjust-btn" onclick={() => adjustValue(0.5)}>+</button>
-							{/if}
-						</div>
-						{#if activeTab === 'basal' && lastBasalValue !== null}
-							<button class="last-value-hint" onclick={applyLastBasal}>
-								Letzter Wert: {lastBasalValue}
-								{units.basal} → übernehmen
-							</button>
-						{/if}
-					</div>
-
 					<div class="field">
 						<label>Notizen</label>
 						<input
