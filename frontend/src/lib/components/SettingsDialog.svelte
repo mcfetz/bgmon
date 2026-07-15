@@ -1924,11 +1924,20 @@
 	.color-row input[type="color"] {
 		width: 36px;
 		height: 36px;
-		padding: 2px;
+		padding: 0;
 		border: 1px solid var(--color-border-default);
 		border-radius: 6px;
 		cursor: pointer;
 		background: none;
+		-webkit-appearance: none;
+		appearance: none;
+	}
+	.color-row input[type="color"]::-webkit-color-swatch-wrapper {
+		padding: 2px;
+	}
+	.color-row input[type="color"]::-webkit-color-swatch {
+		border: none;
+		border-radius: 4px;
 	}
 	.color-row input[type="text"] {
 		flex: 1;
