@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { apiFetch } from '$lib/auth';
 	import { logout } from '$lib/auth';
+	import { applyUserColors, getStoredColors, type UserColors } from '$lib/theme';
 
 	let open = $state(false);
 	type View =
@@ -64,8 +65,10 @@
 	let displayName = $state('');
 	let snoozeDefaultMinutes = $state(15);
 	let colorMode = $state<'auto' | 'light' | 'dark'>('auto');
-	let colorBg = $state('');
-	let colorPrimary = $state('');
+	let colorBgLight = $state('');
+	let colorPrimaryLight = $state('');
+	let colorBgDark = $state('');
+	let colorPrimaryDark = $state('');
 	let currentUserId = $state<number | null>(null);
 
 	let criticalLow = $state(54);
@@ -454,8 +457,10 @@
 		// Load preferences from localStorage (instant)
 		snoozeDefaultMinutes = parseInt(localStorage.getItem('bgmon_snooze_default') || '15');
 		colorMode = (localStorage.getItem('bgmon_color_mode') || 'auto') as 'auto' | 'light' | 'dark';
-		colorBg = localStorage.getItem('bgmon_color_bg') || '';
-		colorPrimary = localStorage.getItem('bgmon_color_primary') || '';
+		colorBgLight = localStorage.getItem('bgmon_color_bg_light') || '';
+		colorPrimaryLight = localStorage.getItem('bgmon_color_primary_light') || '';
+		colorBgDark = localStorage.getItem('bgmon_color_bg_dark') || '';
+		colorPrimaryDark = localStorage.getItem('bgmon_color_primary_dark') || '';
 		await loadData();
 		await loadProfiles();
 		await fetchPushPublicKey();
@@ -518,8 +523,10 @@
 		message = '';
 		localStorage.setItem('bgmon_snooze_default', String(snoozeDefaultMinutes));
 		localStorage.setItem('bgmon_color_mode', colorMode);
-		localStorage.setItem('bgmon_color_bg', colorBg);
-		localStorage.setItem('bgmon_color_primary', colorPrimary);
+		localStorage.setItem('bgmon_color_bg_light', colorBgLight);
+		localStorage.setItem('bgmon_color_primary_light', colorPrimaryLight);
+		localStorage.setItem('bgmon_color_bg_dark', colorBgDark);
+		localStorage.setItem('bgmon_color_primary_dark', colorPrimaryDark);
 		applyColorMode(colorMode);
 		try {
 			await apiFetch('/api/settings/preferences', {
@@ -528,8 +535,10 @@
 				body: JSON.stringify({
 					snooze_default_minutes: snoozeDefaultMinutes,
 					color_mode: colorMode,
-					color_bg: colorBg || null,
-					color_primary: colorPrimary || null
+					color_bg_light: colorBgLight || null,
+					color_primary_light: colorPrimaryLight || null,
+					color_bg_dark: colorBgDark || null,
+					color_primary_dark: colorPrimaryDark || null
 				})
 			});
 		} catch {}
@@ -545,8 +554,11 @@
 		} else {
 			root.removeAttribute('data-theme');
 		}
-		if (colorBg) root.style.setProperty('--color-bg', colorBg);
-		if (colorPrimary) root.style.setProperty('--color-primary', colorPrimary);
+		applyUserColors({
+			bgLight: colorBgLight, primaryLight: colorPrimaryLight,
+			bgDark: colorBgDark, primaryDark: colorPrimaryDark,
+			mode
+		});
 	}
 
 	async function saveAccount() {
@@ -1222,20 +1234,38 @@
 							<option value="dark">Dunkel</option>
 						</select>
 					</div>
+					<h3 class="sub-heading">Farben Hell</h3>
 					<div class="field">
-						<label>Hintergrundfarbe</label>
+						<label>Hintergrund</label>
 						<div class="color-row">
-							<input type="color" bind:value={colorBg} />
-							<input type="text" bind:value={colorBg} placeholder="#f8fafc" maxlength="7" />
-							<button type="button" class="test-btn" onclick={() => (colorBg = '')}>Reset</button>
+							<input type="color" bind:value={colorBgLight} />
+							<input type="text" bind:value={colorBgLight} placeholder="#f8fafc" maxlength="7" />
+							<button type="button" class="test-btn" onclick={() => (colorBgLight = '')}>Reset</button>
 						</div>
 					</div>
 					<div class="field">
 						<label>Akzentfarbe</label>
 						<div class="color-row">
-							<input type="color" bind:value={colorPrimary} />
-							<input type="text" bind:value={colorPrimary} placeholder="#4f46e5" maxlength="7" />
-							<button type="button" class="test-btn" onclick={() => (colorPrimary = '')}>Reset</button>
+							<input type="color" bind:value={colorPrimaryLight} />
+							<input type="text" bind:value={colorPrimaryLight} placeholder="#4f46e5" maxlength="7" />
+							<button type="button" class="test-btn" onclick={() => (colorPrimaryLight = '')}>Reset</button>
+						</div>
+					</div>
+					<h3 class="sub-heading">Farben Dunkel</h3>
+					<div class="field">
+						<label>Hintergrund</label>
+						<div class="color-row">
+							<input type="color" bind:value={colorBgDark} />
+							<input type="text" bind:value={colorBgDark} placeholder="#020617" maxlength="7" />
+							<button type="button" class="test-btn" onclick={() => (colorBgDark = '')}>Reset</button>
+						</div>
+					</div>
+					<div class="field">
+						<label>Akzentfarbe</label>
+						<div class="color-row">
+							<input type="color" bind:value={colorPrimaryDark} />
+							<input type="text" bind:value={colorPrimaryDark} placeholder="#4f46e5" maxlength="7" />
+							<button type="button" class="test-btn" onclick={() => (colorPrimaryDark = '')}>Reset</button>
 						</div>
 					</div>
 					<button class="submit-btn" onclick={savePreferences}>Speichern</button>

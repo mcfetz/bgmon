@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { applyUserColors, getStoredColors } from '$lib/theme';
 	import GlucoseGraph from '$lib/components/GlucoseGraph.svelte';
 	import LogEntryForm from '$lib/components/LogEntryForm.svelte';
 	import LogHistory from '$lib/components/LogHistory.svelte';
@@ -230,17 +231,13 @@
 	}
 
 	onMount(() => {
-		// Load saved color mode + custom colors
-		const savedColor = localStorage.getItem('bgmon_color_mode');
-		const savedBg = localStorage.getItem('bgmon_color_bg');
-		const savedPri = localStorage.getItem('bgmon_color_primary');
-		if (savedColor === 'dark') {
+		const colors = getStoredColors();
+		if (colors.mode === 'dark') {
 			document.documentElement.setAttribute('data-theme', 'dark');
-		} else if (savedColor === 'light') {
+		} else if (colors.mode === 'light') {
 			document.documentElement.setAttribute('data-theme', 'light');
 		}
-		if (savedBg) document.documentElement.style.setProperty('--color-bg', savedBg);
-		if (savedPri) document.documentElement.style.setProperty('--color-primary', savedPri);
+		applyUserColors(colors);
 		checkAuth();
 		loadDashboard();
 		loadPrediction();
