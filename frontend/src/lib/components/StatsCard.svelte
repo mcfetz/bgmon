@@ -26,6 +26,7 @@
 	let badgeModalOpen = $state(false);
 	let streakModalOpen = $state(false);
 	let predictionModalOpen = $state(false);
+	let gmiModalOpen = $state(false);
 
 	function formatStreakHM(intervals: number | null | undefined): string {
 		const v = intervals ?? 0;
@@ -33,6 +34,20 @@
 		const h = Math.floor(totalMin / 60);
 		const m = totalMin % 60;
 		return `${h}:${String(m).padStart(2, '0')}`;
+	}
+
+	function gmiColor(gmi: number | null | undefined): string {
+		if (gmi == null) return 'var(--color-text-muted)';
+		if (gmi < 5.7) return '#22c55e';
+		if (gmi < 6.5) return '#eab308';
+		return '#ef4444';
+	}
+
+	function gmiLabel(gmi: number | null | undefined): string {
+		if (gmi == null) return '';
+		if (gmi < 5.7) return 'Normal';
+		if (gmi < 6.5) return 'Prädiabetes';
+		return 'Diabetes-Bereich';
 	}
 </script>
 
@@ -111,11 +126,11 @@
 		<span class="unit">freigeschaltet</span>
 	</button>
 
-	<div class="stat-card">
+	<button class="stat-card clickable" type="button" onclick={() => (gmiModalOpen = true)}>
 		<span class="label">GMI (eA1c)</span>
-		<span class="value">{stats?.gmi ?? '—'}</span>
-		<span class="unit">%</span>
-	</div>
+		<span class="value" style="color: {gmiColor(stats?.gmi)}">{stats?.gmi ?? '—'}</span>
+		<span class="unit">% · {gmiLabel(stats?.gmi)}</span>
+	</button>
 
 	<div class="stat-card">
 		<span class="label">Messwerte</span>
@@ -150,6 +165,26 @@
 	{lastBg}
 	{lastBgTime}
 />
+
+{#if gmiModalOpen}
+	<div class="modal-overlay" role="dialog" onclick={() => (gmiModalOpen = false)}>
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<button class="close-btn" type="button" onclick={() => (gmiModalOpen = false)}>✕</button>
+			<h2>GMI — Glucose Management Indicator</h2>
+			<p class="gmi-desc">
+				Der GMI ist ein aus CGM-Daten berechneter Schätzwert, der dem
+				laborbestimmten HbA1c ähnelt. Er wird aus deinem durchschnittlichen
+				Blutzucker der letzten Wochen berechnet.
+			</p>
+			<div class="gmi-ranges">
+				<div class="gmi-range"><span class="dot" style="background:#22c55e"></span> &lt;5,7% — Normal</div>
+				<div class="gmi-range"><span class="dot" style="background:#eab308"></span> 5,7–6,5% — Prädiabetes</div>
+				<div class="gmi-range"><span class="dot" style="background:#ef4444"></span> &gt;6,5% — Diabetes-Bereich</div>
+			</div>
+			<p class="gmi-formula">Formel: GMI = 3,31 + 0,02392 × ∅-Blutzucker (mg/dL)</p>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.stats-grid {
@@ -257,5 +292,70 @@
 		background: linear-gradient(90deg, #0f766e, #14b8a6);
 		border-radius: 3px;
 		transition: width 0.3s ease;
+	}
+
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	}
+
+	.modal-content {
+		background: var(--color-surface);
+		border-radius: var(--radius, 12px);
+		padding: 2rem;
+		max-width: 400px;
+		width: 90%;
+		position: relative;
+	}
+
+	.close-btn {
+		position: absolute;
+		top: 0.75rem;
+		right: 0.75rem;
+		background: none;
+		border: none;
+		font-size: 1.2rem;
+		cursor: pointer;
+		color: var(--color-text-muted);
+	}
+
+	.gmi-desc {
+		font-size: 0.9rem;
+		line-height: 1.5;
+		color: var(--color-text);
+		margin: 0.75rem 0 1rem;
+	}
+
+	.gmi-ranges {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.gmi-range {
+		font-size: 0.9rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		display: inline-block;
+	}
+
+	.gmi-formula {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		font-style: italic;
+		margin: 0;
 	}
 </style>
