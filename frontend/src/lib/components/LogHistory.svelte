@@ -17,6 +17,8 @@
 
 	let logs = $state<LogEntry[]>([]);
 	let confirmId = $state<number | null>(null);
+	let filterOpen = $state(false);
+	let filters = $state({ carbs: true, insulin: true, basal: true, alarm: false, note: true });
 
 	async function loadLogs() {
 		const startIso = windowStart.toISOString();
@@ -33,6 +35,17 @@
 	});
 
 	async function remove(id: number) {
+
+	const filteredLogs = $derived(
+		logs.filter((log) => {
+			if (log.entry_type === 'carbs') return filters.carbs;
+			if (log.entry_type === 'insulin') return filters.insulin;
+			if (log.entry_type === 'basal') return filters.basal;
+			if (log.entry_type === 'alarm') return filters.alarm;
+			if (log.entry_type === 'note' || log.entry_type === 'success') return filters.note;
+			return true;
+		})
+	);
 		const ok = await deleteLog(id);
 		if (ok) {
 			logs = logs.filter((l) => l.id !== id);
@@ -80,9 +93,33 @@
 
 {#if logs.length > 0}
 	<div class="history">
-		<h3>Logbuch</h3>
+		<div class="history-header">
+			<h3>Logbuch</h3>
+			<button class="filter-btn" onclick={() => (filterOpen = !filterOpen)} title="Filtern">⚙</button>
+		</div>
+		{#if filterOpen}
+			<div class="filter-popover">
+				{#each [
+					{ key: 'carbs', label: 'Kohlenhydrate', icon: '🥪' },
+					{ key: 'insulin', label: 'Insulin', icon: '💉' },
+					{ key: 'basal', label: 'Basal', icon: '💉' },
+					{ key: 'alarm', label: 'Alarm', icon: '🔔' },
+					{ key: 'note', label: 'Notizen', icon: '📝' }
+				] as item}
+					<label class="filter-item">
+						<span class="filter-icon">{item.icon}</span>
+						<span class="filter-label">{item.label}</span>
+						<input
+							type="checkbox"
+							checked={filters[item.key as keyof typeof filters]}
+							onchange={() => (filters[item.key as keyof typeof filters] = !filters[item.key as keyof typeof filters])}
+						/>
+					</label>
+				{/each}
+			</div>
+		{/if}
 		<ul>
-			{#each logs as log}
+			{#each filteredLogs as log}
 				<li
 					class:active={highlightedTimestamp === log.created_at}
 					onmouseenter={() => onHighlight(log.created_at)}
@@ -126,12 +163,79 @@
 		border-radius: var(--radius);
 		max-height: 400px;
 		overflow-y: auto;
+		position: relative;
 	}
 
 	.history h3 {
 		font-size: 0.9rem;
-		margin: 0 0 var(--spacing-sm);
+		margin: 0;
 		color: var(--color-text-muted);
+	}
+
+	.history-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.filter-btn {
+		background: none;
+		border: none;
+		font-size: 1.1rem;
+		cursor: pointer;
+		color: var(--color-text-muted);
+		padding: 2px 4px;
+		border-radius: 4px;
+		line-height: 1;
+	}
+
+	.filter-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--color-text);
+	}
+
+	.filter-popover {
+		position: absolute;
+		right: var(--spacing-md);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		padding: 0.5rem;
+		z-index: 50;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 180px;
+	}
+
+	.filter-item {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.3rem 0.5rem;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 0.85rem;
+	}
+
+	.filter-item:hover {
+		background: rgba(255, 255, 255, 0.05);
+	}
+
+	.filter-icon {
+		font-size: 1rem;
+		width: 20px;
+		text-align: center;
+	}
+
+	.filter-label {
+		flex: 1;
+	}
+
+	.filter-item input {
+		accent-color: #0f766e;
 	}
 
 	.history ul {
