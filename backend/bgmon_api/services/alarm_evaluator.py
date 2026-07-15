@@ -270,8 +270,19 @@ def _dispatch_to_user(
                 user_id, current_level, remaining,
             )
             return
+        # Only break snooze if condition WORSENED
+        _escalated = {
+            "low": {"critical_low"},
+            "high": {"critical_high"},
+        }
+        if current_level not in _escalated.get(snooze_level, set()):
+            logger.info(
+                "User %d level improved: snoozed=%s, new=%s — keeping snooze",
+                user_id, snooze_level, current_level,
+            )
+            return
         logger.info(
-            "User %d level changed: snoozed=%s, new=%s — breaking snooze",
+            "User %d level worsened: snoozed=%s, new=%s — breaking snooze",
             user_id, snooze_level, current_level,
         )
         db.session.delete(snooze)
