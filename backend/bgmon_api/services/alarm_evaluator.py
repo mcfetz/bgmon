@@ -352,12 +352,15 @@ def _dispatch_push(user: User, title: str, sgv: int | None) -> bool:
 def _set_snooze(user_id: int, reason: str | None = None) -> None:
     m = _models()
     snooze = m["UserSnooze"].query.get(user_id) or m["UserSnooze"](user_id=user_id)
-    snooze.snooze_until = datetime.now(UTC) + SNOOZE_DURATION
+    # Use user preference for snooze duration
+    user = m["User"].query.get(user_id)
+    minutes = getattr(user, 'snooze_default_minutes', 15) or 15
+    snooze.snooze_until = datetime.now(UTC) + timedelta(minutes=minutes)
     snooze.reason = reason
     if snooze not in db.session:
         db.session.add(snooze)
     with transactional_session():
-        pass  # auto-commit
+        pass  # commit handled by context manager
     logger.info("User %d snoozed until %s", user_id, snooze.snooze_until)
 
 
