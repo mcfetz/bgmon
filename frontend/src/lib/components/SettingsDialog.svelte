@@ -13,7 +13,8 @@
 		| 'notifications'
 		| 'users'
 		| 'ml'
-		| 'help';
+		| 'help'
+		| 'preferences';
 	let currentView = $state<View>('main');
 
 	const SECTIONS: { id: View; label: string; icon: string }[] = [
@@ -25,6 +26,7 @@
 		{ id: 'twilio', label: 'Twilio', icon: '📞' },
 		{ id: 'users', label: 'Benutzer', icon: '👥' },
 		{ id: 'ml', label: 'ML', icon: '🧠' },
+		{ id: 'preferences', label: 'Einstellungen', icon: '⚙️' },
 		{ id: 'help', label: 'Hilfe', icon: '❓' }
 	];
 
@@ -38,7 +40,8 @@
 		notifications: 'Benachrichtigungen',
 		users: 'Benutzer',
 		ml: 'ML',
-		help: 'Hilfe'
+		help: 'Hilfe',
+		preferences: 'Einstellungen'
 	};
 
 	function navigateTo(view: View) {
@@ -59,6 +62,8 @@
 	let newPassword = $state('');
 	let confirmPassword = $state('');
 	let displayName = $state('');
+	let snoozeDefaultMinutes = $state(15);
+	let colorMode = $state<'auto' | 'light' | 'dark'>('auto');
 	let currentUserId = $state<number | null>(null);
 
 	let criticalLow = $state(54);
@@ -499,6 +504,32 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	async function savePreferences() {
+		error = '';
+		message = '';
+		localStorage.setItem('bgmon_snooze_default', String(snoozeDefaultMinutes));
+		localStorage.setItem('bgmon_color_mode', colorMode);
+		applyColorMode(colorMode);
+		try {
+			await apiFetch('/api/settings/preferences', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					snooze_default_minutes: snoozeDefaultMinutes,
+					color_mode: colorMode
+				})
+			});
+		} catch {}
+		message = 'Gespeichert';
+	}
+
+	function applyColorMode(mode: string) {
+		const root = document.documentElement;
+		root.classList.remove('theme-light', 'theme-dark');
+		if (mode === 'light') root.classList.add('theme-light');
+		else if (mode === 'dark') root.classList.add('theme-dark');
 	}
 
 	async function saveAccount() {
@@ -1161,6 +1192,20 @@
 							<li><strong>ML</strong>: Modell trainieren + evaluieren</li>
 						</ul>
 					</div>
+				{:else if currentView === 'preferences'}
+					<div class="field">
+						<label>Standard-Snooze (Minuten)</label>
+						<input type="number" bind:value={snoozeDefaultMinutes} min="1" max="120" />
+					</div>
+					<div class="field">
+						<label>Farbmodus</label>
+						<select bind:value={colorMode}>
+							<option value="auto">Auto (System)</option>
+							<option value="light">Hell</option>
+							<option value="dark">Dunkel</option>
+						</select>
+					</div>
+					<button class="submit-btn" onclick={savePreferences}>Speichern</button>
 				{:else if currentView === 'users'}
 					<div class="user-list">
 						{#each users as u (u.id)}

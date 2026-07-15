@@ -72,6 +72,8 @@ class User(db.Model):
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     twilio_from_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    snooze_default_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    color_mode: Mapped[str] = mapped_column(String(10), default="auto", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -119,6 +121,8 @@ class User(db.Model):
             "twilio_from_number": self.twilio_from_number,
             "role": self.role.value,
             "is_active": self.is_active,
+            "snooze_default_minutes": self.snooze_default_minutes,
+            "color_mode": self.color_mode,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

@@ -48,7 +48,35 @@ def _put_job(job_id: str, data: dict) -> None:
     _save_jobs(jobs)
 
 
-@settings_bp.route("/libre/reload-history", methods=["POST"])
+@settings_bp.route("/preferences", methods=["GET"])
+def get_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+    return jsonify({
+        "snooze_default_minutes": user.snooze_default_minutes,
+        "color_mode": user.color_mode,
+    })
+
+
+@settings_bp.route("/preferences", methods=["PUT"])
+def update_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+    data = request.get_json(silent=True) or {}
+    if "snooze_default_minutes" in data:
+        user.snooze_default_minutes = int(data["snooze_default_minutes"])
+    if "color_mode" in data:
+        mode = data["color_mode"]
+        if mode in ("auto", "light", "dark"):
+            user.color_mode = mode
+    with transactional_session():
+        pass
+    return jsonify({
+        "snooze_default_minutes": user.snooze_default_minutes,
+        "color_mode": user.color_mode,
+    })
 def reload_libre_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
