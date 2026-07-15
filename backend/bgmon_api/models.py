@@ -74,6 +74,8 @@ class User(db.Model):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     snooze_default_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
     color_mode: Mapped[str] = mapped_column(String(10), default="auto", nullable=False)
+    color_bg: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    color_primary: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -123,6 +125,8 @@ class User(db.Model):
             "is_active": self.is_active,
             "snooze_default_minutes": self.snooze_default_minutes,
             "color_mode": self.color_mode,
+            "color_bg": self.color_bg,
+            "color_primary": self.color_primary,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

@@ -64,6 +64,8 @@
 	let displayName = $state('');
 	let snoozeDefaultMinutes = $state(15);
 	let colorMode = $state<'auto' | 'light' | 'dark'>('auto');
+	let colorBg = $state('');
+	let colorPrimary = $state('');
 	let currentUserId = $state<number | null>(null);
 
 	let criticalLow = $state(54);
@@ -452,6 +454,8 @@
 		// Load preferences from localStorage (instant)
 		snoozeDefaultMinutes = parseInt(localStorage.getItem('bgmon_snooze_default') || '15');
 		colorMode = (localStorage.getItem('bgmon_color_mode') || 'auto') as 'auto' | 'light' | 'dark';
+		colorBg = localStorage.getItem('bgmon_color_bg') || '';
+		colorPrimary = localStorage.getItem('bgmon_color_primary') || '';
 		await loadData();
 		await loadProfiles();
 		await fetchPushPublicKey();
@@ -514,6 +518,8 @@
 		message = '';
 		localStorage.setItem('bgmon_snooze_default', String(snoozeDefaultMinutes));
 		localStorage.setItem('bgmon_color_mode', colorMode);
+		localStorage.setItem('bgmon_color_bg', colorBg);
+		localStorage.setItem('bgmon_color_primary', colorPrimary);
 		applyColorMode(colorMode);
 		try {
 			await apiFetch('/api/settings/preferences', {
@@ -521,7 +527,9 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					snooze_default_minutes: snoozeDefaultMinutes,
-					color_mode: colorMode
+					color_mode: colorMode,
+					color_bg: colorBg || null,
+					color_primary: colorPrimary || null
 				})
 			});
 		} catch {}
@@ -537,6 +545,8 @@
 		} else {
 			root.removeAttribute('data-theme');
 		}
+		if (colorBg) root.style.setProperty('--color-bg', colorBg);
+		if (colorPrimary) root.style.setProperty('--color-primary', colorPrimary);
 	}
 
 	async function saveAccount() {
@@ -1212,6 +1222,22 @@
 							<option value="dark">Dunkel</option>
 						</select>
 					</div>
+					<div class="field">
+						<label>Hintergrundfarbe</label>
+						<div class="color-row">
+							<input type="color" bind:value={colorBg} />
+							<input type="text" bind:value={colorBg} placeholder="#f8fafc" maxlength="7" />
+							<button type="button" class="test-btn" onclick={() => (colorBg = '')}>Reset</button>
+						</div>
+					</div>
+					<div class="field">
+						<label>Akzentfarbe</label>
+						<div class="color-row">
+							<input type="color" bind:value={colorPrimary} />
+							<input type="text" bind:value={colorPrimary} placeholder="#4f46e5" maxlength="7" />
+							<button type="button" class="test-btn" onclick={() => (colorPrimary = '')}>Reset</button>
+						</div>
+					</div>
 					<button class="submit-btn" onclick={savePreferences}>Speichern</button>
 				{:else if currentView === 'users'}
 					<div class="user-list">
@@ -1859,5 +1885,22 @@
 
 	.help-content li {
 		margin-bottom: 0.3rem;
+	}
+	.color-row {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	.color-row input[type="color"] {
+		width: 36px;
+		height: 36px;
+		padding: 2px;
+		border: 1px solid var(--color-border-default);
+		border-radius: 6px;
+		cursor: pointer;
+		background: none;
+	}
+	.color-row input[type="text"] {
+		flex: 1;
 	}
 </style>

@@ -230,13 +230,17 @@
 	}
 
 	onMount(() => {
-		// Load saved color mode
+		// Load saved color mode + custom colors
 		const savedColor = localStorage.getItem('bgmon_color_mode');
+		const savedBg = localStorage.getItem('bgmon_color_bg');
+		const savedPri = localStorage.getItem('bgmon_color_primary');
 		if (savedColor === 'dark') {
 			document.documentElement.setAttribute('data-theme', 'dark');
 		} else if (savedColor === 'light') {
 			document.documentElement.setAttribute('data-theme', 'light');
 		}
+		if (savedBg) document.documentElement.style.setProperty('--color-bg', savedBg);
+		if (savedPri) document.documentElement.style.setProperty('--color-primary', savedPri);
 		checkAuth();
 		loadDashboard();
 		loadPrediction();
