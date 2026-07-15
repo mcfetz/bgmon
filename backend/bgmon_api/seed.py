@@ -15,10 +15,11 @@ def bootstrap_admin() -> None:
     if not Config.BOOTSTRAP_ADMIN_EMAIL or not Config.BOOTSTRAP_ADMIN_PASSWORD:
         return
     try:
-        if User.query.first() is not None:
+        from sqlalchemy import text
+        result = db.session.execute(text("SELECT 1 FROM users LIMIT 1")).first()
+        if result is not None:
             return
     except Exception:
-        # Tables not yet created (first deploy before migration)
         return
 
     admin = User(
