@@ -278,8 +278,10 @@
 	function glucoseColor(sgv: number | null): string {
 		if (sgv === null) return 'var(--color-text-muted)';
 		if (!health.libre) return 'var(--color-text-muted)';
-		if (sgv < 70) return '#ef4444';
-		if (sgv > 180) return '#eab308';
+		if (sgv <= thresholds.critical_low) return '#ef4444';
+		if (sgv <= thresholds.low) return '#f97316';
+		if (sgv >= thresholds.critical_high) return '#ef4444';
+		if (sgv >= thresholds.high) return '#eab308';
 		return '#22c55e';
 	}
 
