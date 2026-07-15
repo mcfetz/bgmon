@@ -147,7 +147,7 @@
 		align-items: center;
 		gap: 4px;
 		padding: var(--spacing-sm);
-		background: rgba(15, 118, 110, 0.08);
+		background: rgba(var(--color-primary-rgb), 0.08);
 		border-radius: var(--radius);
 		text-align: center;
 	}

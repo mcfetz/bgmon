@@ -165,7 +165,7 @@
 		flex-direction: column;
 		gap: var(--spacing-xs);
 		padding: var(--spacing-sm);
-		background: rgba(15, 118, 110, 0.08);
+		background: rgba(var(--color-primary-rgb), 0.08);
 		border-radius: var(--radius);
 	}
 
@@ -186,7 +186,7 @@
 	.sm-value {
 		font-size: 2.4rem;
 		font-weight: 700;
-		color: #0f766e;
+		color: var(--color-primary);
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
 	}

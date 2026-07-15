@@ -250,7 +250,7 @@
 	}
 
 	.filter-item input {
-		accent-color: #0f766e;
+		accent-color: var(--color-primary);
 	}
 
 	.history ul {
@@ -273,12 +273,12 @@
 	}
 
 	.history li:hover {
-		background: rgba(15, 118, 110, 0.05);
+		background: rgba(var(--color-primary-rgb), 0.05);
 	}
 
 	.history li.active {
-		background: rgba(15, 118, 110, 0.1);
-		border-left: 3px solid #0f766e;
+		background: rgba(var(--color-primary-rgb), 0.1);
+		border-left: 3px solid var(--color-primary);
 		padding-left: 4px;
 	}
 

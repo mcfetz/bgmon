@@ -23,10 +23,10 @@
 	}
 
 	function getScoreColor(s: number): string {
-		if (s >= 50) return 'rgba(15, 118, 110, 0.7)';
-		if (s >= 30) return 'rgba(15, 118, 110, 0.45)';
-		if (s >= 15) return 'rgba(15, 118, 110, 0.25)';
-		if (s > 0) return 'rgba(15, 118, 110, 0.1)';
+		if (s >= 50) return 'rgba(var(--color-primary-rgb), 0.7)';
+		if (s >= 30) return 'rgba(var(--color-primary-rgb), 0.45)';
+		if (s >= 15) return 'rgba(var(--color-primary-rgb), 0.25)';
+		if (s > 0) return 'rgba(var(--color-primary-rgb), 0.1)';
 		return 'var(--color-border)';
 	}
 
@@ -236,7 +236,7 @@
 	.ds-score-value {
 		font-size: 3rem;
 		font-weight: 700;
-		color: #0f766e;
+		color: var(--color-primary);
 		line-height: 1;
 	}
 
@@ -254,7 +254,7 @@
 
 	.level-bar-fill {
 		height: 100%;
-		background: linear-gradient(90deg, #0f766e, #14b8a6);
+		background: linear-gradient(90deg, var(--color-primary), var(--color-primary));
 		border-radius: 4px;
 		transition: width 0.3s ease;
 	}
@@ -283,7 +283,7 @@
 	}
 
 	.week-day.today {
-		outline: 2px solid #0f766e;
+		outline: 2px solid var(--color-primary);
 		outline-offset: -2px;
 	}
 
@@ -318,7 +318,7 @@
 		justify-content: space-between;
 		align-items: center;
 		padding: var(--spacing-xs) var(--spacing-sm);
-		background: rgba(15, 118, 110, 0.08);
+		background: rgba(var(--color-primary-rgb), 0.08);
 		border-radius: var(--radius);
 		font-size: 0.85rem;
 	}
@@ -334,7 +334,7 @@
 	}
 
 	.bd-points {
-		color: #0f766e;
+		color: var(--color-primary);
 		font-weight: 600;
 	}
 

@@ -612,14 +612,14 @@
 	}
 
 	.sgv-btn:hover {
-		background: rgba(15, 118, 110, 0.08);
+		background: rgba(var(--color-primary-rgb), 0.08);
 	}
 
 	.sgv-btn:hover .sgv {
 		text-decoration: underline;
 		text-decoration-thickness: 2px;
 		text-underline-offset: 4px;
-		text-decoration-color: #0f766e;
+		text-decoration-color: var(--color-primary);
 	}
 
 	.sgv {
@@ -776,7 +776,7 @@
 		bottom: 32px;
 		left: 50%;
 		transform: translateX(-50%);
-		background: #0f766e;
+		background: var(--color-primary);
 		color: white;
 		padding: 0.6rem 1.2rem;
 		border-radius: 999px;
@@ -791,7 +791,7 @@
 
 	.version-reload {
 		background: white;
-		color: #0f766e;
+		color: var(--color-primary);
 		border: none;
 		padding: 0.3rem 0.8rem;
 		border-radius: 999px;

@@ -1630,8 +1630,8 @@
 	}
 
 	.user-role.role-patient {
-		background: rgba(15, 118, 110, 0.15);
-		color: #0f766e;
+		background: rgba(var(--color-primary-rgb), 0.15);
+		color: var(--color-primary);
 	}
 
 	.user-role.role-admin {

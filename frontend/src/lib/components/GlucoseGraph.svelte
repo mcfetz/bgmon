@@ -516,7 +516,7 @@
 					y1={pad.top}
 					x2={highlightX}
 					y2={height - pad.bottom}
-					stroke="#0f766e"
+					stroke="var(--color-primary)"
 					stroke-width="2"
 					stroke-dasharray="3,3"
 					opacity="0.7"
@@ -525,7 +525,7 @@
 
 			<!-- Glucose line -->
 			{#if linePath}
-				<path d={linePath} fill="none" stroke="#14b8a6" stroke-width="2" />
+				<path d={linePath} fill="none" stroke="var(--color-primary)" stroke-width="2" />
 			{/if}
 
 			<!-- Combined prediction band (last BG → 30min CI → 60min CI) -->
@@ -694,12 +694,12 @@
 	.nav-zone:hover,
 	.nav-zone:focus-visible {
 		opacity: 0.6;
-		background: rgba(15, 118, 110, 0.1);
+		background: rgba(var(--color-primary-rgb), 0.1);
 		outline: none;
 	}
 
 	.nav-zone:active {
-		background: rgba(15, 118, 110, 0.2);
+		background: rgba(var(--color-primary-rgb), 0.2);
 	}
 
 	.nav-zone-left {

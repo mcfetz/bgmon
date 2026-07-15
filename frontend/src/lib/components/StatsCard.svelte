@@ -215,8 +215,8 @@
 
 	.stat-card.clickable:hover {
 		transform: translateY(-1px);
-		background: rgba(15, 118, 110, 0.08);
-		box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+		background: rgba(var(--color-primary-rgb), 0.08);
+		box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.25);
 	}
 
 	.stat-card.clickable:active {
@@ -289,7 +289,7 @@
 
 	.level-bar-fill {
 		height: 100%;
-		background: linear-gradient(90deg, #0f766e, #14b8a6);
+		background: linear-gradient(90deg, var(--color-primary), var(--color-primary));
 		border-radius: 3px;
 		transition: width 0.3s ease;
 	}

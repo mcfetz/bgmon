@@ -12,6 +12,7 @@
 	--color-primary: #4f46e5;
 	--color-primary-dark: #4338ca;
 	--color-primary-contrast: #ffffff;
+	--color-primary-rgb: 79, 70, 229;
 	--color-danger: #ef4444;
 	--color-warning: #f59e0b;
 	--color-success: #22c55e;
@@ -55,6 +56,7 @@
 	--color-border-default: #1e293b;
 	--color-glass-bg: rgba(15, 23, 42, 0.8);
 	--color-glass-border: rgba(255, 255, 255, 0.1);
+	--color-primary-rgb: 79, 70, 229;
 }
 
 * {
