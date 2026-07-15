@@ -449,6 +449,9 @@
 		editingProfile = null;
 		pushError = '';
 		pushTestMessage = '';
+		// Load preferences from localStorage (instant)
+		snoozeDefaultMinutes = parseInt(localStorage.getItem('bgmon_snooze_default') || '15');
+		colorMode = (localStorage.getItem('bgmon_color_mode') || 'auto') as 'auto' | 'light' | 'dark';
 		await loadData();
 		await loadProfiles();
 		await fetchPushPublicKey();
