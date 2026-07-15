@@ -13,12 +13,12 @@
 		windowEnd: Date;
 		highlightedTimestamp: string | null;
 		onHighlight: (ts: string | null) => void;
+		filters: { carbs: boolean; insulin: boolean; basal: boolean; alarm: boolean; note: boolean };
 	} = $props();
 
 	let logs = $state<LogEntry[]>([]);
 	let confirmId = $state<number | null>(null);
 	let filterOpen = $state(false);
-	let filters = $state({ carbs: true, insulin: true, basal: true, alarm: false, note: true });
 
 	async function loadLogs() {
 		const startIso = windowStart.toISOString();

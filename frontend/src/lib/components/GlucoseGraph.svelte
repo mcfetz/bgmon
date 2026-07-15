@@ -13,7 +13,8 @@
 		highlightedTimestamp = null as string | null,
 		predictions30 = [] as PredictionPoint[],
 		predictions60 = [] as PredictionPoint[],
-		windowEnd = new Date() as Date
+		windowEnd = new Date() as Date,
+		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true } as Record<string, boolean>
 	} = $props();
 
 	const width = 600;
@@ -247,6 +248,14 @@
 		if (!timeRange || logs.length === 0) return [];
 		const markerY = height - pad.bottom - 10;
 		return logs
+			.filter((log) => {
+				if (log.entry_type === 'carbs') return logFilters.carbs;
+				if (log.entry_type === 'insulin') return logFilters.insulin;
+				if (log.entry_type === 'basal') return logFilters.basal;
+				if (log.entry_type === 'alarm') return logFilters.alarm;
+				if (log.entry_type === 'note' || log.entry_type === 'success') return logFilters.note;
+				return true;
+			})
 			.filter((l) => l.created_at)
 			.map((l) => {
 				const ts = new Date(l.created_at).getTime();

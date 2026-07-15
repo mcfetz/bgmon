@@ -53,6 +53,7 @@
 	let logRefreshTrigger = $state(0);
 	let bgModalOpen = $state(false);
 	let highlightedTimestamp = $state<string | null>(null);
+	let logFilters = $state({ carbs: true, insulin: true, basal: true, alarm: false, note: true });
 	let predictionStatus = $state<
 		'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'
 	>('idle');
@@ -458,6 +459,7 @@
 			predictions30={predictionPoints30}
 			predictions60={predictionPoints60}
 			{windowEnd}
+			{logFilters}
 		/>
 		<LogHistory
 			refreshTrigger={logRefreshTrigger}
@@ -465,6 +467,7 @@
 			{windowEnd}
 			{highlightedTimestamp}
 			onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
+			filters={logFilters}
 		/>
 		<StatsCard
 			{stats}
