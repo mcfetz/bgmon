@@ -527,9 +527,13 @@
 
 	function applyColorMode(mode: string) {
 		const root = document.documentElement;
-		root.classList.remove('theme-light', 'theme-dark');
-		if (mode === 'light') root.classList.add('theme-light');
-		else if (mode === 'dark') root.classList.add('theme-dark');
+		if (mode === 'light') {
+			root.style.colorScheme = 'light';
+		} else if (mode === 'dark') {
+			root.style.colorScheme = 'dark';
+		} else {
+			root.style.colorScheme = '';
+		}
 	}
 
 	async function saveAccount() {

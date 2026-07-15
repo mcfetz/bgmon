@@ -230,6 +230,13 @@
 	}
 
 	onMount(() => {
+		// Load saved color mode
+		const savedColor = localStorage.getItem('bgmon_color_mode');
+		if (savedColor === 'dark') {
+			document.documentElement.style.colorScheme = 'dark';
+		} else if (savedColor === 'light') {
+			document.documentElement.style.colorScheme = 'light';
+		}
 		checkAuth();
 		loadDashboard();
 		loadPrediction();
