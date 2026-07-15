@@ -181,7 +181,7 @@
 				<div class="gmi-range"><span class="dot" style="background:#eab308"></span> 5,7–6,5% — Prädiabetes</div>
 				<div class="gmi-range"><span class="dot" style="background:#ef4444"></span> &gt;6,5% — Diabetes-Bereich</div>
 			</div>
-			<p class="gmi-formula">Formel: GMI = 3,31 + 0,02392 × ∅-Blutzucker (mg/dL)</p>
+			<p class="gmi-formula">Formel: GMI (%) = 3,31 + 0,02392 × ∅-Blutzucker (mg/dL)</p>
 		</div>
 	</div>
 {/if}

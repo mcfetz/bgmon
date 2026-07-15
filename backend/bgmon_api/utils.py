@@ -131,7 +131,7 @@ def compute_glucose_stats(
     mean = sum(values) / n
     variance = sum((v - mean) ** 2 for v in values) / n
     std_dev = variance ** 0.5
-    gmi = 46.7 + mean / 1.594  # Nathan 2008
+    gmi = round(3.31 + 0.02392 * mean, 1)  # Nathan 2008: GMI(%) from mg/dL
     tir_below = sum(1 for v in values if v < low)
     tir_above = sum(1 for v in values if v > high)
     tir_in_range = n - tir_below - tir_above
