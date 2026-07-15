@@ -102,6 +102,7 @@
 			</button>
 		</div>
 		{#if filterOpen}
+			<div class="filter-overlay" onclick={() => (filterOpen = false)}></div>
 			<div class="filter-popover">
 				{#each [
 					{ key: 'carbs', label: 'Kohlenhydrate', icon: '🥪' },
@@ -200,6 +201,13 @@
 	.filter-btn:hover {
 		background: rgba(255, 255, 255, 0.1);
 		color: var(--color-text);
+	}
+
+	.filter-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.3);
+		z-index: 49;
 	}
 
 	.filter-popover {
