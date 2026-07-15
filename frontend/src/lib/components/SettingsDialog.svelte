@@ -1555,7 +1555,7 @@
 		padding: var(--spacing-sm);
 		font-size: 0.95rem;
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;
@@ -1563,7 +1563,7 @@
 	}
 
 	.submit-btn:hover {
-		filter: brightness(1.1);
+		background: var(--color-primary-dark);
 	}
 
 	.submit-btn:disabled {
