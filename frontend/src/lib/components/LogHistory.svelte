@@ -35,6 +35,12 @@
 	});
 
 	async function remove(id: number) {
+		const ok = await deleteLog(id);
+		if (ok) {
+			logs = logs.filter((l) => l.id !== id);
+			confirmId = null;
+		}
+	}
 
 	const filteredLogs = $derived(
 		logs.filter((log) => {
@@ -46,12 +52,6 @@
 			return true;
 		})
 	);
-		const ok = await deleteLog(id);
-		if (ok) {
-			logs = logs.filter((l) => l.id !== id);
-			confirmId = null;
-		}
-	}
 
 	function typeIcon(type: string): string {
 		const icons: Record<string, string> = {
