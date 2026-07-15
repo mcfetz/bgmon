@@ -24,6 +24,15 @@ function isDarkMode(colors: UserColors): boolean {
 	return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
+function isColorDark(hex: string): boolean {
+	const num = parseInt(hex.replace('#', ''), 16);
+	const r = (num >> 16) & 0xff;
+	const g = (num >> 8) & 0xff;
+	const b = num & 0xff;
+	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	return luminance < 0.5;
+}
+
 export function applyUserColors(colors: UserColors) {
 	const dark = isDarkMode(colors);
 	const bg = dark ? colors.bgDark : colors.bgLight;
@@ -39,6 +48,7 @@ export function applyUserColors(colors: UserColors) {
 	if (primary) {
 		root.style.setProperty('--color-primary', primary);
 		root.style.setProperty('--color-primary-dark', darken(primary, 15));
+		root.style.setProperty('--color-primary-contrast', isColorDark(primary) ? '#ffffff' : '#0f172a');
 	}
 }
 
