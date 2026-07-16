@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { applyUserColors, getStoredColors } from '$lib/theme';
 	import GlucoseGraph from '$lib/components/GlucoseGraph.svelte';
 	import LogEntryForm from '$lib/components/LogEntryForm.svelte';
 	import LogHistory from '$lib/components/LogHistory.svelte';
@@ -10,6 +10,12 @@
 	import SnoozeIndicator from '$lib/components/SnoozeIndicator.svelte';
 	import BgModal from '$lib/components/BgModal.svelte';
 	import StatsCard from '$lib/components/StatsCard.svelte';
+	import {
+		ensurePendingLogEntriesLoaded,
+		flushPendingLogEntries,
+		pendingLogEntries,
+		sortLogsByCreatedAtDesc
+	} from '$lib/stores/pendingLogs';
 	import {
 		fetchCurrent,
 		fetchHistoryRange,
@@ -64,18 +70,35 @@
 	let modelMae60 = $state<number | null>(null);
 	let modelMae120 = $state<number | null>(null);
 	let modelVersion = $state('');
-	let appVersion = $state(localStorage.getItem('bgmon_version') || '');
+	let appVersion = $state('');
 	let newVersionAvailable = $state(false);
 	let newVersionDismissed = $state(false);
 
 	let reloading = $state(false);
+	const displayLogs = $derived.by(() => sortLogsByCreatedAtDesc([...logs, ...$pendingLogEntries]));
+
+	function getStoredItem(key: string): string {
+		if (!browser) return '';
+		return localStorage.getItem(key) ?? '';
+	}
+
+	function setStoredItem(key: string, value: string): void {
+		if (!browser) return;
+		localStorage.setItem(key, value);
+	}
+
+	function removeStoredItem(key: string): void {
+		if (!browser) return;
+		localStorage.removeItem(key);
+	}
+
 	async function handleVersionReload() {
 		if (reloading) return;
 		reloading = true;
 		// Store new version before reload so banner stays hidden
-		appVersion = localStorage.getItem('bgmon_version_pending') || appVersion;
-		localStorage.setItem('bgmon_version', appVersion);
-		localStorage.removeItem('bgmon_version_pending');
+		appVersion = getStoredItem('bgmon_version_pending') || appVersion;
+		setStoredItem('bgmon_version', appVersion);
+		removeStoredItem('bgmon_version_pending');
 		try {
 			const registration = await navigator.serviceWorker?.ready;
 			if (registration) {
@@ -93,9 +116,9 @@
 				const v = data.version;
 				if (!appVersion) {
 					appVersion = v;
-					localStorage.setItem('bgmon_version', v);
+					setStoredItem('bgmon_version', v);
 				} else if (v !== appVersion) {
-					localStorage.setItem('bgmon_version_pending', v);
+					setStoredItem('bgmon_version_pending', v);
 					newVersionAvailable = true;
 				}
 			}
@@ -199,14 +222,26 @@
 		modelMae120 = result120?.status === 'ready' ? ((result120 as any).model_mae ?? null) : null;
 	}
 
+	async function refreshDashboard() {
+		const syncedCount = await flushPendingLogEntries();
+		await loadDashboard();
+		if (syncedCount > 0) {
+			logRefreshTrigger++;
+		}
+	}
+
 	function onLogSaved() {
+		if (typeof navigator !== 'undefined' && !navigator.onLine) {
+			logRefreshTrigger++;
+			return;
+		}
 		loadDashboard();
 		logRefreshTrigger++;
 	}
 
 	async function checkAuth() {
 		const res = await fetch('/api/auth/me', {
-			headers: { Authorization: `Bearer ${localStorage.getItem('bgmon_token') || ''}` }
+			headers: { Authorization: `Bearer ${getStoredItem('bgmon_token')}` }
 		});
 		if (!res.ok) {
 			goto('/login');
@@ -232,20 +267,19 @@
 	}
 
 	onMount(() => {
-		const colors = getStoredColors();
-		if (colors.mode === 'dark') {
-			document.documentElement.setAttribute('data-theme', 'dark');
-		} else if (colors.mode === 'light') {
-			document.documentElement.setAttribute('data-theme', 'light');
-		}
-		applyUserColors(colors);
+		appVersion = getStoredItem('bgmon_version');
+		ensurePendingLogEntriesLoaded();
 		checkAuth();
-		loadDashboard();
+		refreshDashboard().catch((e) => console.error('Initial refresh failed:', e));
 		loadPrediction();
 		checkHealth();
 		checkVersion();
+		const handleOnline = () => {
+			refreshDashboard().catch((e) => console.error('Online sync failed:', e));
+		};
+		window.addEventListener('online', handleOnline);
 		const interval = setInterval(() => {
-			loadDashboard().catch((e) => console.error('Auto-refresh failed:', e));
+			refreshDashboard().catch((e) => console.error('Auto-refresh failed:', e));
 			loadPrediction().catch((e) => console.error('Prediction refresh failed:', e));
 			checkHealth();
 		}, 30_000);
@@ -255,6 +289,7 @@
 			now = Date.now();
 		}, 1000);
 		return () => {
+			window.removeEventListener('online', handleOnline);
 			clearInterval(interval);
 			clearInterval(nowInterval);
 			clearInterval(versionInterval);
@@ -420,7 +455,7 @@
 		<div class="window-label">{formatWindowLabel()}</div>
 		<button
 			class="refresh-btn"
-			onclick={loadDashboard}
+			onclick={refreshDashboard}
 			disabled={loading}
 			title={loading ? 'Lade...' : 'Aktualisieren'}
 		>
@@ -448,7 +483,7 @@
 	<div class="content">
 		<GlucoseGraph
 			{readings}
-			{logs}
+			logs={displayLogs}
 			criticalLow={thresholds.critical_low}
 			low={thresholds.low}
 			high={thresholds.high}
@@ -468,6 +503,7 @@
 			{highlightedTimestamp}
 			onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
 			filters={logFilters}
+			pendingLogs={$pendingLogEntries}
 		/>
 		<StatsCard
 			{stats}
@@ -722,9 +758,11 @@
 	}
 
 	.range-btn.active {
-		color: var(--color-primary);
-		border-color: var(--color-primary);
-		background: rgba(79, 70, 229, 0.1);
+		color: var(--color-text);
+		border-color: rgba(var(--color-primary-rgb), 0.45);
+		background: rgba(var(--color-primary-rgb), 0.18);
+		box-shadow: inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.12);
+		font-weight: 700;
 	}
 
 	.window-label {
@@ -736,7 +774,7 @@
 	.refresh-btn {
 		font-size: 0.85rem;
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		padding: var(--spacing-xs) var(--spacing-md);
 		border: none;
 		border-radius: var(--radius);
@@ -780,7 +818,7 @@
 		left: 50%;
 		transform: translateX(-50%);
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		padding: 0.6rem 1.2rem;
 		border-radius: 999px;
 		font-size: 0.85rem;
@@ -793,7 +831,7 @@
 	}
 
 	.version-reload {
-		background: white;
+		background: var(--color-primary-contrast, #fff);
 		color: var(--color-primary);
 		border: none;
 		padding: 0.3rem 0.8rem;
@@ -806,7 +844,7 @@
 	.version-dismiss {
 		background: none;
 		border: none;
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		font-size: 1rem;
 		cursor: pointer;
 		opacity: 0.7;
