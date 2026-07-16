@@ -333,6 +333,9 @@
 		const timestamp = getTimestamp();
 		let saved = 0;
 		let lastError: string | undefined;
+		const hasCorrectionEntry =
+			activeTab === 'insulin' && correctionValue !== '' && Number(correctionValue) > 0;
+		const expectedSaveCount = toSave.length + (hasCorrectionEntry ? 1 : 0);
 
 		for (const [type, data] of toSave) {
 			const valueToSend = type === 'note' ? 0 : Number(data.value);
@@ -351,7 +354,7 @@
 			}
 		}
 
-		if (activeTab === 'insulin' && correctionValue !== '' && Number(correctionValue) > 0) {
+		if (hasCorrectionEntry) {
 			const corrResult = await createLog(
 				'insulin',
 				Number(correctionValue),
@@ -366,8 +369,8 @@
 			}
 		}
 
-		if (saved === toSave.length) {
-			const count = toSave.length;
+		if (saved === expectedSaveCount) {
+			const count = expectedSaveCount;
 			message = `${count} Eintrag${count > 1 ? 'e' : ''} gespeichert.`;
 			onsaved?.();
 			// Reset all
@@ -378,6 +381,7 @@
 				note: { value: '', correctionValue: '', notes: '' }
 			};
 			value = '';
+			correctionValue = '';
 			notes = '';
 			lastBasalValue = null;
 			initNow();
