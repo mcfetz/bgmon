@@ -7,6 +7,7 @@
 	--color-text-muted: #64748b;
 	--color-border-subtle: rgba(0, 0, 0, 0.05);
 	--color-border-default: #e2e8f0;
+	--color-border: var(--color-border-default);
 	--color-glass-bg: rgba(255, 255, 255, 0.8);
 	--color-glass-border: rgba(255, 255, 255, 0.3);
 	--color-primary: #4f46e5;

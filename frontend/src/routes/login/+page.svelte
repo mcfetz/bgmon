@@ -105,7 +105,7 @@
 		padding: var(--spacing-sm);
 		font-size: 1rem;
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;

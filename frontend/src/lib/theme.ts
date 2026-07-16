@@ -6,11 +6,16 @@ export interface UserColors {
 	mode: string;
 }
 
+function clampColorChannel(value: number): number {
+	return Math.max(0, Math.min(255, Math.round(value)));
+}
+
 function lighten(hex: string, pct: number): string {
 	const num = parseInt(hex.replace('#', ''), 16);
-	const r = Math.min(255, (num >> 16) + Math.round(255 * pct / 100));
-	const g = Math.min(255, (num >> 8) & 0xff) + Math.round(255 * pct / 100);
-	const b = Math.min(255, (num & 0xff) + Math.round(255 * pct / 100));
+	const delta = (255 * pct) / 100;
+	const r = clampColorChannel((num >> 16) + delta);
+	const g = clampColorChannel(((num >> 8) & 0xff) + delta);
+	const b = clampColorChannel((num & 0xff) + delta);
 	return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 

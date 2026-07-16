@@ -222,7 +222,7 @@
 
 	.profile-option.active {
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		border-color: var(--color-primary);
 	}
 
