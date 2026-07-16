@@ -1,7 +1,11 @@
+
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { apiFetch } from '$lib/auth';
 	import { logout } from '$lib/auth';
 	import { applyUserColors, getStoredColors, type UserColors } from '$lib/theme';
+	import { getVisibleWhatsNewEntries, type WhatsNewEntry } from '$lib/whatsNew/releases';
+	import { getUnseenWhatsNewCount, markVisibleWhatsNewSeen } from '$lib/whatsNew/state';
 
 	let open = $state(false);
 	type View =
@@ -14,6 +18,7 @@
 		| 'notifications'
 		| 'users'
 		| 'ml'
+		| 'whatsnew'
 		| 'help'
 		| 'preferences';
 	let currentView = $state<View>('main');
@@ -28,6 +33,7 @@
 		{ id: 'users', label: 'Benutzer', icon: '👥' },
 		{ id: 'ml', label: 'ML', icon: '🧠' },
 		{ id: 'preferences', label: 'Einstellungen', icon: '⚙️' },
+		{ id: 'whatsnew', label: 'Was ist neu?', icon: '🆕' },
 		{ id: 'help', label: 'Hilfe', icon: '❓' }
 	];
 
@@ -41,12 +47,22 @@
 		notifications: 'Benachrichtigungen',
 		users: 'Benutzer',
 		ml: 'ML',
+		whatsnew: 'Was ist neu?',
 		help: 'Hilfe',
 		preferences: 'Einstellungen'
 	};
 
+	const ISO_DATE_FORMATTER = new Intl.DateTimeFormat('de-DE', {
+		day: '2-digit',
+		month: 'long',
+		year: 'numeric'
+	});
+
 	function navigateTo(view: View) {
 		currentView = view;
+		if (view === 'whatsnew') {
+			markWhatsNewAsSeen();
+		}
 	}
 
 	function goBack() {
@@ -70,6 +86,9 @@
 	let colorBgDark = $state('');
 	let colorPrimaryDark = $state('');
 	let currentUserId = $state<number | null>(null);
+	let appVersion = $state('');
+	let whatsNewEntries = $state<readonly WhatsNewEntry[]>([]);
+	let hasUnreadWhatsNew = $state(false);
 
 	let criticalLow = $state(54);
 	let low = $state(70);
@@ -116,6 +135,50 @@
 	}
 
 	const PROFILE_ICON_SUGGESTIONS = ['☀️', '🌙', '🏠', '🔇', '📱', '🔊', '🔔'];
+
+	function refreshWhatsNewState(version: string) {
+		whatsNewEntries = getVisibleWhatsNewEntries(version);
+		hasUnreadWhatsNew = getUnseenWhatsNewCount(version) > 0;
+	}
+
+	function markWhatsNewAsSeen() {
+		if (!appVersion) return;
+		markVisibleWhatsNewSeen(appVersion);
+		refreshWhatsNewState(appVersion);
+	}
+
+	async function loadAppVersion() {
+		if (!browser) return;
+
+		appVersion = localStorage.getItem('bgmon_version') || '';
+		if (!appVersion) {
+			try {
+				const response = await fetch('/api/version');
+				if (response.ok) {
+					const data = await response.json();
+					if (typeof data.version === 'string' && data.version) {
+						appVersion = data.version;
+						localStorage.setItem('bgmon_version', appVersion);
+					}
+				}
+			} catch {
+				// Ignore version lookup errors in settings.
+			}
+		}
+
+		refreshWhatsNewState(appVersion);
+	}
+
+	function formatReleaseDate(isoDate: string): string {
+		const parsedDate = new Date(isoDate);
+		if (Number.isNaN(parsedDate.getTime())) return isoDate;
+		return ISO_DATE_FORMATTER.format(parsedDate);
+	}
+
+	function formatVersionLabel(version: string): string {
+		if (!version) return 'Unbekannt';
+		return version.length > 12 ? version.slice(0, 7) : version;
+	}
 
 	let profiles = $state<NotificationProfile[]>([]);
 	let editingProfile = $state<NotificationProfile | null>(null);
@@ -461,6 +524,7 @@
 		colorPrimaryLight = localStorage.getItem('bgmon_color_primary_light') || '';
 		colorBgDark = localStorage.getItem('bgmon_color_bg_dark') || '';
 		colorPrimaryDark = localStorage.getItem('bgmon_color_primary_dark') || '';
+		await loadAppVersion();
 		await loadData();
 		await loadProfiles();
 		await fetchPushPublicKey();
@@ -865,10 +929,39 @@
 							<button class="section-item" type="button" onclick={() => navigateTo(section.id)}>
 								<span class="section-icon">{section.icon}</span>
 								<span class="section-name">{section.label}</span>
+								{#if section.id === 'whatsnew' && hasUnreadWhatsNew}
+									<span class="section-badge">Neu</span>
+								{/if}
 								<span class="section-chevron">›</span>
 							</button>
 						{/each}
 					</nav>
+				{:else if currentView === 'whatsnew'}
+					<div class="whats-new-intro">
+						<p class="hint">Version {formatVersionLabel(appVersion)}</p>
+						<p class="hint">Hier findest du die wichtigsten Änderungen, die du in der App wirklich merkst.</p>
+					</div>
+
+					<div class="whats-new-list">
+						{#each whatsNewEntries as entry}
+							<section class="whats-new-entry">
+								<div class="whats-new-header">
+									<div>
+										<h3>{entry.title}</h3>
+										<p class="whats-new-date">{formatReleaseDate(entry.publishedAt)}</p>
+									</div>
+									{#if entry.versionPrefixes.some((prefix) => appVersion.startsWith(prefix))}
+										<span class="whats-new-current">Aktuell</span>
+									{/if}
+								</div>
+								<ul>
+									{#each entry.highlights as highlight}
+										<li>{highlight}</li>
+									{/each}
+								</ul>
+							</section>
+						{/each}
+					</div>
 				{:else if currentView === 'account'}
 					<div class="field">
 						<label>Name</label>
@@ -1518,10 +1611,79 @@
 		flex: 1;
 	}
 
+	.section-badge {
+		padding: 0.15rem 0.45rem;
+		border-radius: 999px;
+		background: rgba(var(--color-primary-rgb), 0.15);
+		color: var(--color-primary);
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+	}
+
 	.section-chevron {
 		color: var(--color-text-muted);
 		font-size: 1.4rem;
 		line-height: 1;
+	}
+
+	.whats-new-intro {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.whats-new-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-md);
+	}
+
+	.whats-new-entry {
+		padding: var(--spacing-md);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		background: color-mix(in srgb, var(--color-surface) 92%, var(--color-primary) 8%);
+	}
+
+	.whats-new-header {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--spacing-md);
+		align-items: flex-start;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.whats-new-header h3 {
+		margin: 0;
+		font-size: 0.96rem;
+		color: var(--color-text);
+	}
+
+	.whats-new-date {
+		margin: 0.2rem 0 0;
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+	}
+
+	.whats-new-current {
+		padding: 0.2rem 0.5rem;
+		border-radius: 999px;
+		background: var(--color-primary);
+		color: var(--color-primary-contrast, #fff);
+		font-size: 0.72rem;
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
+	.whats-new-entry ul {
+		margin: 0;
+		padding-left: 1.2rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+		color: var(--color-text);
 	}
 
 	.modal-body {
