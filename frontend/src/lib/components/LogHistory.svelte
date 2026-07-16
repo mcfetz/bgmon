@@ -6,7 +6,8 @@
 		windowStart,
 		windowEnd,
 		highlightedTimestamp,
-		onHighlight
+		onHighlight,
+		filters = { carbs: true, insulin: true, basal: true, alarm: false, note: true }
 	}: {
 		refreshTrigger?: number;
 		windowStart: Date;
