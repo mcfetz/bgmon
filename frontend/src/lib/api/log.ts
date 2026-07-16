@@ -1,13 +1,17 @@
 import { apiFetch } from '$lib/auth';
 
+export type LogEntryType = 'carbs' | 'insulin' | 'basal' | 'note' | 'alarm' | 'success';
+
 export interface LogEntry {
 	id: number;
-	entry_type: 'carbs' | 'insulin' | 'basal' | 'note' | 'alarm' | 'success';
+	entry_type: LogEntryType;
 	value: number;
 	unit: string;
 	notes: string | null;
 	created_at: string;
 	created_by?: string | null;
+	sync_state?: 'pending' | 'syncing';
+	local_id?: string;
 }
 
 export interface BasalRate {

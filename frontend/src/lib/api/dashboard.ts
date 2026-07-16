@@ -9,11 +9,13 @@ export interface GlucoseReading {
 
 export interface LogEntryReading {
 	id: number;
-	entry_type: 'carbs' | 'insulin' | 'basal';
+	entry_type: 'carbs' | 'insulin' | 'basal' | 'note' | 'alarm' | 'success';
 	value: number;
 	unit: string;
 	notes: string | null;
 	created_at: string;
+	sync_state?: 'pending' | 'syncing';
+	local_id?: string;
 }
 
 export interface StatsData {
