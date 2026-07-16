@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { deleteLog, fetchLogsRange, type LogEntry } from '$lib/api/log';
+	import { sortLogsByCreatedAtDesc, type PendingLogEntry } from '$lib/stores/pendingLogs';
 
 	let {
 		refreshTrigger = 0,
@@ -7,7 +8,8 @@
 		windowEnd,
 		highlightedTimestamp,
 		onHighlight,
-		filters = { carbs: true, insulin: true, basal: true, alarm: false, note: true }
+		filters = { carbs: true, insulin: true, basal: true, alarm: false, note: true },
+		pendingLogs = [] as readonly PendingLogEntry[]
 	}: {
 		refreshTrigger?: number;
 		windowStart: Date;
@@ -15,6 +17,7 @@
 		highlightedTimestamp: string | null;
 		onHighlight: (ts: string | null) => void;
 		filters: { carbs: boolean; insulin: boolean; basal: boolean; alarm: boolean; note: boolean };
+		pendingLogs?: readonly PendingLogEntry[];
 	} = $props();
 
 	let logs = $state<LogEntry[]>([]);
@@ -43,8 +46,17 @@
 		}
 	}
 
+	const visiblePendingLogs = $derived(
+		pendingLogs.filter((log) => {
+			const timestamp = new Date(log.created_at).getTime();
+			return timestamp >= windowStart.getTime() && timestamp <= windowEnd.getTime();
+		})
+	);
+
+	const mergedLogs = $derived(sortLogsByCreatedAtDesc([...logs, ...visiblePendingLogs]));
+
 	const filteredLogs = $derived(
-		logs.filter((log) => {
+		mergedLogs.filter((log) => {
 			if (log.entry_type === 'carbs') return filters.carbs;
 			if (log.entry_type === 'insulin') return filters.insulin;
 			if (log.entry_type === 'basal') return filters.basal;
@@ -90,9 +102,13 @@
 			minute: '2-digit'
 		});
 	}
+
+	function isPendingLog(log: LogEntry & { sync_state?: 'pending' | 'syncing' }): boolean {
+		return log.sync_state === 'pending' || log.sync_state === 'syncing';
+	}
 </script>
 
-{#if logs.length > 0}
+{#if mergedLogs.length > 0}
 	<div class="history">
 		<div class="history-header">
 			<h3>Logbuch</h3>
@@ -135,6 +151,9 @@
 				>
 					<span class="icon">{typeIcon(log.entry_type)}</span>
 					<span class="date">{formatDateTime(log.created_at)}</span>
+					{#if isPendingLog(log)}
+						<span class="sync-badge">offline</span>
+					{/if}
 					{#if log.entry_type === 'note' || log.entry_type === 'alarm' || log.entry_type === 'success'}
 						<span class="notes-note">{log.notes ?? ''}</span>
 					{:else}
@@ -144,7 +163,9 @@
 						{/if}
 					{/if}
 					<span class="actions">
-						{#if confirmId === log.id}
+						{#if isPendingLog(log)}
+							<span class="pending-text">Wird synchronisiert…</span>
+						{:else if confirmId === log.id}
 							<span class="confirm">
 								<span class="confirm-text">Löschen?</span>
 								<button class="confirm-yes" onclick={() => remove(log.id)}>Ja</button>
@@ -295,6 +316,18 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	.history .sync-badge {
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+		color: #f59e0b;
+		background: rgba(245, 158, 11, 0.14);
+		border: 1px solid rgba(245, 158, 11, 0.35);
+		padding: 2px 6px;
+		border-radius: 999px;
+	}
+
 	.history .type {
 		font-weight: 600;
 		min-width: 60px;
@@ -327,6 +360,12 @@
 		margin-left: auto;
 		display: flex;
 		align-items: center;
+	}
+
+	.pending-text {
+		font-size: 0.75rem;
+		color: #f59e0b;
+		white-space: nowrap;
 	}
 
 	.delete-btn {

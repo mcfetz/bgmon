@@ -3,7 +3,7 @@
 
 	let {
 		readings = [] as GlucoseReading[],
-		logs = [] as LogEntryReading[],
+		logs = [] as readonly LogEntryReading[],
 		criticalLow = 54,
 		low = 70,
 		high = 180,
