@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createLog, fetchCarbFactor, fetchLogs, fetchGlobalSettings } from '$lib/api/log';
-	import { fetchCurrent } from '$lib/api/dashboard';
 	import { apiFetch } from '$lib/auth';
+	import { createPendingLogInputs, queuePendingLogEntries, type PendingLogInput } from '$lib/stores/pendingLogs';
 
 	let {
 		onsaved,
@@ -297,6 +297,56 @@
 		return null;
 	}
 
+	function resetFormAfterSave() {
+		tabValues = {
+			carbs: { value: '', correctionValue: '', notes: '' },
+			insulin: { value: '', correctionValue: '', notes: '' },
+			basal: { value: '', correctionValue: '', notes: '' },
+			note: { value: '', correctionValue: '', notes: '' }
+		};
+		value = '';
+		correctionValue = '';
+		notes = '';
+		lastBasalValue = null;
+		initNow();
+		setTimeout(() => {
+			message = '';
+			open = false;
+		}, 800);
+	}
+
+	function buildEntriesToPersist(
+		entriesToSave: readonly [string, { value: number | ''; correctionValue: number | ''; notes: string }][],
+		timestamp: string,
+		hasCorrectionEntry: boolean
+	): Omit<PendingLogInput, 'group_id' | 'sequence'>[] {
+		const entries = entriesToSave.map(([type, data]) => ({
+			entry_type: type as 'carbs' | 'insulin' | 'basal' | 'note',
+			value: type === 'note' ? 0 : Number(data.value),
+			unit: type === 'note' ? '' : units[type],
+			notes: data.notes || null,
+			created_at: timestamp
+		}));
+
+		if (hasCorrectionEntry) {
+			entries.push({
+				entry_type: 'insulin',
+				value: Number(correctionValue),
+				unit: units.insulin,
+				notes: `Korrektur: BG ${currentBg} → Ziel ${TARGET_BG}`,
+				created_at: timestamp
+			});
+		}
+
+		return entries;
+	}
+
+	function finishSuccessfulSave(successMessage: string) {
+		message = successMessage;
+		onsaved?.();
+		resetFormAfterSave();
+	}
+
 	async function submit() {
 		// Save current tab values first
 		tabValues[activeTab] = { value, correctionValue, notes };
@@ -335,60 +385,57 @@
 		let lastError: string | undefined;
 		const hasCorrectionEntry =
 			activeTab === 'insulin' && correctionValue !== '' && Number(correctionValue) > 0;
-		const expectedSaveCount = toSave.length + (hasCorrectionEntry ? 1 : 0);
+		const entriesToPersist = buildEntriesToPersist(toSave, timestamp, hasCorrectionEntry);
+		const expectedSaveCount = entriesToPersist.length;
 
-		for (const [type, data] of toSave) {
-			const valueToSend = type === 'note' ? 0 : Number(data.value);
-			const unitToSend = type === 'note' ? '' : units[type];
-			const result = await createLog(
-				type,
-				valueToSend,
-				unitToSend,
-				data.notes || undefined,
-				timestamp
+		if (typeof navigator !== 'undefined' && !navigator.onLine) {
+			queuePendingLogEntries(createPendingLogInputs(entriesToPersist));
+			finishSuccessfulSave(
+				`${expectedSaveCount} Eintrag${expectedSaveCount > 1 ? 'e' : ''} offline gespeichert.`
 			);
-			if (result.entry) {
-				saved++;
-			} else if (result.error) {
-				lastError = `${tabLabels[type]}: ${result.error}`;
-			}
+			loading = false;
+			return;
 		}
 
-		if (hasCorrectionEntry) {
-			const corrResult = await createLog(
-				'insulin',
-				Number(correctionValue),
-				units.insulin,
-				`Korrektur: BG ${currentBg} → Ziel ${TARGET_BG}`,
-				timestamp
-			);
-			if (corrResult.entry) {
-				saved++;
-			} else if (corrResult.error) {
-				lastError = `Korrektur: ${corrResult.error}`;
+		for (let index = 0; index < entriesToPersist.length; index += 1) {
+			const entry = entriesToPersist[index];
+			try {
+				const result = await createLog(
+					entry.entry_type,
+					entry.value,
+					entry.unit,
+					entry.notes ?? undefined,
+					entry.created_at
+				);
+				if (result.entry) {
+					saved++;
+					continue;
+				}
+
+				lastError = `${tabLabels[entry.entry_type] ?? 'Eintrag'}: ${result.error ?? 'Fehler beim Speichern.'}`;
+				break;
+			} catch (error) {
+				if (error instanceof Error) {
+					const queuedEntries = queuePendingLogEntries(
+						createPendingLogInputs(entriesToPersist.slice(index))
+					);
+					const queuedCount = queuedEntries.length;
+					const successMessage =
+						saved > 0
+							? `${saved} Eintrag${saved > 1 ? 'e' : ''} gespeichert, ${queuedCount} offline vorgemerkt.`
+							: `${queuedCount} Eintrag${queuedCount > 1 ? 'e' : ''} offline gespeichert.`;
+					finishSuccessfulSave(successMessage);
+					loading = false;
+					return;
+				}
+				throw error;
 			}
 		}
 
 		if (saved === expectedSaveCount) {
-			const count = expectedSaveCount;
-			message = `${count} Eintrag${count > 1 ? 'e' : ''} gespeichert.`;
-			onsaved?.();
-			// Reset all
-			tabValues = {
-				carbs: { value: '', correctionValue: '', notes: '' },
-				insulin: { value: '', correctionValue: '', notes: '' },
-				basal: { value: '', correctionValue: '', notes: '' },
-				note: { value: '', correctionValue: '', notes: '' }
-			};
-			value = '';
-			correctionValue = '';
-			notes = '';
-			lastBasalValue = null;
-			initNow();
-			setTimeout(() => {
-				message = '';
-				open = false;
-			}, 800);
+			finishSuccessfulSave(
+				`${expectedSaveCount} Eintrag${expectedSaveCount > 1 ? 'e' : ''} gespeichert.`
+			);
 		} else {
 			error = lastError || 'Fehler beim Speichern.';
 		}
@@ -675,7 +722,7 @@
 		height: 60px;
 		border-radius: 50%;
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		font-size: 1.75rem;
 		font-weight: 700;
 		border: none;
@@ -683,7 +730,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		box-shadow: 0 2px 8px rgba(20, 184, 166, 0.3);
+		box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.3);
 		transition:
 			transform 0.15s ease,
 			box-shadow 0.15s ease;
@@ -691,7 +738,7 @@
 
 	.add-btn:hover {
 		transform: scale(1.1);
-		box-shadow: 0 4px 12px rgba(20, 184, 166, 0.4);
+		box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.4);
 	}
 
 	.add-btn:active {
@@ -777,11 +824,11 @@
 	.tab.active {
 		background: var(--color-primary);
 		border-color: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 	}
 
 	.tab.has-value:not(.active) {
-		background: rgba(20, 184, 166, 0.1);
+		background: rgba(var(--color-primary-rgb), 0.1);
 		border-color: var(--color-primary);
 		color: var(--color-primary);
 	}
@@ -930,7 +977,7 @@
 
 	.adjust-btn:hover {
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		border-color: var(--color-primary);
 	}
 
@@ -955,7 +1002,7 @@
 		margin-top: 4px;
 		padding: var(--spacing-xs) var(--spacing-sm);
 		font-size: 0.8rem;
-		background: rgba(20, 184, 166, 0.1);
+		background: rgba(var(--color-primary-rgb), 0.1);
 		border: 1px dashed var(--color-primary);
 		border-radius: var(--radius);
 		color: var(--color-primary);
@@ -966,7 +1013,7 @@
 
 	.last-value-hint:hover {
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		border-style: solid;
 	}
 
@@ -1042,7 +1089,7 @@
 
 	.time-btn:active {
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		border-color: var(--color-primary);
 	}
 
@@ -1056,7 +1103,7 @@
 		padding: var(--spacing-sm);
 		font-size: 0.95rem;
 		background: var(--color-primary);
-		color: white;
+		color: var(--color-primary-contrast, #fff);
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;
