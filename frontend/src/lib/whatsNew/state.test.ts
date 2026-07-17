@@ -31,7 +31,7 @@ describe('whats new helpers', () => {
 
 	it('returns all entries when the current version is unknown', () => {
 		const entries = getVisibleWhatsNewEntries('unknown-build');
-		expect(entries).toHaveLength(1);
+		expect(entries).toHaveLength(2);
 	});
 
 	it('tracks unseen entries until they are marked as seen', () => {
