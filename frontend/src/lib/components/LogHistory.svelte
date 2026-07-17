@@ -393,11 +393,12 @@
 	}
 
 	.history li {
+		position: relative;
 		display: flex;
 		gap: var(--spacing-sm);
 		align-items: center;
 		font-size: 0.85rem;
-		padding: var(--spacing-xs) 0;
+		padding: var(--spacing-xs) 44px var(--spacing-xs) 0;
 		border-bottom: 1px solid var(--color-border);
 		cursor: pointer;
 	}
@@ -418,8 +419,7 @@
 
 	.history li.active {
 		background: rgba(var(--color-primary-rgb), 0.1);
-		border-left: 3px solid var(--color-primary);
-		padding-left: 4px;
+		box-shadow: inset 3px 0 0 var(--color-primary);
 	}
 
 	.history .icon {
@@ -475,9 +475,14 @@
 	}
 
 	.history .actions {
-		margin-left: auto;
+		position: absolute;
+		right: 0;
+		top: 50%;
 		display: flex;
 		align-items: center;
+		justify-content: flex-end;
+		width: 44px;
+		transform: translateY(-50%);
 	}
 
 	.pending-text {

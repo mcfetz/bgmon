@@ -101,7 +101,9 @@
 		else if (spanHours <= 6) intervalMs = 60 * 60 * 1000;
 		else if (spanHours <= 12) intervalMs = 2 * 60 * 60 * 1000;
 		else if (spanHours <= 24) intervalMs = 3 * 60 * 60 * 1000;
-		else intervalMs = 6 * 60 * 60 * 1000;
+		else if (spanHours <= 48) intervalMs = 6 * 60 * 60 * 1000;
+		else if (spanHours <= 7 * 24) intervalMs = 24 * 60 * 60 * 1000;
+		else intervalMs = 48 * 60 * 60 * 1000;
 
 		const ticks = [];
 		const startTick = Math.floor(rangeStart / intervalMs) * intervalMs;
@@ -109,7 +111,10 @@
 			if (t >= rangeStart) {
 				ticks.push({
 					x: xPos(t),
-					label: new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+					label:
+						spanHours > 24
+							? new Date(t).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit' })
+							: new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
 					isDayStart: new Date(t).getHours() === 0 && new Date(t).getMinutes() === 0
 				});
 			}
