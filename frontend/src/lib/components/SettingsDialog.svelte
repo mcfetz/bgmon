@@ -23,30 +23,50 @@
 		| 'preferences';
 	let currentView = $state<View>('main');
 
-	const SECTIONS: { id: View; label: string; icon: string }[] = [
-		{ id: 'account', label: 'Konto', icon: '👤' },
-		{ id: 'treatment', label: 'Behandlung', icon: '💊' },
-		{ id: 'thresholds', label: 'Schwellwerte', icon: '📊' },
-		{ id: 'notifications', label: 'Benachrichtigungen', icon: '🔕' },
-		{ id: 'push', label: 'Push', icon: '🔔' },
-		{ id: 'twilio', label: 'Twilio', icon: '📞' },
-		{ id: 'users', label: 'Benutzer', icon: '👥' },
-		{ id: 'ml', label: 'ML', icon: '🧠' },
-		{ id: 'preferences', label: 'Einstellungen', icon: '⚙️' },
-		{ id: 'whatsnew', label: 'Was ist neu?', icon: '🆕' },
-		{ id: 'help', label: 'Hilfe', icon: '❓' }
+	const SECTION_GROUPS: { label: string; sections: { id: View; label: string; icon: string }[] }[] = [
+		{
+			label: 'Persönliches',
+			sections: [
+				{ id: 'account', label: 'Konto', icon: '👤' },
+				{ id: 'preferences', label: 'Einstellungen', icon: '⚙️' },
+				{ id: 'notifications', label: 'Profile', icon: '🔕' },
+				{ id: 'push', label: 'Push Benachrichtigungen', icon: '🔔' },
+				{ id: 'twilio', label: 'Twilio Anrufe', icon: '📞' }
+			]
+		},
+		{
+			label: 'Diabetes',
+			sections: [
+				{ id: 'treatment', label: 'Faktoren', icon: '💊' },
+				{ id: 'thresholds', label: 'Schwellwerte', icon: '📊' }
+			]
+		},
+		{
+			label: 'Infos',
+			sections: [
+				{ id: 'whatsnew', label: 'Was ist neu?', icon: '🆕' },
+				{ id: 'help', label: 'Hilfe', icon: '❓' }
+			]
+		},
+		{
+			label: 'Admin',
+			sections: [
+				{ id: 'ml', label: 'Prognose', icon: '🧠' },
+				{ id: 'users', label: 'Benutzer', icon: '👥' }
+			]
+		}
 	];
 
 	const SECTION_LABELS: Record<View, string> = {
 		main: 'Einstellungen',
 		account: 'Konto',
 		thresholds: 'Schwellwerte',
-		treatment: 'Behandlung',
-		twilio: 'Twilio',
-		push: 'Push',
-		notifications: 'Benachrichtigungen',
+		treatment: 'Faktoren',
+		twilio: 'Twilio Anrufe',
+		push: 'Push Benachrichtigungen',
+		notifications: 'Profile',
 		users: 'Benutzer',
-		ml: 'ML',
+		ml: 'Prognose',
 		whatsnew: 'Was ist neu?',
 		help: 'Hilfe',
 		preferences: 'Einstellungen'
@@ -86,6 +106,7 @@
 	let colorBgDark = $state('');
 	let colorPrimaryDark = $state('');
 	let currentUserId = $state<number | null>(null);
+	let isAdmin = $state(false);
 	let appVersion = $state('');
 	let whatsNewEntries = $state<readonly WhatsNewEntry[]>([]);
 	let hasUnreadWhatsNew = $state(false);
@@ -568,6 +589,7 @@
 				phoneNumber = data.phone_number ?? '';
 				displayName = data.display_name ?? '';
 				currentUserId = data.id ?? null;
+				isAdmin = data.role === 'admin';
 			}
 
 			if (twilioRes.ok) {
@@ -925,15 +947,22 @@
 					<p class="loading">Lade...</p>
 				{:else if currentView === 'main'}
 					<nav class="section-list">
-						{#each SECTIONS as section}
-							<button class="section-item" type="button" onclick={() => navigateTo(section.id)}>
-								<span class="section-icon">{section.icon}</span>
-								<span class="section-name">{section.label}</span>
-								{#if section.id === 'whatsnew' && hasUnreadWhatsNew}
-									<span class="section-badge">Neu</span>
-								{/if}
-								<span class="section-chevron">›</span>
-							</button>
+						{#each SECTION_GROUPS.filter((group) => group.label !== 'Admin' || isAdmin) as group}
+							<section class="section-group" aria-label={group.label}>
+								<h3>{group.label}</h3>
+								<div class="section-group-items">
+									{#each group.sections as section}
+										<button class="section-item" type="button" onclick={() => navigateTo(section.id)}>
+											<span class="section-icon">{section.icon}</span>
+											<span class="section-name">{section.label}</span>
+											{#if section.id === 'whatsnew' && hasUnreadWhatsNew}
+												<span class="section-badge">Neu</span>
+											{/if}
+											<span class="section-chevron">›</span>
+										</button>
+									{/each}
+								</div>
+							</section>
 						{/each}
 					</nav>
 				{:else if currentView === 'whatsnew'}
@@ -1497,7 +1526,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 100;
+		z-index: 1000;
 		padding: var(--spacing-md);
 		overflow-y: auto;
 	}
@@ -1570,7 +1599,29 @@
 	.section-list {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: var(--spacing-lg);
+	}
+
+	.section-group {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-xs);
+	}
+
+	.section-group h3 {
+		margin: 0;
+		padding: 0 var(--spacing-sm);
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.section-group-items {
+		overflow: hidden;
+		border: 1px solid var(--color-border-default);
+		border-radius: var(--radius);
 	}
 
 	.section-item {
@@ -1589,12 +1640,8 @@
 		transition: background 0.1s;
 	}
 
-	.section-item:first-child {
-		border-radius: var(--radius) var(--radius) 0 0;
-	}
-
-	.section-item:last-child {
-		border-radius: 0 0 var(--radius) var(--radius);
+	.section-item + .section-item {
+		border-top: 1px solid var(--color-border-default);
 	}
 
 	.section-item:hover {
