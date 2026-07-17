@@ -151,7 +151,7 @@
 		position: fixed;
 		inset: 0;
 		background: rgba(0, 0, 0, 0.4);
-		z-index: 100;
+		z-index: 201;
 	}
 
 	.modal {
@@ -165,7 +165,7 @@
 		min-width: 280px;
 		max-width: 360px;
 		width: calc(100vw - 32px);
-		z-index: 101;
+		z-index: 202;
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 		display: flex;
 		flex-direction: column;

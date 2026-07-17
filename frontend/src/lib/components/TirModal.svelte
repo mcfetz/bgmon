@@ -85,7 +85,7 @@
 		position: fixed;
 		inset: 0;
 		background: rgba(0, 0, 0, 0.5);
-		z-index: 100;
+		z-index: 201;
 		border: none;
 		padding: 0;
 		margin: 0;
@@ -113,7 +113,7 @@
 		width: min(90vw, 480px);
 		background: var(--color-surface);
 		border-radius: var(--radius-lg, 20px);
-		z-index: 101;
+		z-index: 202;
 		padding: var(--spacing-lg, 24px);
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 		display: flex;

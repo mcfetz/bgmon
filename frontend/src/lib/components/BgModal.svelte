@@ -235,7 +235,7 @@
 		position: fixed;
 		inset: 0;
 		background: rgba(0, 0, 0, 0.5);
-		z-index: 100;
+		z-index: 201;
 		border: none;
 		padding: 0;
 		margin: 0;
@@ -266,7 +266,7 @@
 		max-height: 90vh;
 		background: var(--color-surface);
 		border-radius: var(--radius-lg, 24px);
-		z-index: 101;
+		z-index: 202;
 		display: flex;
 		flex-direction: column;
 		align-items: center;

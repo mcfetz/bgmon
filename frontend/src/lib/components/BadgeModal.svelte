@@ -53,7 +53,7 @@
 		position: fixed;
 		inset: 0;
 		background: rgba(0, 0, 0, 0.5);
-		z-index: 100;
+		z-index: 201;
 		border: none;
 		padding: 0;
 		margin: 0;
@@ -85,7 +85,7 @@
 		max-height: 85vh;
 		overflow-y: auto;
 		box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-		z-index: 101;
+		z-index: 202;
 	}
 
 	.badge-header {
