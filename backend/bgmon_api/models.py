@@ -20,6 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bgmon_api.extensions import db
@@ -78,6 +79,9 @@ class User(db.Model):
     color_primary_light: Mapped[str | None] = mapped_column(String(20), nullable=True)
     color_bg_dark: Mapped[str | None] = mapped_column(String(20), nullable=True)
     color_primary_dark: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    dashboard_tiles: Mapped[list[str] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
