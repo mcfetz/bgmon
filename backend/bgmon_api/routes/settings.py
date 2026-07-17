@@ -16,6 +16,34 @@ from bgmon_api.utils import transactional_session
 settings_bp = Blueprint("settings", __name__, url_prefix="/api/settings")
 logger = logging.getLogger(__name__)
 
+# ── valid dashboard tile IDs ──────────────────────────────────────────────
+
+VALID_DASHBOARD_SECTION_TILES = frozenset({"graph", "logbook"})
+VALID_DASHBOARD_STAT_TILES = frozenset(
+    {
+        "daily-score",
+        "prediction",
+        "tir",
+        "streak",
+        "min-mean-max",
+        "badges",
+        "gmi",
+        "readings",
+    }
+)
+VALID_DASHBOARD_TILES = VALID_DASHBOARD_SECTION_TILES | VALID_DASHBOARD_STAT_TILES
+LEGACY_STATS_TILE = "stats"
+
+
+def _expand_legacy_dashboard_tiles(tiles: list[str] | None) -> list[str] | None:
+    if tiles is None or LEGACY_STATS_TILE not in tiles:
+        return tiles
+
+    expanded_tiles = [tile for tile in tiles if tile != LEGACY_STATS_TILE]
+    return expanded_tiles + [
+        tile for tile in sorted(VALID_DASHBOARD_STAT_TILES) if tile not in expanded_tiles
+    ]
+
 # ── async ML job tracking ────────────────────────────────────────────────
 
 def _ml_jobs_path() -> str:
@@ -60,6 +88,7 @@ def get_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         "color_primary_light": user.color_primary_light,
         "color_bg_dark": user.color_bg_dark,
         "color_primary_dark": user.color_primary_dark,
+        "dashboard_tiles": _expand_legacy_dashboard_tiles(user.dashboard_tiles),
     })
 
 
@@ -87,6 +116,35 @@ def update_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         user.color_bg_dark = data["color_bg_dark"] or None
     if "color_primary_dark" in data:
         user.color_primary_dark = data["color_primary_dark"] or None
+    if "dashboard_tiles" in data:
+        tiles = data["dashboard_tiles"]
+        if tiles is None:
+            user.dashboard_tiles = None
+        elif isinstance(tiles, list):
+            if any(not isinstance(t, str) for t in tiles):
+                return (
+                    jsonify({"error": "dashboard_tiles must be a list of strings"}),
+                    HTTPStatus.BAD_REQUEST,
+                )
+            expanded_tiles = _expand_legacy_dashboard_tiles(tiles)
+            assert expanded_tiles is not None
+            invalid = [t for t in expanded_tiles if t not in VALID_DASHBOARD_TILES]
+            if invalid:
+                return (
+                    jsonify({"error": f"invalid dashboard_tiles: {invalid}"}),
+                    HTTPStatus.BAD_REQUEST,
+                )
+            if len(expanded_tiles) != len(set(expanded_tiles)):
+                return (
+                    jsonify({"error": "dashboard_tiles contains duplicate values"}),
+                    HTTPStatus.BAD_REQUEST,
+                )
+            user.dashboard_tiles = expanded_tiles
+        else:
+            return (
+                jsonify({"error": "dashboard_tiles must be a list or null"}),
+                HTTPStatus.BAD_REQUEST,
+            )
     with transactional_session():
         pass
     return jsonify({
@@ -96,6 +154,7 @@ def update_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         "color_primary_light": user.color_primary_light,
         "color_bg_dark": user.color_bg_dark,
         "color_primary_dark": user.color_primary_dark,
+        "dashboard_tiles": _expand_legacy_dashboard_tiles(user.dashboard_tiles),
     })
 def reload_libre_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()

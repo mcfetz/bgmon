@@ -215,6 +215,136 @@ class TestSettingsEndpoints:
         assert data["low"] == 65
 
 
+class TestPreferencesEndpoints:
+    """Test user preferences endpoints."""
+
+    def test_get_preferences_defaults(self, client, patient_session):
+        """Test GET preferences returns dashboard_tiles as null by default."""
+        response = client.get(
+            "/api/settings/preferences",
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.OK
+        data = response.get_json()
+        assert "dashboard_tiles" in data
+        assert data["dashboard_tiles"] is None
+        assert "snooze_default_minutes" in data
+        assert "color_mode" in data
+
+    def test_put_preferences_dashboard_tiles_valid(self, client, patient_session):
+        """Test PUT preferences with valid dashboard_tiles."""
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": ["graph", "logbook", "tir"]},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.OK
+        data = response.get_json()
+        assert data["dashboard_tiles"] == ["graph", "logbook", "tir"]
+
+    def test_put_preferences_dashboard_tiles_empty(self, client, patient_session):
+        """Test PUT preferences with empty dashboard_tiles list."""
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": []},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.OK
+        data = response.get_json()
+        assert data["dashboard_tiles"] == []
+
+    def test_put_preferences_dashboard_tiles_null_reset(self, client, patient_session):
+        """Test PUT preferences with dashboard_tiles null resets to default."""
+        # First set a value
+        client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": ["graph", "stats"]},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        # Then reset to null
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": None},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.OK
+        data = response.get_json()
+        assert data["dashboard_tiles"] is None
+
+    def test_put_preferences_dashboard_tiles_invalid_id(self, client, patient_session):
+        """Test PUT preferences rejects invalid tile IDs."""
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": ["graph", "invalid_tile"]},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+
+    def test_put_preferences_dashboard_tiles_duplicate(self, client, patient_session):
+        """Test PUT preferences rejects duplicate tile IDs."""
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": ["graph", "graph"]},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+
+    def test_put_preferences_dashboard_tiles_not_list(self, client, patient_session):
+        """Test PUT preferences rejects non-list dashboard_tiles."""
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": "graph"},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+
+    def test_put_preferences_dashboard_tiles_non_string_items(self, client, patient_session):
+        """Test PUT preferences rejects list with non-string items."""
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": ["graph", 42]},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+
+    def test_put_preferences_dashboard_tiles_all_three(self, client, patient_session):
+        """Test PUT preferences with all valid section and statistic tiles."""
+        response = client.put(
+            "/api/settings/preferences",
+            json={
+                "dashboard_tiles": [
+                    "graph",
+                    "logbook",
+                    "daily-score",
+                    "prediction",
+                    "tir",
+                    "streak",
+                    "min-mean-max",
+                    "badges",
+                    "gmi",
+                    "readings",
+                ]
+            },
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.OK
+        data = response.get_json()
+        assert len(data["dashboard_tiles"]) == 10
+
+    def test_put_preferences_legacy_stats_expands(self, client, patient_session):
+        response = client.put(
+            "/api/settings/preferences",
+            json={"dashboard_tiles": ["graph", "stats"]},
+            headers={"Authorization": f"Bearer {patient_session.token}"},
+        )
+        assert response.status_code == HTTPStatus.OK
+        data = response.get_json()
+        assert "stats" not in data["dashboard_tiles"]
+        assert "graph" in data["dashboard_tiles"]
+        assert "daily-score" in data["dashboard_tiles"]
+        assert "readings" in data["dashboard_tiles"]
+
+
 class TestNotificationEndpoints:
     """Test notification profile endpoints."""
 
