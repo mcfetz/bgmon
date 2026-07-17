@@ -21,8 +21,9 @@
 	} = $props();
 
 	let logs = $state<LogEntry[]>([]);
-	let confirmId = $state<number | null>(null);
+	let deleteConfirmation = $state<LogEntry | null>(null);
 	let filterOpen = $state(false);
+	let historyExpanded = $state(true);
 
 	async function loadLogs() {
 		const startIso = windowStart.toISOString();
@@ -42,8 +43,12 @@
 		const ok = await deleteLog(id);
 		if (ok) {
 			logs = logs.filter((l) => l.id !== id);
-			confirmId = null;
+			deleteConfirmation = null;
 		}
+	}
+
+	function confirmDelete(): void {
+		if (deleteConfirmation) void remove(deleteConfirmation.id);
 	}
 
 	const visiblePendingLogs = $derived(
@@ -65,6 +70,22 @@
 			return true;
 		})
 	);
+
+	const groupedLogs = $derived.by(() => {
+		const groups: { dateLabel: string; logs: typeof filteredLogs }[] = [];
+
+		for (const log of filteredLogs) {
+			const dateLabel = formatDateHeading(log.created_at);
+			const lastGroup = groups[groups.length - 1];
+			if (lastGroup?.dateLabel === dateLabel) {
+				lastGroup.logs.push(log);
+			} else {
+				groups.push({ dateLabel, logs: [log] });
+			}
+		}
+
+		return groups;
+	});
 
 	function typeIcon(type: string): string {
 		const icons: Record<string, string> = {
@@ -93,13 +114,23 @@
 		return text;
 	}
 
-	function formatDateTime(ts: string): string {
-		const d = new Date(ts);
-		return d.toLocaleString('de-DE', {
+	function formatTime(ts: string): string {
+		return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function formatDateHeading(ts: string): string {
+		const date = new Date(ts);
+		const today = new Date();
+		const yesterday = new Date(today);
+		yesterday.setDate(today.getDate() - 1);
+
+		if (date.toDateString() === today.toDateString()) return 'Heute';
+		if (date.toDateString() === yesterday.toDateString()) return 'Gestern';
+
+		return date.toLocaleDateString('de-DE', {
+			weekday: 'long',
 			day: '2-digit',
-			month: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit'
+			month: 'long'
 		});
 	}
 
@@ -111,14 +142,36 @@
 {#if mergedLogs.length > 0}
 	<div class="history">
 		<div class="history-header">
-			<h3>Logbuch</h3>
+			<button
+				class="history-toggle"
+				type="button"
+				aria-expanded={historyExpanded}
+				onclick={() => (historyExpanded = !historyExpanded)}
+			>
+				<span>Logbuch</span>
+				<span class="history-count">{filteredLogs.length}</span>
+				<svg
+					class:collapsed={!historyExpanded}
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<polyline points="6 9 12 15 18 9"></polyline>
+				</svg>
+			</button>
 			<button class="filter-btn" onclick={() => (filterOpen = !filterOpen)} title="Filtern">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
 				</svg>
 			</button>
 		</div>
-		{#if filterOpen}
+		{#if historyExpanded && filterOpen}
 			<div class="filter-overlay" onclick={() => (filterOpen = false)}></div>
 			<div class="filter-popover">
 				{#each [
@@ -140,17 +193,20 @@
 				{/each}
 			</div>
 		{/if}
+		{#if historyExpanded}
 		<ul>
-			{#each filteredLogs as log}
-				<li
+			{#each groupedLogs as group}
+				<li class="date-heading">{group.dateLabel}</li>
+				{#each group.logs as log}
+					<li
 					class:active={highlightedTimestamp === log.created_at}
 					onmouseenter={() => onHighlight(log.created_at)}
 					onmouseleave={() => onHighlight(null)}
 					onclick={() =>
 						onHighlight(highlightedTimestamp === log.created_at ? null : log.created_at)}
-				>
-					<span class="icon">{typeIcon(log.entry_type)}</span>
-					<span class="date">{formatDateTime(log.created_at)}</span>
+					>
+						<span class="icon">{typeIcon(log.entry_type)}</span>
+						<span class="time">{formatTime(log.created_at)}</span>
 					{#if isPendingLog(log)}
 						<span class="sync-badge">offline</span>
 					{/if}
@@ -165,21 +221,40 @@
 					<span class="actions">
 						{#if isPendingLog(log)}
 							<span class="pending-text">Wird synchronisiert…</span>
-						{:else if confirmId === log.id}
-							<span class="confirm">
-								<span class="confirm-text">Löschen?</span>
-								<button class="confirm-yes" onclick={() => remove(log.id)}>Ja</button>
-								<button class="confirm-no" onclick={() => (confirmId = null)}>Nein</button>
-							</span>
-						{:else}
-							<button class="delete-btn" onclick={() => (confirmId = log.id)} title="Löschen"
+						{:else if highlightedTimestamp === log.created_at}
+							<button
+								class="delete-btn"
+								onclick={(event) => {
+									event.stopPropagation();
+									deleteConfirmation = log;
+								}}
+								title="Löschen"
 								>×</button
 							>
 						{/if}
 					</span>
-				</li>
+					</li>
+				{/each}
 			{/each}
 		</ul>
+		{/if}
+	</div>
+{/if}
+
+{#if deleteConfirmation}
+	<div class="delete-modal-backdrop" role="presentation" onclick={() => (deleteConfirmation = null)}>
+		<div class="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" onclick={(event) => event.stopPropagation()}>
+			<h3 id="delete-modal-title">Eintrag löschen?</h3>
+			<p>{formatEntry(deleteConfirmation)}</p>
+			<div class="delete-modal-actions">
+				<button class="delete-modal-cancel" type="button" onclick={() => (deleteConfirmation = null)}>
+					Abbrechen
+				</button>
+				<button class="delete-modal-confirm" type="button" onclick={confirmDelete}>
+					Löschen
+				</button>
+			</div>
+		</div>
 	</div>
 {/if}
 
@@ -196,18 +271,51 @@
 		overflow-y: auto;
 	}
 
-	.history h3 {
-		font-size: 0.9rem;
-		margin: 0;
-		color: var(--color-text-muted);
-	}
-
 	.history-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: var(--spacing-sm);
 	}
+
+	.history-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		min-height: 44px;
+		padding: 0;
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.9rem;
+		font-weight: 700;
+	}
+
+	.history-count {
+		display: grid;
+		place-items: center;
+		min-width: 1.5rem;
+		height: 1.5rem;
+		border-radius: var(--radius-pill);
+		background: var(--color-border-subtle);
+		font-size: 0.75rem;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.history-toggle svg {
+		transition: transform 150ms ease-out;
+	}
+
+	.history-toggle svg.collapsed {
+		transform: rotate(-90deg);
+	}
+
+	.history-toggle:hover:not(:disabled),
+	.history-toggle:active {
+		background: transparent;
+		color: var(--color-text-muted);
+		transform: none;
+	}
+
 
 	.filter-btn {
 		background: none;
@@ -294,6 +402,16 @@
 		cursor: pointer;
 	}
 
+	.history .date-heading {
+		display: block;
+		padding: var(--spacing-md) 0 var(--spacing-xs);
+		border: 0;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 700;
+		text-transform: capitalize;
+	}
+
 	.history li:hover {
 		background: rgba(var(--color-primary-rgb), 0.05);
 	}
@@ -310,9 +428,9 @@
 		text-align: center;
 	}
 
-	.history .date {
+	.history .time {
 		color: var(--color-text-muted);
-		min-width: 100px;
+		min-width: 42px;
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -372,10 +490,10 @@
 		background: none;
 		border: none;
 		color: #f87171;
-		font-size: 1rem;
+		font-size: 1.25rem;
 		cursor: pointer;
-		width: 22px;
-		height: 22px;
+		width: 44px;
+		height: 44px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -388,45 +506,54 @@
 		background: rgba(248, 113, 113, 0.15);
 	}
 
-	.confirm {
-		display: flex;
-		gap: var(--spacing-xs);
-		align-items: center;
+	.delete-modal-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		display: grid;
+		place-items: center;
+		padding: var(--spacing-lg);
+		background: rgba(0, 0, 0, 0.5);
 	}
 
-	.confirm-text {
-		font-size: 0.75rem;
-		color: var(--color-text-muted);
-		margin-right: 2px;
-	}
-
-	.confirm-yes,
-	.confirm-no {
-		padding: 2px 8px;
-		font-size: 0.75rem;
+	.delete-modal {
+		width: min(100%, 320px);
+		padding: var(--spacing-lg);
 		border-radius: var(--radius);
-		border: none;
-		cursor: pointer;
+		background: var(--color-surface);
+		box-shadow: var(--shadow-xl);
+	}
+
+	.delete-modal h3 {
+		margin: 0 0 var(--spacing-sm);
+		font-size: 1.1rem;
+	}
+
+	.delete-modal p {
+		margin: 0;
+		color: var(--color-text-muted);
+	}
+
+	.delete-modal-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--spacing-sm);
+		margin-top: var(--spacing-lg);
+	}
+
+	.delete-modal-actions button {
+		min-height: 44px;
 		font-weight: 600;
 	}
 
-	.confirm-yes {
-		background: #ef4444;
-		color: white;
-	}
-
-	.confirm-no {
+	.delete-modal-cancel {
 		background: var(--color-bg);
-		color: var(--color-text-muted);
 		border: 1px solid var(--color-border);
-	}
-
-	.confirm-yes:hover {
-		background: #dc2626;
-	}
-
-	.confirm-no:hover {
-		background: var(--color-surface);
 		color: var(--color-text);
+	}
+
+	.delete-modal-confirm {
+		background: var(--color-danger);
+		color: var(--color-primary-contrast);
 	}
 </style>
