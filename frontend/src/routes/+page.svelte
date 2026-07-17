@@ -2,6 +2,7 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { apiFetch, getAuthToken } from '$lib/auth';
 	import GlucoseGraph from '$lib/components/GlucoseGraph.svelte';
 	import LogEntryForm from '$lib/components/LogEntryForm.svelte';
 	import LogHistory from '$lib/components/LogHistory.svelte';
@@ -32,6 +33,17 @@
 		PredictionResponse,
 		StatsData
 	} from '$lib/api/dashboard';
+	import {
+		dashboardTilesFromPreferences,
+		defaultDashboardTiles,
+		hasDashboardTile,
+		loadDashboardTiles,
+		saveDashboardTiles,
+		shouldShowTimeControls,
+		toggleDashboardTile,
+		visibleDashboardStatTiles,
+		type DashboardTile
+	} from '$lib/dashboardTiles';
 
 	let current = $state<{ sgv: number | null; direction: string | null } | null>(null);
 	let readings = $state<GlucoseReading[]>([]);
@@ -73,6 +85,11 @@
 	let appVersion = $state('');
 	let newVersionAvailable = $state(false);
 	let newVersionDismissed = $state(false);
+	let dashboardTiles = $state<DashboardTile[]>(defaultDashboardTiles());
+	let dashboardEditMode = $state(false);
+	let dashboardTilesUnsynced = $state(false);
+	const showTimeControls = $derived(shouldShowTimeControls(dashboardEditMode, dashboardTiles));
+	const visibleStatTiles = $derived(visibleDashboardStatTiles(dashboardTiles));
 
 	let reloading = $state(false);
 	const displayLogs = $derived.by(() => sortLogsByCreatedAtDesc([...logs, ...$pendingLogEntries]));
@@ -90,6 +107,46 @@
 	function removeStoredItem(key: string): void {
 		if (!browser) return;
 		localStorage.removeItem(key);
+	}
+
+	function toggleDashboardTileSelection(tile: DashboardTile): void {
+		dashboardTiles = toggleDashboardTile(dashboardTiles, tile);
+		dashboardTilesUnsynced = true;
+	}
+
+	async function hydrateDashboardTiles(): Promise<void> {
+		const response = await apiFetch('/api/settings/preferences');
+		if (!response.ok || dashboardTilesUnsynced) return;
+
+		const preferenceResponse: unknown = await response.json();
+		const serverTiles = dashboardTilesFromPreferences(preferenceResponse);
+		if (serverTiles === null) return;
+
+		dashboardTiles = serverTiles;
+		saveDashboardTiles(localStorage, getAuthToken(), serverTiles);
+	}
+
+	async function syncDashboardTiles(): Promise<void> {
+		const response = await apiFetch('/api/settings/preferences', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ dashboard_tiles: dashboardTiles })
+		});
+		if (response.ok) dashboardTilesUnsynced = false;
+	}
+
+	function toggleDashboardEditMode(): void {
+		if (dashboardEditMode) {
+			dashboardEditMode = false;
+			saveDashboardTiles(localStorage, getAuthToken(), dashboardTiles);
+			dashboardTilesUnsynced = true;
+			void syncDashboardTiles().catch((error) =>
+				console.error('Dashboard-Kacheln konnten nicht synchronisiert werden.', error)
+			);
+			return;
+		}
+
+		dashboardEditMode = true;
 	}
 
 	async function handleVersionReload() {
@@ -268,6 +325,10 @@
 
 	onMount(() => {
 		appVersion = getStoredItem('bgmon_version');
+		dashboardTiles = loadDashboardTiles(localStorage, getAuthToken());
+		void hydrateDashboardTiles().catch((error) =>
+			console.error('Dashboard-Kacheln konnten nicht geladen werden.', error)
+		);
 		ensurePendingLogEntriesLoaded();
 		checkAuth();
 		refreshDashboard().catch((e) => console.error('Initial refresh failed:', e));
@@ -439,7 +500,8 @@
 />
 
 <div class="dashboard">
-	<div class="time-controls">
+	{#if showTimeControls}
+		<div class="time-controls">
 		<div class="duration-buttons">
 			<button class="range-btn now-btn" onclick={jumpToNow} title="Zur aktuellen Zeit springen"
 				>Jetzt</button
@@ -474,49 +536,87 @@
 				<polyline points="21 4 21 10 15 10"></polyline>
 			</svg>
 		</button>
-	</div>
+		</div>
+	{/if}
 
 	{#if error}
 		<div class="error">{error}</div>
 	{/if}
 
-	<div class="content">
-		<GlucoseGraph
-			{readings}
-			logs={displayLogs}
-			criticalLow={thresholds.critical_low}
-			low={thresholds.low}
-			high={thresholds.high}
-			criticalHigh={thresholds.critical_high}
-			{insulinActionHours}
-			onswipe={shiftWindow}
-			{highlightedTimestamp}
-			predictions30={predictionPoints30}
-			predictions60={predictionPoints60}
-			{windowEnd}
-			{logFilters}
-		/>
-		<LogHistory
-			refreshTrigger={logRefreshTrigger}
-			{windowStart}
-			{windowEnd}
-			{highlightedTimestamp}
-			onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
-			filters={logFilters}
-			pendingLogs={$pendingLogEntries}
-		/>
-		<StatsCard
-			{stats}
-			predictions30={predictionPoints30}
-			predictions60={predictionPoints60}
-			predictions120={predictionPoints120}
-			{modelMae30}
-			{modelMae60}
-			{modelMae120}
-			{modelVersion}
-			lastBg={current?.sgv ?? null}
-			lastBgTime={lastUpdate ?? undefined}
-		/>
+	<div class="content" class:editing={dashboardEditMode}>
+		{#if dashboardEditMode || hasDashboardTile(dashboardTiles, 'graph')}
+			<div class="dashboard-tile" class:inactive={dashboardEditMode && !hasDashboardTile(dashboardTiles, 'graph')}>
+				{#if dashboardEditMode}
+					<button
+						class="tile-edit-overlay"
+						type="button"
+						aria-label={hasDashboardTile(dashboardTiles, 'graph') ? 'Diagramm ausblenden' : 'Diagramm einblenden'}
+						aria-pressed={hasDashboardTile(dashboardTiles, 'graph')}
+						onclick={() => toggleDashboardTileSelection('graph')}
+					>
+						<span>{hasDashboardTile(dashboardTiles, 'graph') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+				<GlucoseGraph
+					{readings}
+					logs={displayLogs}
+					criticalLow={thresholds.critical_low}
+					low={thresholds.low}
+					high={thresholds.high}
+					criticalHigh={thresholds.critical_high}
+					{insulinActionHours}
+					onswipe={shiftWindow}
+					{highlightedTimestamp}
+					predictions30={predictionPoints30}
+					predictions60={predictionPoints60}
+					{windowEnd}
+					{logFilters}
+				/>
+			</div>
+		{/if}
+		{#if dashboardEditMode || hasDashboardTile(dashboardTiles, 'logbook')}
+			<div class="dashboard-tile" class:inactive={dashboardEditMode && !hasDashboardTile(dashboardTiles, 'logbook')}>
+				{#if dashboardEditMode}
+					<button
+						class="tile-edit-overlay"
+						type="button"
+						aria-label={hasDashboardTile(dashboardTiles, 'logbook') ? 'Logbuch ausblenden' : 'Logbuch einblenden'}
+						aria-pressed={hasDashboardTile(dashboardTiles, 'logbook')}
+						onclick={() => toggleDashboardTileSelection('logbook')}
+					>
+						<span>{hasDashboardTile(dashboardTiles, 'logbook') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+				<LogHistory
+					refreshTrigger={logRefreshTrigger}
+					{windowStart}
+					{windowEnd}
+					{highlightedTimestamp}
+					onHighlight={(ts: string | null) => (highlightedTimestamp = ts)}
+					filters={logFilters}
+					pendingLogs={$pendingLogEntries}
+				/>
+			</div>
+		{/if}
+		{#if dashboardEditMode || visibleStatTiles.length > 0}
+			<div class="dashboard-tile">
+				<StatsCard
+					{stats}
+					predictions30={predictionPoints30}
+					predictions60={predictionPoints60}
+					predictions120={predictionPoints120}
+					{modelMae30}
+					{modelMae60}
+					{modelMae120}
+					{modelVersion}
+					lastBg={current?.sgv ?? null}
+					lastBgTime={lastUpdate ?? undefined}
+					visibleTiles={visibleStatTiles}
+					editMode={dashboardEditMode}
+					onToggleTile={toggleDashboardTileSelection}
+				/>
+			</div>
+		{/if}
 	</div>
 
 	{#if newVersionAvailable && !newVersionDismissed}
@@ -526,11 +626,30 @@
 			<button class="version-dismiss" onclick={() => (newVersionDismissed = true)}>✕</button>
 		</div>
 	{/if}
-	{#if appVersion}
-		<div class="version-footer">
+	<div class="version-footer">
+		{#if appVersion}
 			<span>bgmon v{appVersion}</span>
-		</div>
-	{/if}
+		{/if}
+		<button
+			class="dashboard-edit-toggle"
+			class:active={dashboardEditMode}
+			type="button"
+			title={dashboardEditMode ? 'Kachelauswahl speichern' : 'Dashboard-Kacheln bearbeiten'}
+			aria-label={dashboardEditMode ? 'Kachelauswahl speichern' : 'Dashboard-Kacheln bearbeiten'}
+			onclick={toggleDashboardEditMode}
+		>
+			{#if dashboardEditMode}
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<polyline points="20 6 9 17 4 12"></polyline>
+				</svg>
+			{:else}
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M12 20h9"></path>
+					<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+				</svg>
+			{/if}
+		</button>
+	</div>
 </div>
 
 <style>
@@ -812,6 +931,52 @@
 		gap: var(--spacing-lg);
 	}
 
+	.dashboard-tile {
+		position: relative;
+		min-width: 0;
+		transition: opacity 150ms ease-out;
+	}
+
+	.dashboard-tile.inactive {
+		opacity: 0.45;
+	}
+
+	.tile-edit-overlay {
+		position: absolute;
+		inset: 0;
+		z-index: 10;
+		display: flex;
+		align-items: flex-start;
+		justify-content: flex-end;
+		padding: var(--spacing-sm);
+		border: 2px solid rgba(var(--color-primary-rgb), 0.65);
+		border-radius: var(--radius);
+		background: transparent;
+		color: var(--color-primary);
+		box-shadow: inset 0 0 0 999px rgba(var(--color-primary-rgb), 0.06);
+	}
+
+	.tile-edit-overlay[aria-pressed='false'] {
+		border-color: var(--color-border-default);
+		color: var(--color-text-muted);
+		box-shadow: inset 0 0 0 999px var(--color-border-subtle);
+	}
+
+	.tile-edit-overlay span {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border-radius: var(--radius-pill);
+		background: var(--color-surface);
+		box-shadow: var(--shadow-sm);
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+
+	.tile-edit-overlay:focus-visible,
+	.dashboard-edit-toggle:focus-visible {
+		outline: 3px solid rgba(var(--color-primary-rgb), 0.45);
+		outline-offset: 2px;
+	}
+
 	.version-banner {
 		position: fixed;
 		bottom: 32px;
@@ -853,10 +1018,40 @@
 
 	.version-footer {
 		display: flex;
+		align-items: center;
 		justify-content: center;
+		gap: var(--spacing-xs);
 		padding: 0.5rem;
 		font-size: 0.7rem;
 		color: var(--color-text-muted);
 		opacity: 0.5;
+	}
+
+	.dashboard-edit-toggle {
+		display: grid;
+		place-items: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--color-text-muted);
+	}
+
+	.dashboard-edit-toggle:hover,
+	.dashboard-edit-toggle.active {
+		background: rgba(var(--color-primary-rgb), 0.12);
+		color: var(--color-primary);
+	}
+
+	.dashboard-edit-toggle.active {
+		border-color: rgba(var(--color-primary-rgb), 0.3);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.dashboard-tile {
+			transition: none;
+		}
 	}
 </style>

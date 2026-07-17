@@ -1,10 +1,15 @@
 <script lang="ts">
 	import type { StatsData, PredictionPoint } from '$lib/api/dashboard';
+	import { DASHBOARD_STAT_TILES, type DashboardStatTile } from '$lib/dashboardTiles';
 	import TirModal from './TirModal.svelte';
 	import DailyScoreModal from './DailyScoreModal.svelte';
 	import BadgeModal from './BadgeModal.svelte';
 	import StreakModal from './StreakModal.svelte';
 	import PredictionModal from './PredictionModal.svelte';
+
+	const DEFAULT_VISIBLE_TILES: readonly DashboardStatTile[] = DASHBOARD_STAT_TILES;
+
+	function ignoreStatTile(_tile: DashboardStatTile): void {}
 
 	let {
 		stats = null as StatsData | null,
@@ -18,7 +23,10 @@
 		modelMae120 = null as number | null,
 		modelVersion = '',
 		lastBg = null as number | null,
-		lastBgTime = ''
+		lastBgTime = '',
+		visibleTiles = DEFAULT_VISIBLE_TILES,
+		editMode = false,
+		onToggleTile = ignoreStatTile
 	} = $props();
 
 	let tirModalOpen = $state(false);
@@ -51,7 +59,9 @@
 	}
 </script>
 
-<div class="stats-grid">
+	<div class="stats-grid" class:editing={editMode}>
+		{#if editMode || visibleTiles.includes('daily-score')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('daily-score')}>
 	<button class="stat-card clickable" type="button" onclick={() => (dailyScoreModalOpen = true)}>
 		<span class="label">Heute ⭐</span>
 		<span class="value">{stats?.daily_score?.total ?? 0}</span>
@@ -65,7 +75,16 @@
 			<span class="streak-date">Noch keine Punkte heute</span>
 		{/if}
 	</button>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('daily-score')} aria-label={visibleTiles.includes('daily-score') ? 'Heute ausblenden' : 'Heute einblenden'} onclick={() => onToggleTile('daily-score')}>
+						<span>{visibleTiles.includes('daily-score') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 
+		{#if editMode || visibleTiles.includes('prediction')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('prediction')}>
 	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
 		<span class="label">Prognose +30min</span>
 		{#if predictions30.length > 0}
@@ -86,7 +105,16 @@
 			<span class="unit">Keine Prognose</span>
 		{/if}
 	</button>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('prediction')} aria-label={visibleTiles.includes('prediction') ? 'Prognose ausblenden' : 'Prognose einblenden'} onclick={() => onToggleTile('prediction')}>
+						<span>{visibleTiles.includes('prediction') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 
+		{#if editMode || visibleTiles.includes('tir')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('tir')}>
 	<button
 		class="stat-card clickable"
 		class:good={!(stats?.tir_percent != null && stats.tir_percent < 50)}
@@ -101,14 +129,32 @@
 			<div class="tir-segment above" style="width: {stats?.tir_above ?? 0}%"></div>
 		</div>
 	</button>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('tir')} aria-label={visibleTiles.includes('tir') ? 'Time in Range ausblenden' : 'Time in Range einblenden'} onclick={() => onToggleTile('tir')}>
+						<span>{visibleTiles.includes('tir') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 
+		{#if editMode || visibleTiles.includes('streak')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('streak')}>
 	<button class="stat-card clickable" type="button" onclick={() => (streakModalOpen = true)}>
 		<span class="label">Streak 🏆</span>
 		<span class="value">{formatStreakHM(stats?.best_streak_hours ?? stats?.streak_hours ?? 0)}</span
 		>
 		<span class="unit">h:mm</span>
 	</button>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('streak')} aria-label={visibleTiles.includes('streak') ? 'Streak ausblenden' : 'Streak einblenden'} onclick={() => onToggleTile('streak')}>
+						<span>{visibleTiles.includes('streak') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 
+		{#if editMode || visibleTiles.includes('min-mean-max')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('min-mean-max')}>
 	<div class="stat-card">
 		<span class="label">Min / Ø / Max</span>
 		<span class="value">
@@ -116,7 +162,16 @@
 		</span>
 		<span class="unit">mg/dL</span>
 	</div>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('min-mean-max')} aria-label={visibleTiles.includes('min-mean-max') ? 'Min Mittelwert Max ausblenden' : 'Min Mittelwert Max einblenden'} onclick={() => onToggleTile('min-mean-max')}>
+						<span>{visibleTiles.includes('min-mean-max') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 
+		{#if editMode || visibleTiles.includes('badges')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('badges')}>
 	<button class="stat-card clickable" type="button" onclick={() => (badgeModalOpen = true)}>
 		<span class="label">Badges 🏅</span>
 		<span class="value">
@@ -125,19 +180,44 @@
 		</span>
 		<span class="unit">freigeschaltet</span>
 	</button>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('badges')} aria-label={visibleTiles.includes('badges') ? 'Badges ausblenden' : 'Badges einblenden'} onclick={() => onToggleTile('badges')}>
+						<span>{visibleTiles.includes('badges') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 
+		{#if editMode || visibleTiles.includes('gmi')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('gmi')}>
 	<button class="stat-card clickable" type="button" onclick={() => (gmiModalOpen = true)}>
 		<span class="label">GMI (eA1c)</span>
 		<span class="value" style="color: {gmiColor(stats?.gmi)}">{stats?.gmi ?? '—'}</span>
 		<span class="unit">% · {gmiLabel(stats?.gmi)}</span>
 	</button>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('gmi')} aria-label={visibleTiles.includes('gmi') ? 'GMI ausblenden' : 'GMI einblenden'} onclick={() => onToggleTile('gmi')}>
+						<span>{visibleTiles.includes('gmi') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 
+		{#if editMode || visibleTiles.includes('readings')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('readings')}>
 	<div class="stat-card">
 		<span class="label">Messwerte</span>
 		<span class="value">{stats?.readings ?? 0}</span>
 		<span class="unit">Stk.</span>
 	</div>
-</div>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('readings')} aria-label={visibleTiles.includes('readings') ? 'Messwerte ausblenden' : 'Messwerte einblenden'} onclick={() => onToggleTile('readings')}>
+						<span>{visibleTiles.includes('readings') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
+	</div>
 
 <TirModal bind:open={tirModalOpen} {stats} />
 <DailyScoreModal
@@ -189,17 +269,70 @@
 <style>
 	.stats-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-auto-rows: 1fr;
 		gap: var(--spacing-md);
 	}
 
+	.stat-card-wrapper {
+		display: flex;
+		position: relative;
+		min-width: 0;
+	}
+
+	.stat-card-wrapper.inactive {
+		opacity: 0.45;
+	}
+
+	.card-edit-overlay {
+		position: absolute;
+		inset: 0;
+		z-index: 10;
+		display: flex;
+		align-items: flex-start;
+		justify-content: flex-end;
+		padding: var(--spacing-xs);
+		border: 2px solid rgba(var(--color-primary-rgb), 0.65);
+		border-radius: var(--radius);
+		background: transparent;
+		color: var(--color-primary);
+		box-shadow: inset 0 0 0 999px rgba(var(--color-primary-rgb), 0.06);
+	}
+
+	.card-edit-overlay[aria-pressed='false'] {
+		border-color: var(--color-border-default);
+		color: var(--color-text-muted);
+		box-shadow: inset 0 0 0 999px var(--color-border-subtle);
+	}
+
+	.card-edit-overlay span {
+		padding: var(--spacing-xs) var(--spacing-sm);
+		border-radius: var(--radius-pill);
+		background: var(--color-surface);
+		box-shadow: var(--shadow-sm);
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+
+	.card-edit-overlay:focus-visible {
+		outline: 3px solid rgba(var(--color-primary-rgb), 0.45);
+		outline-offset: 2px;
+	}
+
 	.stat-card {
+		flex: 1;
 		background: var(--color-surface);
 		border-radius: var(--radius);
 		padding: var(--spacing-md);
 		display: flex;
 		flex-direction: column;
 		gap: var(--spacing-xs);
+	}
+
+	@media (max-width: 640px) {
+		.stats-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
 	}
 
 	.stat-card.clickable {
