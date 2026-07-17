@@ -11,4 +11,4 @@ max_requests_jitter = 50
 accesslog = "-"
 errorlog = "-"
 loglevel = "info"
-preload_app = True
+preload_app = False
