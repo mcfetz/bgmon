@@ -455,7 +455,6 @@
 			</div>
 
 			<div class="header-actions">
-				<LogEntryForm onsaved={onLogSaved} currentBg={current?.sgv ?? null} />
 				<ProfileSelector />
 			</div>
 			<div class="header-right">
@@ -499,22 +498,21 @@
 	predictions120={predictionPoints120}
 />
 
+<LogEntryForm onsaved={onLogSaved} currentBg={current?.sgv ?? null} />
+
 <div class="dashboard">
 	{#if showTimeControls}
 		<div class="time-controls">
-		<div class="duration-buttons">
-			<button class="range-btn now-btn" onclick={jumpToNow} title="Zur aktuellen Zeit springen"
-				>Jetzt</button
-			>
-			{#each durationButtons as btn}
-				<button
-					class="range-btn"
-					class:active={windowDurationMs === btn.ms}
-					onclick={() => setDuration(btn.ms)}>{btn.label}</button
-				>
-			{/each}
-		</div>
-		<div class="window-label">{formatWindowLabel()}</div>
+			<div class="time-segments" aria-label="Zeitraum auswählen">
+				<button class="range-btn" onclick={jumpToNow} title="Zur aktuellen Zeit springen">Jetzt</button>
+				{#each durationButtons as btn}
+					<button
+						class="range-btn"
+						class:active={windowDurationMs === btn.ms}
+						onclick={() => setDuration(btn.ms)}>{btn.label.slice(1)}</button
+					>
+				{/each}
+			</div>
 		<button
 			class="refresh-btn"
 			onclick={refreshDashboard}
@@ -570,6 +568,7 @@
 					predictions30={predictionPoints30}
 					predictions60={predictionPoints60}
 					{windowEnd}
+					windowLabel={formatWindowLabel()}
 					{logFilters}
 				/>
 			</div>
@@ -627,9 +626,6 @@
 		</div>
 	{/if}
 	<div class="version-footer">
-		{#if appVersion}
-			<span>bgmon v{appVersion}</span>
-		{/if}
 		<button
 			class="dashboard-edit-toggle"
 			class:active={dashboardEditMode}
@@ -649,6 +645,9 @@
 				</svg>
 			{/if}
 		</button>
+		{#if appVersion}
+			<span>bgmon v{appVersion}</span>
+		{/if}
 	</div>
 </div>
 
@@ -660,13 +659,13 @@
 		max-width: 900px;
 		width: 100%;
 		margin: 0 auto;
-		padding: 0 var(--spacing-md);
+		padding: 0 var(--spacing-md) calc(env(safe-area-inset-bottom, 0px) + 92px);
 	}
 
 	.sticky-top {
 		position: sticky;
 		top: 0;
-		z-index: 20;
+		z-index: 200;
 		max-width: 900px;
 		margin: 0 auto;
 	}
@@ -694,9 +693,8 @@
 		border-radius: var(--radius-pill);
 		box-shadow: var(--shadow-lg);
 		max-width: 100%;
-		min-width: 380px;
 		margin: 0 auto;
-		overflow: visible;
+		overflow: hidden;
 	}
 
 	.header-left {
@@ -856,19 +854,26 @@
 		box-shadow: var(--shadow-sm);
 	}
 
-	.duration-buttons {
-		display: flex;
-		gap: var(--spacing-xs);
+	.time-segments {
+		display: grid;
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+		flex: 1;
+		overflow: hidden;
+		border: 1px solid var(--color-border-default);
+		border-radius: var(--radius);
+		background: var(--color-bg);
 	}
 
 	.range-btn {
+		min-width: 0;
+		min-height: 44px;
+		padding: var(--spacing-xs);
+		border: 0;
+		border-radius: 0;
 		background: transparent;
 		color: var(--color-text-muted);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		font-size: 0.85rem;
-		border: 1px solid var(--color-border-default);
-		border-radius: var(--radius);
-		min-width: 40px;
+		font-size: 0.8rem;
+		font-weight: 600;
 	}
 
 	.range-btn:hover:not(.active) {
@@ -877,26 +882,24 @@
 	}
 
 	.range-btn.active {
-		color: var(--color-text);
-		border-color: rgba(var(--color-primary-rgb), 0.45);
-		background: rgba(var(--color-primary-rgb), 0.18);
-		box-shadow: inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.12);
-		font-weight: 700;
-	}
-
-	.window-label {
-		font-size: 0.85rem;
-		color: var(--color-text-muted);
-		font-variant-numeric: tabular-nums;
+		background: var(--color-primary);
+		color: var(--color-primary-contrast);
 	}
 
 	.refresh-btn {
+		display: grid;
+		place-items: center;
 		font-size: 0.85rem;
-		background: var(--color-primary);
-		color: var(--color-primary-contrast, #fff);
-		padding: var(--spacing-xs) var(--spacing-md);
-		border: none;
+		background: var(--color-bg);
+		color: var(--color-text-muted);
+		padding: var(--spacing-xs);
+		border: 1px solid var(--color-border-default);
 		border-radius: var(--radius);
+	}
+
+	.refresh-btn:hover:not(:disabled) {
+		background: var(--color-border-subtle);
+		color: var(--color-text);
 	}
 
 	.refresh-btn:disabled {
@@ -1018,9 +1021,10 @@
 
 	.version-footer {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: var(--spacing-xs);
+		gap: 0;
 		padding: 0.5rem;
 		font-size: 0.7rem;
 		color: var(--color-text-muted);
@@ -1030,8 +1034,8 @@
 	.dashboard-edit-toggle {
 		display: grid;
 		place-items: center;
-		width: 28px;
-		height: 28px;
+		width: 44px;
+		height: 44px;
 		padding: 0;
 		border: 1px solid transparent;
 		border-radius: var(--radius-pill);
@@ -1052,6 +1056,22 @@
 	@media (prefers-reduced-motion: reduce) {
 		.dashboard-tile {
 			transition: none;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.time-controls {
+			gap: var(--spacing-sm);
+		}
+
+		.time-segments {
+			width: 100%;
+		}
+
+		.refresh-btn {
+			min-width: 44px;
+			min-height: 44px;
+			padding: var(--spacing-sm);
 		}
 	}
 </style>

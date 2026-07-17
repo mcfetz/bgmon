@@ -14,12 +14,13 @@
 		predictions30 = [] as PredictionPoint[],
 		predictions60 = [] as PredictionPoint[],
 		windowEnd = new Date() as Date,
+		windowLabel = '',
 		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true } as Record<string, boolean>
 	} = $props();
 
 	const width = 600;
 	const height = 250;
-	const pad = { top: 20, right: 20, bottom: 40, left: 45 };
+	const pad = { top: 20, right: 20, bottom: 40, left: 20 };
 
 	function zoneColor(value: number): string {
 		if (value <= criticalLow) return '#ef4444';
@@ -511,10 +512,11 @@
 					opacity="0.4"
 				/>
 				<text
-					x={width - pad.right + 4}
-					y={yPos(line.y) + 4}
+					x={pad.left + 6}
+					y={yPos(line.y) <= pad.top + 12 ? yPos(line.y) + 13 : yPos(line.y) - 3}
+					text-anchor="start"
 					fill={line.color}
-					font-size="10"
+					font-size="11"
 					opacity="0.7">{line.y}</text
 				>
 			{/each}
@@ -639,22 +641,23 @@
 					x={tick.x}
 					y={height - pad.bottom + 16}
 					text-anchor="middle"
-					fill="#94a3b8"
-					font-size="9"
+					fill="var(--color-text-muted)"
+					font-size="14"
 				>
 					{tick.label}
 				</text>
 			{/each}
+			<text
+				x={(pad.left + width - pad.right) / 2}
+				y={height - 6}
+				text-anchor="middle"
+				fill="var(--color-text-muted)"
+				font-size="11"
+			>
+				Uhrzeit
+			</text>
 
-			<!-- Y-axis labels -->
-			<text x={pad.left - 8} y={yPos(minY) + 4} text-anchor="end" fill="#94a3b8" font-size="10">
-				{minY.toFixed(0)}
-			</text>
-			<text x={pad.left - 8} y={yPos(maxY) + 4} text-anchor="end" fill="#94a3b8" font-size="10">
-				{maxY.toFixed(0)}
-			</text>
 		</svg>
-
 		<!-- Tooltip -->
 		{#if tooltip}
 			<div class="tooltip" style={tooltipStyle()}>
@@ -665,6 +668,9 @@
 				{/if}
 				<div class="tooltip-time">{formatTime(tooltip.timestamp)}</div>
 			</div>
+		{/if}
+		{#if windowLabel}
+			<div class="window-label">{windowLabel}</div>
 		{/if}
 	</div>
 </div>
@@ -711,6 +717,16 @@
 		background: rgba(var(--color-primary-rgb), 0.2);
 	}
 
+	@media (hover: none) {
+		.nav-zone {
+			opacity: 0.25;
+		}
+
+		.nav-zone:active {
+			opacity: 0.6;
+		}
+	}
+
 	.nav-zone-left {
 		left: 0;
 		border-radius: var(--radius) 0 0 var(--radius);
@@ -729,6 +745,14 @@
 		border-radius: var(--radius);
 		padding: var(--spacing-md);
 		position: relative;
+	}
+
+	.window-label {
+		margin-top: 0;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-variant-numeric: tabular-nums;
+		text-align: center;
 	}
 
 	.graph-container.swiping {

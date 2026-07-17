@@ -477,8 +477,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<!-- Trigger button -->
-<button class="add-btn" onclick={() => openModal()} title="Neuen Eintrag">+</button>
+	<button class="add-btn" type="button" onclick={() => openModal()} title="Neuen Eintrag">+</button>
 
 <!-- Modal -->
 {#if open}
@@ -718,8 +717,17 @@
 
 <style>
 	.add-btn {
+		position: fixed;
+		left: 50%;
+		bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-md));
+		z-index: 100;
+		transform: translateX(-50%);
 		width: 60px;
 		height: 60px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--spacing-xs);
 		border-radius: 50%;
 		background: var(--color-primary);
 		color: var(--color-primary-contrast, #fff);
@@ -736,13 +744,21 @@
 			box-shadow 0.15s ease;
 	}
 
+
 	.add-btn:hover {
-		transform: scale(1.1);
+		transform: translateX(-50%) scale(1.1);
 		box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.4);
 	}
 
 	.add-btn:active {
-		transform: scale(0.95);
+		transform: translateX(-50%) scale(0.95);
+	}
+
+	@media (max-width: 480px) {
+		.add-btn {
+			width: 60px;
+			padding: 0;
+		}
 	}
 
 	.modal-backdrop {
@@ -963,7 +979,7 @@
 
 	.adjust-btn {
 		flex-shrink: 0;
-		padding: 4px 8px;
+		padding: 4px 6px;
 		font-size: 0.8rem;
 		font-weight: 600;
 		background: var(--color-bg);
@@ -971,7 +987,8 @@
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
 		cursor: pointer;
-		min-width: 36px;
+		min-width: 28px;
+		touch-action: manipulation;
 		transition: all 0.15s ease;
 	}
 
@@ -1073,6 +1090,7 @@
 
 	.time-btn {
 		flex: 1;
+		min-height: 36px;
 		padding: 3px 0;
 		font-size: 0.7rem;
 		background: var(--color-bg);

@@ -26,7 +26,7 @@
 		lastBgTime = '',
 		visibleTiles = DEFAULT_VISIBLE_TILES,
 		editMode = false,
-		onToggleTile = ignoreStatTile
+		onToggleTile = ignoreStatTile,
 	} = $props();
 
 	let tirModalOpen = $state(false);
@@ -57,10 +57,15 @@
 		if (gmi < 6.5) return 'Prädiabetes';
 		return 'Diabetes-Bereich';
 	}
+
+	function shouldRenderStatTile(tile: DashboardStatTile): boolean {
+		if (editMode) return true;
+		return visibleTiles.includes(tile);
+	}
 </script>
 
 	<div class="stats-grid" class:editing={editMode}>
-		{#if editMode || visibleTiles.includes('daily-score')}
+		{#if shouldRenderStatTile('daily-score')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('daily-score')}>
 	<button class="stat-card clickable" type="button" onclick={() => (dailyScoreModalOpen = true)}>
 		<span class="label">Heute ⭐</span>
@@ -83,7 +88,7 @@
 			</div>
 		{/if}
 
-		{#if editMode || visibleTiles.includes('prediction')}
+		{#if shouldRenderStatTile('prediction')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('prediction')}>
 	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
 		<span class="label">Prognose +30min</span>
@@ -113,7 +118,7 @@
 			</div>
 		{/if}
 
-		{#if editMode || visibleTiles.includes('tir')}
+		{#if shouldRenderStatTile('tir')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('tir')}>
 	<button
 		class="stat-card clickable"
@@ -137,7 +142,7 @@
 			</div>
 		{/if}
 
-		{#if editMode || visibleTiles.includes('streak')}
+		{#if shouldRenderStatTile('streak')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('streak')}>
 	<button class="stat-card clickable" type="button" onclick={() => (streakModalOpen = true)}>
 		<span class="label">Streak 🏆</span>
@@ -153,7 +158,7 @@
 			</div>
 		{/if}
 
-		{#if editMode || visibleTiles.includes('min-mean-max')}
+		{#if shouldRenderStatTile('min-mean-max')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('min-mean-max')}>
 	<div class="stat-card">
 		<span class="label">Min / Ø / Max</span>
@@ -170,7 +175,7 @@
 			</div>
 		{/if}
 
-		{#if editMode || visibleTiles.includes('badges')}
+		{#if shouldRenderStatTile('badges')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('badges')}>
 	<button class="stat-card clickable" type="button" onclick={() => (badgeModalOpen = true)}>
 		<span class="label">Badges 🏅</span>
@@ -188,7 +193,7 @@
 			</div>
 		{/if}
 
-		{#if editMode || visibleTiles.includes('gmi')}
+		{#if shouldRenderStatTile('gmi')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('gmi')}>
 	<button class="stat-card clickable" type="button" onclick={() => (gmiModalOpen = true)}>
 		<span class="label">GMI (eA1c)</span>
@@ -203,7 +208,7 @@
 			</div>
 		{/if}
 
-		{#if editMode || visibleTiles.includes('readings')}
+		{#if shouldRenderStatTile('readings')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('readings')}>
 	<div class="stat-card">
 		<span class="label">Messwerte</span>
@@ -273,6 +278,7 @@
 		grid-auto-rows: 1fr;
 		gap: var(--spacing-md);
 	}
+
 
 	.stat-card-wrapper {
 		display: flex;
