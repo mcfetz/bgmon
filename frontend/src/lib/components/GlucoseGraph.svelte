@@ -13,6 +13,7 @@
 		highlightedTimestamp = null as string | null,
 		predictions30 = [] as PredictionPoint[],
 		predictions60 = [] as PredictionPoint[],
+		windowStart = null as Date | null,
 		windowEnd = new Date() as Date,
 		windowLabel = '',
 		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true } as Record<string, boolean>
@@ -52,8 +53,8 @@
 	);
 
 	const timeRange = $derived.by(() => {
-		let min = timePoints.length > 0 ? timePoints[0].ts : null;
-		let max = timePoints.length > 0 ? timePoints[timePoints.length - 1].ts : null;
+		let min = windowStart?.getTime() ?? (timePoints.length > 0 ? timePoints[0].ts : null);
+		let max = windowEnd.getTime();
 
 		if (showPredictions) {
 			function extendTime(pts: PredictionPoint[]) {
@@ -67,7 +68,7 @@
 			extendTime(predictions60);
 		}
 
-		return min !== null && max !== null ? { min, max } : null;
+		return min !== null ? { min, max } : null;
 	});
 
 	const minY = $derived(
@@ -90,7 +91,9 @@
 	// X-axis ticks
 	const xTicks = $derived(() => {
 		if (!timeRange) return [];
-		const spanMs = timeRange.max - timeRange.min;
+		const rangeStart = timeRange.min;
+		const rangeEnd = timeRange.max;
+		const spanMs = rangeEnd - rangeStart;
 		const spanHours = spanMs / (3600 * 1000);
 
 		let intervalMs: number;
@@ -101,9 +104,9 @@
 		else intervalMs = 6 * 60 * 60 * 1000;
 
 		const ticks = [];
-		const startTick = Math.floor(timeRange.min / intervalMs) * intervalMs;
-		for (let t = startTick; t <= timeRange.max; t += intervalMs) {
-			if (t >= timeRange.min) {
+		const startTick = Math.floor(rangeStart / intervalMs) * intervalMs;
+		for (let t = startTick; t <= rangeEnd; t += intervalMs) {
+			if (t >= rangeStart) {
 				ticks.push({
 					x: xPos(t),
 					label: new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
@@ -437,6 +440,9 @@
 		ontouchend={onTouchEnd}
 		ontouchcancel={onTouchEnd}
 	>
+		{#if windowLabel}
+			<div class="window-label">{windowLabel}</div>
+		{/if}
 		<svg {width} {height} viewBox="0 0 {width} {height}">
 			<!-- Threshold zones -->
 			<rect
@@ -627,7 +633,7 @@
 				stroke-width="1"
 			/>
 
-			<!-- X-axis ticks and labels -->
+			<!-- X-axis ticks -->
 			{#each xTicks() as tick}
 				<line
 					x1={tick.x}
@@ -637,27 +643,15 @@
 					stroke="#475569"
 					stroke-width="1"
 				/>
-				<text
-					x={tick.x}
-					y={height - pad.bottom + 16}
-					text-anchor="middle"
-					fill="var(--color-text-muted)"
-					font-size="14"
-				>
-					{tick.label}
-				</text>
 			{/each}
-			<text
-				x={(pad.left + width - pad.right) / 2}
-				y={height - 6}
-				text-anchor="middle"
-				fill="var(--color-text-muted)"
-				font-size="11"
-			>
-				Uhrzeit
-			</text>
-
 		</svg>
+		{#if xTicks().length > 0}
+			<div class="x-axis-labels" aria-label="Zeitachse">
+				{#each xTicks() as tick}
+					<span>{tick.label}</span>
+				{/each}
+			</div>
+		{/if}
 		<!-- Tooltip -->
 		{#if tooltip}
 			<div class="tooltip" style={tooltipStyle()}>
@@ -668,9 +662,6 @@
 				{/if}
 				<div class="tooltip-time">{formatTime(tooltip.timestamp)}</div>
 			</div>
-		{/if}
-		{#if windowLabel}
-			<div class="window-label">{windowLabel}</div>
 		{/if}
 	</div>
 </div>
@@ -763,6 +754,21 @@
 		display: block;
 		width: 100%;
 		height: auto;
+	}
+
+	.x-axis-labels {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--spacing-sm);
+		padding: 0 var(--spacing-sm);
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.25;
+	}
+
+	.x-axis-labels span {
+		white-space: nowrap;
 	}
 
 	.data-dot {

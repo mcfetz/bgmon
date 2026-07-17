@@ -567,6 +567,7 @@
 					{highlightedTimestamp}
 					predictions30={predictionPoints30}
 					predictions60={predictionPoints60}
+					{windowStart}
 					{windowEnd}
 					windowLabel={formatWindowLabel()}
 					{logFilters}
