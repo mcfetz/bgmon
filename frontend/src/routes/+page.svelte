@@ -82,6 +82,7 @@
 	let modelMae60 = $state<number | null>(null);
 	let modelMae120 = $state<number | null>(null);
 	let modelVersion = $state('');
+	let historicalPredictions = $state<PredictionPoint[]>([]);
 	let appVersion = $state('');
 	let newVersionAvailable = $state(false);
 	let newVersionDismissed = $state(false);
@@ -279,6 +280,19 @@
 		modelMae120 = result120?.status === 'ready' ? ((result120 as any).model_mae ?? null) : null;
 	}
 
+	async function loadHistoricalPredictions() {
+		try {
+			const res = await apiFetch('/api/dashboard/predictions/history?horizon=30&hours=6', {
+				credentials: 'include'
+			});
+			if (res.ok) {
+				historicalPredictions = await res.json();
+			}
+		} catch {
+			// silently ignore — prediction data is optional
+		}
+	}
+
 	async function refreshDashboard() {
 		const syncedCount = await flushPendingLogEntries();
 		await loadDashboard();
@@ -333,6 +347,7 @@
 		checkAuth();
 		refreshDashboard().catch((e) => console.error('Initial refresh failed:', e));
 		loadPrediction();
+		loadHistoricalPredictions();
 		checkHealth();
 		checkVersion();
 		const handleOnline = () => {
@@ -342,6 +357,7 @@
 		const interval = setInterval(() => {
 			refreshDashboard().catch((e) => console.error('Auto-refresh failed:', e));
 			loadPrediction().catch((e) => console.error('Prediction refresh failed:', e));
+			loadHistoricalPredictions().catch((e) => console.error('Historical prediction refresh failed:', e));
 			checkHealth();
 		}, 30_000);
 		// Check for new app version every 5 minutes
@@ -570,7 +586,8 @@
 					{windowStart}
 					{windowEnd}
 					windowLabel={formatWindowLabel()}
-					{logFilters}
+{logFilters}
+					{historicalPredictions}
 				/>
 			</div>
 		{/if}

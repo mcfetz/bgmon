@@ -1012,3 +1012,52 @@ def predict_simulate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
                 results[str(horizon)] = {"status": outcome.kind, "reason": outcome.reason}
 
     return jsonify(results)
+
+
+@dashboard_bp.route("/predictions/history", methods=["GET"])
+def prediction_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    """Return historical prediction points for visual comparison.
+
+    Query params:
+        horizon (int): forecast horizon in minutes (default: 30).
+        hours (int): how many hours back to fetch (default: 6).
+
+    Returns an array of {timestamp, predicted_sgv} ordered by timestamp.
+    """
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+
+    try:
+        horizon = int(request.args.get("horizon", "30"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid_horizon"}), HTTPStatus.BAD_REQUEST
+
+    try:
+        hours = int(request.args.get("hours", "6"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid_hours"}), HTTPStatus.BAD_REQUEST
+
+    since = datetime.now(UTC) - timedelta(hours=hours)
+
+    points = (
+        PredictionPoint.query
+        .join(PredictionRun, PredictionPoint.run_id == PredictionRun.id)
+        .filter(PredictionRun.horizon_minutes == horizon)
+        .filter(PredictionRun.user_id == user.id)
+        .filter(PredictionPoint.timestamp >= since)
+        .order_by(PredictionPoint.timestamp.asc())
+        .with_entities(
+            PredictionPoint.timestamp,
+            PredictionPoint.predicted_sgv,
+        )
+        .all()
+    )
+
+    return jsonify([
+        {
+            "timestamp": p.timestamp.isoformat() if p.timestamp else None,
+            "predicted_sgv": p.predicted_sgv,
+        }
+        for p in points
+    ])

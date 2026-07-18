@@ -16,7 +16,8 @@
 		windowStart = null as Date | null,
 		windowEnd = new Date() as Date,
 		windowLabel = '',
-		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true } as Record<string, boolean>
+		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true } as Record<string, boolean>,
+		historicalPredictions = [] as PredictionPoint[]
 	} = $props();
 
 	const width = 600;
@@ -144,6 +145,16 @@
 			? timePoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ')
 			: ''
 	);
+
+	const historicalPredPath = $derived.by(() => {
+		if (historicalPredictions.length === 0) return '';
+		const pts = historicalPredictions
+			.map((p) => ({ ts: new Date(p.timestamp).getTime(), sgv: p.predicted_sgv }))
+			.filter((p) => !isNaN(p.ts) && p.sgv != null)
+			.sort((a, b) => a.ts - b.ts);
+		if (pts.length < 2) return '';
+		return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ');
+	});
 
 	const dots = $derived(
 		timePoints.map((p) => ({
@@ -548,6 +559,18 @@
 			<!-- Glucose line -->
 			{#if linePath}
 				<path d={linePath} fill="none" stroke="var(--color-primary)" stroke-width="2" />
+			{/if}
+
+			<!-- Historical predictions (gray, subtle) -->
+			{#if historicalPredPath}
+				<path
+					d={historicalPredPath}
+					fill="none"
+					stroke="#9ca3af"
+					stroke-width="1.5"
+					stroke-dasharray="3,6"
+					opacity="0.35"
+				/>
 			{/if}
 
 			<!-- Combined prediction band (last BG → 30min CI → 60min CI) -->
