@@ -93,6 +93,24 @@ def _streak_job() -> None:
     snapshot("streak_check", "after")
 
 
+def _prediction_job() -> None:
+    """Generate ML predictions (runs in scheduler)."""
+    from bgmon_api.thread_tracer import snapshot
+    snapshot("prediction", "before")
+    global leader
+    if leader is not None and leader.is_leader and _app is not None:
+        with _app.app_context():
+            try:
+                from bgmon_api.models import User, UserRole
+                from bgmon_api.services.predictor import predict_current
+                patient = User.query.filter_by(role=UserRole.PATIENT).first()
+                if patient is not None:
+                    predict_current(user_id=patient.id)
+            finally:
+                db.session.remove()
+    snapshot("prediction", "after")
+
+
 def create_app(config_class: type[Config] = Config) -> Flask:
     """Create and configure the Flask application."""
     global leader, scheduler, _app
@@ -198,6 +216,13 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         "interval",
         seconds=900,
         id="streak_check",
+        max_instances=1,
+    )
+    scheduler.add_job(
+        _prediction_job,
+        "interval",
+        minutes=5,
+        id="prediction",
         max_instances=1,
     )
 

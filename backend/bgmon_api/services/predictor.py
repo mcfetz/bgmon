@@ -438,3 +438,85 @@ def _clear_cache() -> None:
     global _loaded_models, _UPCOMING_REUSE_CACHE  # noqa: PLW0603
     _loaded_models = None
     _UPCOMING_REUSE_CACHE = {}
+
+
+# ── scheduler-driven background prediction ────────────────────────────────
+
+
+def predict_current(
+    *,
+    user_id: int,
+    reference_time: datetime | None = None,
+) -> None:
+    """Build FeatureContext from current DB state and generate predictions.
+
+    Fetches glucose readings (last 6 h), log entries (last 4 h),
+    basal rate, and global settings from the database, then calls
+    ``predict()`` for each configured ``BGMON_ML_HORIZONS`` value.
+
+    Designed for scheduler-driven background prediction.  Errors are
+    caught and logged — never raised to the scheduler.
+    """
+    import logging  # noqa: PLC0415
+
+    logger = logging.getLogger("bgmon.predict")
+
+    now = reference_time or datetime.now(UTC)
+    try:
+        from bgmon_api.models import (  # noqa: PLC0415
+            BasalRateHistory,
+            GlobalSettings,
+            GlucoseReading,
+            LogEntry,
+        )
+        from bgmon_api.services.feature_builder import (  # noqa: PLC0415
+            FeatureContext,
+        )
+
+        # Fetch glucose readings (last 6 h for feature window)
+        window_start = now - timedelta(hours=6)
+        glucose_readings = (
+            GlucoseReading.query
+            .filter(GlucoseReading.timestamp >= window_start)
+            .order_by(GlucoseReading.timestamp.asc())
+            .all()
+        )
+
+        # Fetch log entries (last 4 h for carb/insulin windows)
+        log_window_start = now - timedelta(hours=4)
+        log_entries = (
+            LogEntry.query
+            .filter_by(user_id=user_id)
+            .filter(LogEntry.created_at >= log_window_start)
+            .order_by(LogEntry.created_at.asc())
+            .all()
+        )
+
+        basal_rate = (
+            BasalRateHistory.query
+            .filter_by(user_id=user_id)
+            .order_by(BasalRateHistory.changed_at.desc())
+            .first()
+        )
+
+        global_settings = GlobalSettings.query.first()
+
+        context = FeatureContext(
+            glucose_readings=glucose_readings,
+            log_entries=log_entries,
+            basal_rate=basal_rate,
+            global_settings=global_settings,
+            reference_time=now,
+        )
+
+        for horizon in Config.ML_HORIZONS:
+            predict(
+                user_id=user_id,
+                feature_context=context,
+                horizon_minutes=horizon,
+            )
+
+    except Exception:
+        logger.exception(
+            "background prediction failed for user=%d", user_id,
+        )
