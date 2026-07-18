@@ -494,9 +494,11 @@
 									? () => (showHistory60 = !showHistory60)
 									: () => (showHistory120 = !showHistory120)}
 							<label class="history-filter-item">
+								<span class="history-filter-item-label">
+									<span class="history-color-dot" style="background:{HISTORY_COLORS[h]}"></span>
+									{h} min Prognose
+								</span>
 								<input type="checkbox" checked={checked} onchange={onChange} />
-								<span class="history-color-dot" style="background:{HISTORY_COLORS[h]}"></span>
-								{h} Min
 							</label>
 						{/each}
 					</div>
@@ -820,6 +822,24 @@
 		justify-content: center;
 		gap: 6px;
 		position: relative;
+		padding: 0 12px;
+	}
+
+	.window-label > span {
+		flex: 1;
+	}
+
+	.history-filter-btn {
+		background: none;
+		border: none;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		padding: 2px;
+		display: flex;
+		align-items: center;
+		opacity: 0.6;
+		transition: opacity 0.15s;
+		margin-left: auto;
 	}
 
 	.history-filter-btn {
@@ -859,12 +879,19 @@
 	.history-filter-item {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		justify-content: space-between;
+		gap: 8px;
 		font-size: 0.8rem;
 		color: var(--color-text);
 		cursor: pointer;
 		padding: 3px 4px;
 		border-radius: 4px;
+	}
+
+	.history-filter-item-label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 
 	.history-filter-item:hover {
