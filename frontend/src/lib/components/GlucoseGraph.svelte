@@ -863,7 +863,7 @@
 	.history-filter-popup {
 		position: absolute;
 		top: 100%;
-		right: 0;
+		right: 48px;
 		margin-top: 4px;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
