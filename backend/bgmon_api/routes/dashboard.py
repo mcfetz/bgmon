@@ -1028,6 +1028,10 @@ def prediction_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if isinstance(user, tuple):
         return jsonify(user[0]), user[1]
 
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if not patient:
+        return jsonify([])
+
     try:
         horizon = int(request.args.get("horizon", "30"))
     except (TypeError, ValueError):
@@ -1044,7 +1048,7 @@ def prediction_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         PredictionPoint.query
         .join(PredictionRun, PredictionPoint.run_id == PredictionRun.id)
         .filter(PredictionRun.horizon_minutes == horizon)
-        .filter(PredictionRun.user_id == user.id)
+        .filter(PredictionRun.user_id == patient.id)
         .filter(PredictionPoint.timestamp >= since)
         .order_by(PredictionPoint.timestamp.asc())
         .with_entities(

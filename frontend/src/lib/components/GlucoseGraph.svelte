@@ -147,9 +147,6 @@
 	);
 
 	const historicalPredPath = $derived.by(() => {
-		if (historicalPredictions.length > 0) {
-			console.log('[bgmon] GlucoseGraph historicalPredictions:', historicalPredictions.length);
-		}
 		if (historicalPredictions.length === 0) return '';
 		const pts = historicalPredictions
 			.map((p) => ({ ts: new Date(p.timestamp).getTime(), sgv: p.predicted_sgv }))
