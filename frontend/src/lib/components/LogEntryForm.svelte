@@ -140,19 +140,24 @@
 		error = '';
 	}
 
+	function _tabHasValue(
+		type: string,
+		t: { value: number | ''; correctionValue: number | ''; notes: string }
+	): boolean {
+		if (type === 'note') return t.notes.trim() !== '';
+		if (type === 'insulin') {
+			return (t.value !== '' && t.value !== 0) || (t.correctionValue !== '' && Number(t.correctionValue) > 0);
+		}
+		return t.value !== '' && t.value !== 0;
+	}
+
 	function hasAnyValue(): boolean {
-		return Object.entries(tabValues).some(([type, t]) => {
-			if (type === 'note') return t.notes.trim() !== '';
-			return t.value !== '' && t.value !== 0;
-		});
+		return Object.entries(tabValues).some(([type, t]) => _tabHasValue(type, t));
 	}
 
 	// Reactive count of entries to save
 	const entriesCount = $derived.by(() => {
-		return Object.entries(tabValues).filter(([type, t]) => {
-			if (type === 'note') return t.notes.trim() !== '';
-			return t.value !== '' && t.value !== 0;
-		}).length;
+		return Object.entries(tabValues).filter(([type, t]) => _tabHasValue(type, t)).length;
 	});
 
 	// Reactive insulin calculation hint
@@ -166,10 +171,7 @@
 	});
 
 	function countEntriesToSave() {
-		return Object.entries(tabValues).filter(([type, t]) => {
-			if (type === 'note') return t.notes.trim() !== '';
-			return t.value !== '' && t.value !== 0;
-		}).length;
+		return Object.entries(tabValues).filter(([type, t]) => _tabHasValue(type, t)).length;
 	}
 
 	async function loadLastBasal() {
@@ -320,20 +322,25 @@
 		timestamp: string,
 		hasCorrectionEntry: boolean
 	): Omit<PendingLogInput, 'group_id' | 'sequence'>[] {
-		const entries = entriesToSave.map(([type, data]) => ({
-			entry_type: type as 'carbs' | 'insulin' | 'basal' | 'note',
-			value: type === 'note' ? 0 : Number(data.value),
-			unit: type === 'note' ? '' : units[type],
-			notes: data.notes || null,
-			created_at: timestamp
-		}));
+		const entries = entriesToSave
+			.map(([type, data]) => ({
+				entry_type: type as 'carbs' | 'insulin' | 'basal' | 'note',
+				value: type === 'note' ? 0 : Number(data.value),
+				unit: type === 'note' ? '' : units[type],
+				notes: data.notes || null,
+				created_at: timestamp
+			}))
+			.filter((entry) => !(hasCorrectionEntry && entry.entry_type === 'insulin' && entry.value === 0));
 
 		if (hasCorrectionEntry) {
+			const correctionNote = currentBg !== null
+				? `Korrektur: BG ${currentBg} → Ziel ${TARGET_BG}`
+				: 'Korrektur';
 			entries.push({
 				entry_type: 'insulin',
 				value: Number(correctionValue),
 				unit: units.insulin,
-				notes: `Korrektur: BG ${currentBg} → Ziel ${TARGET_BG}`,
+				notes: correctionNote,
 				created_at: timestamp
 			});
 		}
@@ -361,10 +368,7 @@
 		}
 
 		// Validate all entries to save
-		const toSave = Object.entries(tabValues).filter(([type, t]) => {
-			if (type === 'note') return t.notes.trim() !== '';
-			return t.value !== '' && t.value !== 0;
-		});
+		const toSave = Object.entries(tabValues).filter(([type, t]) => _tabHasValue(type, t));
 		for (const [type, data] of toSave) {
 			const validationError = validateValue(data.value, type);
 			if (validationError) {
@@ -383,8 +387,7 @@
 		const timestamp = getTimestamp();
 		let saved = 0;
 		let lastError: string | undefined;
-		const hasCorrectionEntry =
-			activeTab === 'insulin' && correctionValue !== '' && Number(correctionValue) > 0;
+		const hasCorrectionEntry = correctionValue !== '' && Number(correctionValue) > 0;
 		const entriesToPersist = buildEntriesToPersist(toSave, timestamp, hasCorrectionEntry);
 		const expectedSaveCount = entriesToPersist.length;
 
@@ -582,7 +585,7 @@
 							<button class="time-btn" onclick={() => adjustTime(1)}>+1m</button>
 							<button class="time-btn" onclick={() => adjustTime(5)}>+5m</button>
 						</div>
-						{#if activeTab === 'insulin' && correctionSuggestion}
+						{#if activeTab === 'insulin'}
 							<label class="value-label">Korrektur (U)</label>
 							<div class="value-input-row">
 								<input
