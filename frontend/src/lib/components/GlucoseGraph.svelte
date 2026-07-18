@@ -840,6 +840,7 @@
 		opacity: 0.6;
 		transition: opacity 0.15s;
 		margin-left: auto;
+		margin-right: 48px;
 	}
 
 	.history-filter-btn {
