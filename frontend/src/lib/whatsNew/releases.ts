@@ -8,6 +8,19 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-07-18-ai-ke-ml-predictions',
+		versionPrefixes: ['18fc47a'],
+		publishedAt: '2026-07-18',
+		title: 'KI-gestützte KE-Schätzung & verbesserte Prognosen',
+		highlights: [
+			'🤖 KI-Schätzung im KE-Dialog: Notiztext analysieren lassen — die KI schätzt automatisch die Kohlenhydrateinheiten und liefert eine Begründung.',
+			'📊 Drei Prognose-Linien im Diagramm: Blau (30 min), Lila (60 min) und Orange (120 min) zeigen, wohin sich der Blutzucker voraussichtlich entwickelt.',
+			'🔍 Prognose-Filter: Über das Icon oben rechts im Diagramm lassen sich die einzelnen Prognose-Linien ein- und ausblenden.',
+			'⚡ Automatische Prognose: Das ML-Modell rechnet jetzt alle 5 Minuten im Hintergrund, sodass die Prognosen immer aktuell sind.',
+			'💉 Reine Korrektur-Insulin: Im Insulin-Tab kann jetzt eine reine Korrekturdosis ohne Mahlzeit-Insulin eingetragen werden.'
+		]
+	},
+	{
 		id: '2026-07-17-personal-dashboard-mobile-logbook',
 		versionPrefixes: [],
 		publishedAt: '2026-07-17',
