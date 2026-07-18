@@ -17,7 +17,9 @@
 		windowEnd = new Date() as Date,
 		windowLabel = '',
 		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true } as Record<string, boolean>,
-		historicalPredictions = [] as PredictionPoint[]
+		historyPredictions30 = [] as PredictionPoint[],
+		historyPredictions60 = [] as PredictionPoint[],
+		historyPredictions120 = [] as PredictionPoint[]
 	} = $props();
 
 	const width = 600;
@@ -146,15 +148,25 @@
 			: ''
 	);
 
-	const historicalPredPath = $derived.by(() => {
-		if (historicalPredictions.length === 0) return '';
-		const pts = historicalPredictions
+	let historyFilterOpen = $state(false);
+	let showHistory30 = $state(false);
+	let showHistory60 = $state(true);
+	let showHistory120 = $state(false);
+
+	const HISTORY_COLORS: Record<number, string> = { 30: '#3b82f6', 60: '#8b5cf6', 120: '#f59e0b' };
+
+	function _historyPath(pts: PredictionPoint[]): string {
+		const mapped = pts
 			.map((p) => ({ ts: new Date(p.timestamp).getTime(), sgv: p.predicted_sgv }))
 			.filter((p) => !isNaN(p.ts) && p.sgv != null)
 			.sort((a, b) => a.ts - b.ts);
-		if (pts.length < 2) return '';
-		return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ');
-	});
+		if (mapped.length < 2) return '';
+		return mapped.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ');
+	}
+
+	const historyPath30 = $derived(showHistory30 ? _historyPath(historyPredictions30) : '');
+	const historyPath60 = $derived(showHistory60 ? _historyPath(historyPredictions60) : '');
+	const historyPath120 = $derived(showHistory120 ? _historyPath(historyPredictions120) : '');
 
 	const dots = $derived(
 		timePoints.map((p) => ({
@@ -457,7 +469,39 @@
 		ontouchcancel={onTouchEnd}
 	>
 		{#if windowLabel}
-			<div class="window-label">{windowLabel}</div>
+			<div class="window-label">
+				<span>{windowLabel}</span>
+				<button
+					class="history-filter-btn"
+					type="button"
+					onclick={() => (historyFilterOpen = !historyFilterOpen)}
+					aria-label="Prognose-Verlauf einstellen"
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M4 21v-7M4 10V3M12 21v-5M12 12V3M20 21v-3M20 14V3" />
+						<circle cx="4" cy="14" r="2" fill="currentColor" />
+						<circle cx="12" cy="16" r="2" fill="currentColor" />
+						<circle cx="20" cy="18" r="2" fill="currentColor" />
+					</svg>
+				</button>
+				{#if historyFilterOpen}
+					<div class="history-filter-popup">
+						{#each [30, 60, 120] as h}
+							{@const checked = h === 30 ? showHistory30 : h === 60 ? showHistory60 : showHistory120}
+							{@const onChange = h === 30
+								? () => (showHistory30 = !showHistory30)
+								: h === 60
+									? () => (showHistory60 = !showHistory60)
+									: () => (showHistory120 = !showHistory120)}
+							<label class="history-filter-item">
+								<input type="checkbox" checked={checked} onchange={onChange} />
+								<span class="history-color-dot" style="background:{HISTORY_COLORS[h]}"></span>
+								{h} Min
+							</label>
+						{/each}
+					</div>
+				{/if}
+			</div>
 		{/if}
 		<svg {width} {height} viewBox="0 0 {width} {height}">
 			<!-- Threshold zones -->
@@ -561,16 +605,15 @@
 				<path d={linePath} fill="none" stroke="var(--color-primary)" stroke-width="2" />
 			{/if}
 
-			<!-- Historical predictions (gray, subtle) -->
-			{#if historicalPredPath}
-				<path
-					d={historicalPredPath}
-					fill="none"
-					stroke="#9ca3af"
-					stroke-width="1.5"
-					stroke-dasharray="3,6"
-					opacity="0.35"
-				/>
+			<!-- Historical predictions (colored lines) -->
+			{#if historyPath30}
+				<path d={historyPath30} fill="none" stroke={HISTORY_COLORS[30]} stroke-width="1.5" stroke-dasharray="3,6" opacity="0.4" />
+			{/if}
+			{#if historyPath60}
+				<path d={historyPath60} fill="none" stroke={HISTORY_COLORS[60]} stroke-width="1.5" stroke-dasharray="3,6" opacity="0.4" />
+			{/if}
+			{#if historyPath120}
+				<path d={historyPath120} fill="none" stroke={HISTORY_COLORS[120]} stroke-width="1.5" stroke-dasharray="3,6" opacity="0.4" />
 			{/if}
 
 			<!-- Combined prediction band (last BG → 30min CI → 60min CI) -->
@@ -772,6 +815,71 @@
 		font-size: 0.875rem;
 		font-variant-numeric: tabular-nums;
 		text-align: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		position: relative;
+	}
+
+	.history-filter-btn {
+		background: none;
+		border: none;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		padding: 2px;
+		display: flex;
+		align-items: center;
+		opacity: 0.6;
+		transition: opacity 0.15s;
+	}
+
+	.history-filter-btn:hover {
+		opacity: 1;
+		color: var(--color-text);
+	}
+
+	.history-filter-popup {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		margin-top: 4px;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		padding: var(--spacing-sm);
+		z-index: 50;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+		min-width: 140px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.history-filter-item {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 0.8rem;
+		color: var(--color-text);
+		cursor: pointer;
+		padding: 3px 4px;
+		border-radius: 4px;
+	}
+
+	.history-filter-item:hover {
+		background: var(--color-bg);
+	}
+
+	.history-filter-item input[type='checkbox'] {
+		accent-color: var(--color-primary);
+	}
+
+	.history-color-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		flex-shrink: 0;
 	}
 
 	.graph-container.swiping {

@@ -82,7 +82,9 @@
 	let modelMae60 = $state<number | null>(null);
 	let modelMae120 = $state<number | null>(null);
 	let modelVersion = $state('');
-	let historicalPredictions = $state<PredictionPoint[]>([]);
+	let historicalPredictions30 = $state<PredictionPoint[]>([]);
+	let historicalPredictions60 = $state<PredictionPoint[]>([]);
+	let historicalPredictions120 = $state<PredictionPoint[]>([]);
 	let appVersion = $state('');
 	let newVersionAvailable = $state(false);
 	let newVersionDismissed = $state(false);
@@ -282,12 +284,14 @@
 
 	async function loadHistoricalPredictions() {
 		try {
-			const res = await apiFetch('/api/dashboard/predictions/history?horizon=30&hours=6', {
-				credentials: 'include'
-			});
-			if (res.ok) {
-				historicalPredictions = await res.json();
-			}
+			const results = await Promise.all([
+				apiFetch('/api/dashboard/predictions/history?horizon=30&hours=6', { credentials: 'include' }),
+				apiFetch('/api/dashboard/predictions/history?horizon=60&hours=6', { credentials: 'include' }),
+				apiFetch('/api/dashboard/predictions/history?horizon=120&hours=6', { credentials: 'include' }),
+			]);
+			if (results[0].ok) historicalPredictions30 = await results[0].json();
+			if (results[1].ok) historicalPredictions60 = await results[1].json();
+			if (results[2].ok) historicalPredictions120 = await results[2].json();
 		} catch {
 			// silently ignore — prediction data is optional
 		}
@@ -587,7 +591,9 @@
 					{windowEnd}
 					windowLabel={formatWindowLabel()}
 {logFilters}
-					{historicalPredictions}
+					historyPredictions30={historicalPredictions30}
+					historyPredictions60={historicalPredictions60}
+					historyPredictions120={historicalPredictions120}
 				/>
 			</div>
 		{/if}
