@@ -281,12 +281,16 @@
 	}
 
 	async function loadHistoricalPredictions() {
+		console.log('[bgmon] loading historical predictions');
 		try {
 			const res = await apiFetch('/api/dashboard/predictions/history?horizon=30&hours=6', {
 				credentials: 'include'
 			});
 			if (res.ok) {
 				historicalPredictions = await res.json();
+				console.log('[bgmon] historical predictions loaded:', historicalPredictions.length, 'points');
+			} else {
+				console.warn('[bgmon] historical predictions fetch failed:', res.status);
 			}
 		} catch {
 			// silently ignore — prediction data is optional
