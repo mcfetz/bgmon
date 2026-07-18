@@ -716,13 +716,31 @@
 					</div>
 				{:else}
 					<div class="field">
-						<label>Notizen</label>
+						<div class="note-label-row">
+							<label>Notizen</label>
+							<button
+								class="ai-btn"
+								type="button"
+								onclick={estimateKe}
+								disabled={llmLoading || !notes.trim()}
+								title="KI-gestützte KE-Schätzung aus Notiztext"
+							>
+								{#if llmLoading}
+									<span class="ai-spinner"></span>
+								{:else}
+									🤖 KI
+								{/if}
+							</button>
+						</div>
 						<input
 							type="text"
 							bind:value={notes}
 							oninput={syncToTabValues}
 							placeholder="Optional"
 						/>
+						{#if llmError}
+							<span class="llm-error">{llmError}</span>
+						{/if}
 					</div>
 				{/if}
 
