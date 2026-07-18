@@ -21,6 +21,19 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 		]
 	},
 	{
+		id: '2026-07-16-offline-logbook',
+		versionPrefixes: ['5402517'],
+		publishedAt: '2026-07-16',
+		title: 'Offline-Logbuch, neue Farben und besseres Handling',
+		highlights: [
+			'Einträge für KE, Insulin, Basal und Notizen lassen sich jetzt auch ohne Internet speichern.',
+			'Offline gespeicherte Einträge erscheinen sichtbar im Logbuch und werden später automatisch synchronisiert.',
+			'Im Logbuch gibt es jetzt Filter nach Kategorien, damit die Ansicht schneller übersichtlich wird.',
+			'Der Farbmodus lässt sich besser anpassen: Auto, Hell, Dunkel und eigene Farben für mehr Bereiche der App.',
+			'Snooze reagiert verlässlicher und die eingestellte Snooze-Dauer wird persönlicher übernommen.'
+		]
+	},
+	{
 		id: '2026-07-17-personal-dashboard-mobile-logbook',
 		versionPrefixes: [],
 		publishedAt: '2026-07-17',
@@ -33,19 +46,6 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 			'Das Logbuch zeigt Einträge übersichtlicher: pro Zeile steht nur noch die Uhrzeit, neue Tage erhalten eine eigene Überschrift und die Liste lässt sich ein- oder ausklappen.',
 			'Zum Löschen eines Eintrags erscheint jetzt eine klare Bestätigung statt einer engen Auswahl direkt in der Zeile.',
 			'In den Einstellungen sind die Bereiche jetzt nach Persönliches, Diabetes, Infos und Admin sortiert.'
-		]
-	},
-	{
-		id: '2026-07-16-offline-logbook',
-		versionPrefixes: ['5402517'],
-		publishedAt: '2026-07-16',
-		title: 'Offline-Logbuch, neue Farben und besseres Handling',
-		highlights: [
-			'Einträge für KE, Insulin, Basal und Notizen lassen sich jetzt auch ohne Internet speichern.',
-			'Offline gespeicherte Einträge erscheinen sichtbar im Logbuch und werden später automatisch synchronisiert.',
-			'Im Logbuch gibt es jetzt Filter nach Kategorien, damit die Ansicht schneller übersichtlich wird.',
-			'Der Farbmodus lässt sich besser anpassen: Auto, Hell, Dunkel und eigene Farben für mehr Bereiche der App.',
-			'Snooze reagiert verlässlicher und die eingestellte Snooze-Dauer wird persönlicher übernommen.'
 		]
 	}
 ];

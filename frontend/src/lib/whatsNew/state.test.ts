@@ -25,24 +25,27 @@ function createMemoryStorage(initialEntries: Record<string, string> = {}): Memor
 describe('whats new helpers', () => {
 	it('matches the current release by version prefix', () => {
 		const entries = getVisibleWhatsNewEntries('54025176b58ce63769baf45e42d62402c12d9de2');
-		expect(entries).toHaveLength(1);
+		expect(entries).toHaveLength(2);
 		expect(entries[0]?.id).toBe('2026-07-16-offline-logbook');
 	});
 
 	it('returns all entries when the current version is unknown', () => {
 		const entries = getVisibleWhatsNewEntries('unknown-build');
-		expect(entries).toHaveLength(2);
+		expect(entries).toHaveLength(3);
 	});
 
 	it('tracks unseen entries until they are marked as seen', () => {
 		const storage = createMemoryStorage();
 
 		expect(getSeenWhatsNewIds(storage)).toEqual([]);
-		expect(getUnseenWhatsNewCount('5402517', storage)).toBe(1);
+		expect(getUnseenWhatsNewCount('5402517', storage)).toBe(2);
 
 		markVisibleWhatsNewSeen('5402517', storage);
 
-		expect(getSeenWhatsNewIds(storage)).toEqual(['2026-07-16-offline-logbook']);
+		expect(getSeenWhatsNewIds(storage)).toEqual([
+			'2026-07-16-offline-logbook',
+			'2026-07-17-personal-dashboard-mobile-logbook'
+		]);
 		expect(getUnseenWhatsNewCount('5402517', storage)).toBe(0);
 	});
 
