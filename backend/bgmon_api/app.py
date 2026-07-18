@@ -136,6 +136,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     from bgmon_api.routes.auth import auth_bp
     from bgmon_api.routes.dashboard import dashboard_bp
     from bgmon_api.routes.family import family_bp
+    from bgmon_api.routes.ke_estimator import ke_estimator_bp
     from bgmon_api.routes.log import log_bp
     from bgmon_api.routes.night import night_bp
     from bgmon_api.routes.notifications import notifications_bp
@@ -147,6 +148,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
     app.register_blueprint(family_bp, url_prefix="/api/family")
+    app.register_blueprint(ke_estimator_bp, url_prefix="/api/ai")
     app.register_blueprint(log_bp, url_prefix="/api/log")
     app.register_blueprint(night_bp, url_prefix="/api/night")
     app.register_blueprint(notifications_bp)

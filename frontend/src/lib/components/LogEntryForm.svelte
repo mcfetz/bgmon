@@ -40,6 +40,12 @@
 	let message = $state('');
 	let error = $state('');
 
+	// AI KE estimation
+	let llmLoading = $state(false);
+	let llmModalOpen = $state(false);
+	let llmResult = $state<{ ke_value: number; reasoning: string } | null>(null);
+	let llmError = $state('');
+
 	// Date/time state
 	let dateStr = $state('');
 	let timeStr = $state('');
@@ -80,6 +86,39 @@
 		} finally {
 			simulationLoading = false;
 		}
+	}
+
+	async function estimateKe() {
+		if (!notes.trim()) return;
+		llmLoading = true;
+		llmError = '';
+		llmResult = null;
+		try {
+			const res = await apiFetch('/api/ai/estimate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ meal_description: notes })
+			});
+			if (res.ok) {
+				llmResult = await res.json();
+				llmModalOpen = true;
+			} else {
+				const err = await res.json().catch(() => ({}));
+				llmError = err.error || err.detail || 'Unbekannter Fehler';
+			}
+		} catch {
+			llmError = 'Keine Verbindung zum LLM-Server';
+		} finally {
+			llmLoading = false;
+		}
+	}
+
+	function applyLlmdKe() {
+		if (!llmResult) return;
+		value = llmResult.ke_value;
+		activeTab = 'carbs';
+		llmModalOpen = false;
+		syncToTabValues();
 	}
 
 	$effect(() => {
@@ -615,13 +654,31 @@
 
 				{#if activeTab === 'note'}
 					<div class="field note-field">
-						<label>Notiz</label>
+						<div class="note-label-row">
+							<label>Notiz</label>
+							<button
+								class="ai-btn"
+								type="button"
+								onclick={estimateKe}
+								disabled={llmLoading || !notes.trim()}
+								title="KI-gestützte KE-Schätzung aus Notiztext"
+							>
+								{#if llmLoading}
+									<span class="ai-spinner"></span>
+								{:else}
+									🤖 KI
+								{/if}
+							</button>
+						</div>
 						<textarea
 							bind:value={notes}
 							oninput={syncToTabValues}
 							placeholder="Notiz eingeben..."
 							rows="4"
 						></textarea>
+						{#if llmError}
+							<span class="llm-error">{llmError}</span>
+						{/if}
 					</div>
 				{:else if activeTab === 'insulin'}
 					{#if insulinHint}
@@ -714,6 +771,30 @@
 					<div class="error">{error}</div>
 				{/if}
 			</div>
+		</div>
+	</div>
+{/if}
+
+{#if llmModalOpen && llmResult}
+	<button class="llm-modal-backdrop" type="button" onclick={() => (llmModalOpen = false)}></button>
+	<div class="llm-modal">
+		<header class="llm-modal-header">
+			<h3>KI KE-Schätzung</h3>
+			<button class="close-btn" type="button" onclick={() => (llmModalOpen = false)}>×</button>
+		</header>
+		<div class="llm-modal-body">
+			<div class="llm-value">
+				<span class="llm-value-label">Geschätzter KE-Wert:</span>
+				<span class="llm-value-number">{llmResult.ke_value.toFixed(1)} KE</span>
+			</div>
+			<div class="llm-reasoning">
+				<span class="llm-reasoning-label">Begründung:</span>
+				<p>{llmResult.reasoning}</p>
+			</div>
+		</div>
+		<div class="llm-modal-actions">
+			<button class="llm-cancel-btn" type="button" onclick={() => (llmModalOpen = false)}>Abbrechen</button>
+			<button class="llm-accept-btn" type="button" onclick={applyLlmdKe}>Übernehmen</button>
 		</div>
 	</div>
 {/if}
@@ -1183,5 +1264,162 @@
 
 	.forecast-red {
 		color: #f87171;
+	}
+
+	/* AI Button */
+	.note-label-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.note-label-row label {
+		margin: 0;
+	}
+	.ai-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 8px;
+		font-size: 0.8rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+		color: var(--color-primary);
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+	.ai-btn:hover:not(:disabled) {
+		background: var(--color-primary);
+		color: var(--color-primary-contrast, #fff);
+	}
+	.ai-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+	.ai-spinner {
+		display: inline-block;
+		width: 12px;
+		height: 12px;
+		border: 2px solid var(--color-border);
+		border-top-color: var(--color-primary);
+		border-radius: 50%;
+		animation: ai-spin 0.6s linear infinite;
+	}
+	@keyframes ai-spin {
+		to { transform: rotate(360deg); }
+	}
+	.llm-error {
+		color: #e53e3e;
+		font-size: 0.75rem;
+		margin-top: 2px;
+	}
+
+	/* LLM Result Modal */
+	.llm-modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 150;
+		border: none;
+		padding: 0;
+		margin: 0;
+		cursor: pointer;
+		appearance: none;
+	}
+	.llm-modal {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: min(90vw, 420px);
+		max-height: 80vh;
+		background: var(--color-surface);
+		border-radius: var(--radius-lg, 20px);
+		z-index: 151;
+		padding: var(--spacing-lg, 24px);
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-md);
+		overflow-y: auto;
+	}
+	.llm-modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.llm-modal-header h3 {
+		margin: 0;
+		font-size: 1.1rem;
+	}
+	.llm-modal-body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-sm);
+	}
+	.llm-value {
+		display: flex;
+		align-items: baseline;
+		gap: var(--spacing-sm);
+		padding: var(--spacing-sm);
+		background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+		border-radius: var(--radius);
+	}
+	.llm-value-label {
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+	}
+	.llm-value-number {
+		font-size: 1.3rem;
+		font-weight: 700;
+		color: var(--color-primary);
+	}
+	.llm-reasoning {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.llm-reasoning-label {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		font-weight: 600;
+	}
+	.llm-reasoning p {
+		margin: 0;
+		font-size: 0.9rem;
+		line-height: 1.5;
+		color: var(--color-text);
+	}
+	.llm-modal-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--spacing-sm);
+		padding-top: var(--spacing-sm);
+		border-top: 1px solid var(--color-border);
+	}
+	.llm-cancel-btn {
+		padding: var(--spacing-xs) var(--spacing-md);
+		font-size: 0.9rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		background: transparent;
+		color: var(--color-text);
+		cursor: pointer;
+	}
+	.llm-cancel-btn:hover {
+		background: var(--color-border);
+	}
+	.llm-accept-btn {
+		padding: var(--spacing-xs) var(--spacing-md);
+		font-size: 0.9rem;
+		border: none;
+		border-radius: var(--radius);
+		background: var(--color-primary);
+		color: var(--color-primary-contrast, #fff);
+		cursor: pointer;
+		font-weight: 600;
+	}
+	.llm-accept-btn:hover {
+		opacity: 0.9;
 	}
 </style>

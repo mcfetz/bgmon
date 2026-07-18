@@ -118,6 +118,10 @@ class Config:
     VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
     VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
 
+    LLM_BASE_URL = os.getenv("BGMON_LLM_BASE_URL", "")
+    LLM_MODEL = os.getenv("BGMON_LLM_MODEL", "")
+    LLM_API_KEY = os.getenv("BGMON_LLM_API_KEY", "")
+
     BOOTSTRAP_ADMIN_EMAIL = os.getenv("BGMON_BOOTSTRAP_ADMIN_EMAIL", "")
     BOOTSTRAP_ADMIN_PASSWORD = os.getenv("BGMON_BOOTSTRAP_ADMIN_PASSWORD", "")
 
