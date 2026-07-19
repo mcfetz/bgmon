@@ -5,6 +5,8 @@ nutritionist system prompt and parses the JSON response into a typed
 ``KeEstimate`` value.  Raises ``KeEstimationError`` for any failure that
 the caller should surface as 503 (LLM unavailable, malformed response,
 missing config).
+
+Supports both text-only and image+text (vision) requests.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from bgmon_api.config import Config
 
 logger = logging.getLogger("bgmon.ke_estimator")
 
-_REQUEST_TIMEOUT_S: Final = 15
+_REQUEST_TIMEOUT_S: Final = 30  # vision models can be slower
 _TEMPERATURE: Final = 0.1
 _MAX_DESCRIPTION_LEN: Final = 2000
 
@@ -29,6 +31,19 @@ _SYSTEM_PROMPT: Final = (
     "Mahlzeitenbeschreibung und schätze die Kohlenhydrateinheiten (KE). "
     "1 KE = 10g Kohlenhydrate. Antworte NUR mit einem JSON-Objekt: "
     '{"ke_value": <float>, "reasoning": "<kurze Begründung auf Deutsch>"}. '
+    "Sei konservativ — lieber etwas zu hoch schätzen als zu niedrig."
+)
+
+_VISION_SYSTEM_PROMPT: Final = (
+    "Du bist ein Ernährungsberater für Diabetiker. Analysiere das Foto "
+    "der Mahlzeit. Identifiziere alle essbaren Bestandteile, schätze die "
+    "Mengen (nutze Referenzobjekte auf dem Bild wie Teller, Besteck, "
+    "Hände zur Größenschätzung) und berechne die Kohlenhydrateinheiten "
+    "(KE). 1 KE = 10g Kohlenhydrate. Antworte NUR mit einem JSON-Objekt: "
+    '{"food_summary": "<kurze Zusammenfassung der erkannten Lebensmittel '
+    'und geschätzten Mengen auf Deutsch>", '
+    '"ke_value": <float>, '
+    '"reasoning": "<kurze Begründung der KE-Berechnung auf Deutsch>"}. '
     "Sei konservativ — lieber etwas zu hoch schätzen als zu niedrig."
 )
 
@@ -43,6 +58,7 @@ class KeEstimate:
 
     ke_value: float
     reasoning: str
+    food_summary: str = ""
 
 
 def estimate_ke_from_description(description: str) -> dict[str, float | str]:
@@ -52,11 +68,57 @@ def estimate_ke_from_description(description: str) -> dict[str, float | str]:
     ``jsonify``.  Raises ``KeEstimationError`` for any failure (missing
     config, transport error, malformed response, out-of-range value).
     """
-    estimate = _call_llm(description)
-    return {"ke_value": estimate.ke_value, "reasoning": estimate.reasoning}
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "user", "content": _truncate(description)},
+    ]
+    estimate = _call_llm(messages)
+    result: dict[str, float | str] = {
+        "ke_value": estimate.ke_value,
+        "reasoning": estimate.reasoning,
+    }
+    if estimate.food_summary:
+        result["food_summary"] = estimate.food_summary
+    return result
 
 
-def _call_llm(description: str) -> KeEstimate:
+def estimate_ke_from_image_and_text(
+    base64_image: str, description: str = ""
+) -> dict[str, float | str]:
+    """Estimate KE from a meal photo with optional text context.
+
+    The image is sent as a base64 data-URI in the OpenAI vision format.
+    Returns ``{"ke_value": float, "reasoning": str, "food_summary": str}``.
+    """
+    user_content: list[dict[str, object]] = [
+        {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+        },
+    ]
+    default_prompt = (
+        "Was ist auf diesem Foto zu sehen? Analysiere die Mahlzeit."
+    )
+    text = (
+        _truncate(description) if description.strip() else default_prompt
+    )
+    user_content.insert(0, {"type": "text", "text": text})
+
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": _VISION_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+    estimate = _call_llm(messages)
+    result: dict[str, float | str] = {
+        "ke_value": estimate.ke_value,
+        "reasoning": estimate.reasoning,
+    }
+    if estimate.food_summary:
+        result["food_summary"] = estimate.food_summary
+    return result
+
+
+def _call_llm(messages: list[dict[str, object]]) -> KeEstimate:
     """Issue the chat-completions request and parse the typed result."""
     base_url = Config.LLM_BASE_URL.rstrip("/")
     if not base_url or not Config.LLM_MODEL or not Config.LLM_API_KEY:
@@ -65,10 +127,7 @@ def _call_llm(description: str) -> KeEstimate:
     payload = json.dumps({
         "model": Config.LLM_MODEL,
         "temperature": _TEMPERATURE,
-        "messages": [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": _truncate(description)},
-        ],
+        "messages": messages,
     }).encode("utf-8")
 
     request = urllib.request.Request(  # noqa: S310 — base_url is operator-controlled
@@ -116,6 +175,7 @@ def _parse_response(raw: str) -> KeEstimate:
 
     raw_value = inner.get("ke_value")
     raw_reasoning = inner.get("reasoning")
+    raw_food_summary = inner.get("food_summary")
 
     if not isinstance(raw_value, (int, float)) or isinstance(raw_value, bool):
         raise KeEstimationError("ke_value_not_numeric")
@@ -129,7 +189,11 @@ def _parse_response(raw: str) -> KeEstimate:
     else:
         reasoning = raw_reasoning.strip()
 
-    return KeEstimate(ke_value=ke_value, reasoning=reasoning)
+    food_summary = ""
+    if isinstance(raw_food_summary, str):
+        food_summary = raw_food_summary.strip()
+
+    return KeEstimate(ke_value=ke_value, reasoning=reasoning, food_summary=food_summary)
 
 
 def _extract_message_content(outer: object) -> str | None:

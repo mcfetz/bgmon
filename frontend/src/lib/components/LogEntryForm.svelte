@@ -43,8 +43,13 @@
 	// AI KE estimation
 	let llmLoading = $state(false);
 	let llmModalOpen = $state(false);
-	let llmResult = $state<{ ke_value: number; reasoning: string } | null>(null);
+	let llmResult = $state<{ ke_value: number; reasoning: string; food_summary?: string } | null>(null);
 	let llmError = $state('');
+
+	// Photo upload for AI vision
+	let photoData = $state<string | null>(null);
+	let photoPreview = $state<string | null>(null);
+	let fileInput: HTMLInputElement | undefined = $state();
 
 	// Date/time state
 	let dateStr = $state('');
@@ -89,15 +94,23 @@
 	}
 
 	async function estimateKe() {
-		if (!notes.trim()) return;
+		const hasPhoto = photoData !== null;
+		if (!hasPhoto && !notes.trim()) return;
 		llmLoading = true;
 		llmError = '';
 		llmResult = null;
 		try {
+			const body: Record<string, string> = {};
+			if (hasPhoto && photoData) {
+				body.image = photoData;
+			}
+			if (notes.trim()) {
+				body.meal_description = notes;
+			}
 			const res = await apiFetch('/api/ai/estimate', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ meal_description: notes })
+				body: JSON.stringify(body)
 			});
 			if (res.ok) {
 				llmResult = await res.json();
@@ -116,9 +129,48 @@
 	function applyLlmdKe() {
 		if (!llmResult) return;
 		value = llmResult.ke_value;
+		if (llmResult.food_summary) {
+			notes = llmResult.food_summary;
+		}
 		activeTab = 'carbs';
 		llmModalOpen = false;
+		photoData = null;
+		photoPreview = null;
 		syncToTabValues();
+	}
+
+	function openCamera() {
+		fileInput?.click();
+	}
+
+	async function handlePhotoSelected(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		// Reset input so same file can be re-selected
+		input.value = '';
+
+		// Show preview
+		const reader = new FileReader();
+		reader.onload = () => {
+			photoPreview = reader.result as string;
+		};
+		reader.readAsDataURL(file);
+
+		// Convert to base64 (without data: prefix)
+		photoData = await new Promise<string>((resolve) => {
+			const r = new FileReader();
+			r.onload = () => {
+				const dataUrl = r.result as string;
+				resolve(dataUrl.split(',')[1]);
+			};
+			r.readAsDataURL(file);
+		});
+	}
+
+	function clearPhoto() {
+		photoData = null;
+		photoPreview = null;
 	}
 
 	$effect(() => {
@@ -522,6 +574,16 @@
 	<button class="add-btn" type="button" onclick={() => openModal()} title="Neuen Eintrag">+</button>
 
 <!-- Modal -->
+<!-- Hidden file input for photo upload -->
+<input
+	type="file"
+	accept="image/*"
+	capture="environment"
+	style="display: none"
+	bind:this={fileInput}
+	onchange={handlePhotoSelected}
+/>
+
 {#if open}
 	<div
 		class="modal-backdrop"
@@ -656,20 +718,37 @@
 					<div class="field note-field">
 						<div class="note-label-row">
 							<label>Notiz</label>
-							<button
-								class="ai-btn"
-								type="button"
-								onclick={estimateKe}
-								disabled={llmLoading || !notes.trim()}
-								title="KI-gestützte KE-Schätzung aus Notiztext"
-							>
-								{#if llmLoading}
-									<span class="ai-spinner"></span>
-								{:else}
-									🤖 KI
-								{/if}
-							</button>
+							<div class="ai-btn-group">
+								<button
+									class="ai-btn"
+									type="button"
+									onclick={estimateKe}
+									disabled={llmLoading || (!notes.trim() && !photoData)}
+									title="KI-gestützte KE-Schätzung aus Notiztext"
+								>
+									{#if llmLoading}
+										<span class="ai-spinner"></span>
+									{:else}
+										🤖 KI
+									{/if}
+								</button>
+								<button
+									class="ai-btn"
+									type="button"
+									onclick={openCamera}
+									disabled={llmLoading}
+									title="Foto der Mahlzeit analysieren"
+								>
+									📷
+								</button>
+							</div>
 						</div>
+						{#if photoPreview}
+							<div class="photo-preview-wrap">
+								<img class="photo-preview" src={photoPreview} alt="Vorschau" />
+								<button class="photo-clear-btn" type="button" onclick={clearPhoto}>×</button>
+							</div>
+						{/if}
 						<textarea
 							bind:value={notes}
 							oninput={syncToTabValues}
@@ -718,20 +797,37 @@
 					<div class="field">
 						<div class="note-label-row">
 							<label>Notizen</label>
-							<button
-								class="ai-btn"
-								type="button"
-								onclick={estimateKe}
-								disabled={llmLoading || !notes.trim()}
-								title="KI-gestützte KE-Schätzung aus Notiztext"
-							>
-								{#if llmLoading}
-									<span class="ai-spinner"></span>
-								{:else}
-									🤖 KI
-								{/if}
-							</button>
+							<div class="ai-btn-group">
+								<button
+									class="ai-btn"
+									type="button"
+									onclick={estimateKe}
+									disabled={llmLoading || (!notes.trim() && !photoData)}
+									title="KI-gestützte KE-Schätzung aus Notiztext"
+								>
+									{#if llmLoading}
+										<span class="ai-spinner"></span>
+									{:else}
+										🤖 KI
+									{/if}
+								</button>
+								<button
+									class="ai-btn"
+									type="button"
+									onclick={openCamera}
+									disabled={llmLoading}
+									title="Foto der Mahlzeit analysieren"
+								>
+									📷
+								</button>
+							</div>
 						</div>
+						{#if photoPreview}
+							<div class="photo-preview-wrap">
+								<img class="photo-preview" src={photoPreview} alt="Vorschau" />
+								<button class="photo-clear-btn" type="button" onclick={clearPhoto}>×</button>
+							</div>
+						{/if}
 						<input
 							type="text"
 							bind:value={notes}
@@ -805,6 +901,12 @@
 				<span class="llm-value-label">Geschätzter KE-Wert:</span>
 				<span class="llm-value-number">{llmResult.ke_value.toFixed(1)} KE</span>
 			</div>
+			{#if llmResult.food_summary}
+				<div class="llm-food-summary">
+					<span class="llm-reasoning-label">Erkannte Mahlzeit:</span>
+					<p>{llmResult.food_summary}</p>
+				</div>
+			{/if}
 			<div class="llm-reasoning">
 				<span class="llm-reasoning-label">Begründung:</span>
 				<p>{llmResult.reasoning}</p>
@@ -1439,5 +1541,61 @@
 	}
 	.llm-accept-btn:hover {
 		opacity: 0.9;
+	}
+
+	/* AI button group (AI + Camera) */
+	.ai-btn-group {
+		display: flex;
+		gap: 4px;
+	}
+
+	/* Photo preview */
+	.photo-preview-wrap {
+		position: relative;
+		margin-top: var(--spacing-xs);
+		border-radius: var(--radius);
+		overflow: hidden;
+		max-width: 200px;
+	}
+	.photo-preview {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: var(--radius);
+	}
+	.photo-clear-btn {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		border: none;
+		background: rgba(0, 0, 0, 0.6);
+		color: #fff;
+		font-size: 14px;
+		line-height: 1;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	/* Food summary in LLM modal */
+	.llm-food-summary {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: var(--spacing-sm);
+		background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+		border-radius: var(--radius);
+		border-left: 3px solid var(--color-primary);
+	}
+	.llm-food-summary p {
+		margin: 0;
+		font-size: 0.9rem;
+		line-height: 1.5;
+		color: var(--color-text);
+		font-style: italic;
 	}
 </style>
