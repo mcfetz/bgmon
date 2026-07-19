@@ -485,6 +485,12 @@ def _run_train(job_id: str) -> None:
             trainer = ModelTrainer(cv_splits=min(5, max(2, training_input.sample_count - 1)))
             result = trainer.train(training_input)
             publish_model(result, target_dir)
+
+            from bgmon_api.commands.train_predictor import (
+                _create_training_log_entry,  # noqa: PLC0415
+            )
+            _create_training_log_entry(result, training_input.sample_count)
+
             db.session.remove()
 
             _put_job(job_id, {

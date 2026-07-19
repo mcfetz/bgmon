@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import timedelta
 from pathlib import Path
 
@@ -127,7 +128,7 @@ def _create_training_log_entry(
 
     patient = User.query.filter_by(role=UserRole.PATIENT).first()
     if patient is None:
-        click.secho("  ⚠ No patient user found — skipping logbook entry", fg="yellow")
+        logging.getLogger("bgmon.train").warning("No patient user found — skipping logbook entry")
         return
 
     metrics_lines = []
@@ -156,7 +157,9 @@ def _create_training_log_entry(
     )
     db.session.add(entry)
     db.session.commit()
-    click.secho(f"  ✓ Logbuch-Notiz erstellt (id={entry.id})", fg="green")
+
+    _log = logging.getLogger("bgmon.train")
+    _log.info("ML training logbook note created: id=%d, samples=%d", entry.id, sample_count)
 
 
 def _collect_training_data():
