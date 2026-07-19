@@ -48,7 +48,6 @@
 
 	// Photo upload for AI vision
 	let photoData = $state<string | null>(null);
-	let photoPreview = $state<string | null>(null);
 	let fileInput: HTMLInputElement | undefined = $state();
 
 	// Date/time state
@@ -135,29 +134,16 @@
 		activeTab = 'carbs';
 		llmModalOpen = false;
 		photoData = null;
-		photoPreview = null;
 		syncToTabValues();
-	}
-
-	function openCamera() {
-		fileInput?.click();
 	}
 
 	async function handlePhotoSelected(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
-		// Reset input so same file can be re-selected
 		input.value = '';
 
-		// Show preview
-		const reader = new FileReader();
-		reader.onload = () => {
-			photoPreview = reader.result as string;
-		};
-		reader.readAsDataURL(file);
-
-		// Convert to base64 (without data: prefix)
+		// Convert to base64 and auto-trigger AI
 		photoData = await new Promise<string>((resolve) => {
 			const r = new FileReader();
 			r.onload = () => {
@@ -166,11 +152,12 @@
 			};
 			r.readAsDataURL(file);
 		});
+
+		estimateKe();
 	}
 
-	function clearPhoto() {
-		photoData = null;
-		photoPreview = null;
+	function openCamera() {
+		fileInput?.click();
 	}
 
 	$effect(() => {
@@ -578,7 +565,6 @@
 <input
 	type="file"
 	accept="image/*"
-	capture="environment"
 	style="display: none"
 	bind:this={fileInput}
 	onchange={handlePhotoSelected}
@@ -743,12 +729,6 @@
 								</button>
 							</div>
 						</div>
-						{#if photoPreview}
-							<div class="photo-preview-wrap">
-								<img class="photo-preview" src={photoPreview} alt="Vorschau" />
-								<button class="photo-clear-btn" type="button" onclick={clearPhoto}>×</button>
-							</div>
-						{/if}
 						<textarea
 							bind:value={notes}
 							oninput={syncToTabValues}
@@ -822,12 +802,6 @@
 								</button>
 							</div>
 						</div>
-						{#if photoPreview}
-							<div class="photo-preview-wrap">
-								<img class="photo-preview" src={photoPreview} alt="Vorschau" />
-								<button class="photo-clear-btn" type="button" onclick={clearPhoto}>×</button>
-							</div>
-						{/if}
 						<input
 							type="text"
 							bind:value={notes}
@@ -972,7 +946,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 100;
+		z-index: 201;
 		padding: var(--spacing-md);
 		overflow-y: auto;
 	}
@@ -1395,18 +1369,24 @@
 	.note-label-row label {
 		margin: 0;
 	}
+	.ai-btn-group {
+		display: flex;
+		gap: 4px;
+	}
 	.ai-btn {
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		padding: 2px 8px;
-		font-size: 0.8rem;
+		padding: 4px 8px;
+		font-size: 0.85rem;
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
-		background: var(--color-surface);
-		color: var(--color-primary);
+		background: var(--color-bg);
+		color: var(--color-text);
 		cursor: pointer;
-		transition: background 0.15s;
+		min-width: 36px;
+		touch-action: manipulation;
+		transition: all 0.15s ease;
 	}
 	.ai-btn:hover:not(:disabled) {
 		background: var(--color-primary);
@@ -1439,7 +1419,7 @@
 		position: fixed;
 		inset: 0;
 		background: rgba(0, 0, 0, 0.5);
-		z-index: 150;
+		z-index: 202;
 		border: none;
 		padding: 0;
 		margin: 0;
@@ -1455,7 +1435,7 @@
 		max-height: 80vh;
 		background: var(--color-surface);
 		border-radius: var(--radius-lg, 20px);
-		z-index: 151;
+		z-index: 203;
 		padding: var(--spacing-lg, 24px);
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 		display: flex;
@@ -1547,38 +1527,6 @@
 	.ai-btn-group {
 		display: flex;
 		gap: 4px;
-	}
-
-	/* Photo preview */
-	.photo-preview-wrap {
-		position: relative;
-		margin-top: var(--spacing-xs);
-		border-radius: var(--radius);
-		overflow: hidden;
-		max-width: 200px;
-	}
-	.photo-preview {
-		display: block;
-		width: 100%;
-		height: auto;
-		border-radius: var(--radius);
-	}
-	.photo-clear-btn {
-		position: absolute;
-		top: 4px;
-		right: 4px;
-		width: 24px;
-		height: 24px;
-		border-radius: 50%;
-		border: none;
-		background: rgba(0, 0, 0, 0.6);
-		color: #fff;
-		font-size: 14px;
-		line-height: 1;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 	}
 
 	/* Food summary in LLM modal */
