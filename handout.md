@@ -85,6 +85,17 @@ Das Logbuch findest du unter dem Dashboard. Vier Tabs: **KE**, **Insulin**, **Ba
 ### Notiz
 - Freitext für besondere Vorkommnisse („Sport", „krank", etc.)
 
+### 🤖 KI-KE-Schätzung
+
+Bei jeder Mahlzeit kannst du die KI fragen: **„Wie viele KE hat das?"** — per Text oder Foto.
+
+- **Aus Notizen schätzen:** Schreibe ins Notizfeld, was gegessen wurde (z. B. „2 Scheiben Vollkornbrot mit Butter und Käse"), dann auf den 🤖-Button tippen. Die KI schätzt die KE und trägt sie ins KE-Feld ein.
+- **Aus Foto schätzen:** Auf 📷 tippen, ein Foto von der Mahlzeit machen oder aus der Galerie wählen. Die KI erkennt die Lebensmittel, schätzt Portionen und berechnet die KE — alles automatisch.
+- Die Schätzung erscheint in einem Popup mit der Zusammenfassung („1 Scheibe Vollkornbrot, 10g Butter, ...") und dem KE-Wert. Mit **✓ Übernehmen** wird der Wert ins KE-Feld gesetzt.
+- Funktioniert im KE-Tab UND im Notizfeld der anderen Tabs (Insulin, Basal).
+
+> ⚠️ Die KI-Schätzung ist ein **Hilfsmittel** — kein Ersatz für eigenes Abwiegen und Berechnen. Gerade bei Mischgerichten kann die Schätzung ungenau sein.
+
 ### Simulationsvorschau
 Sobald du KE oder Insulin eintippst, erscheint nach ~0,5 Sek. eine **gestrichelte Linie im Graph**. Das ist die Vorschau, wie sich der BG mit dieser Eingabe entwickeln würde — **vor dem Speichern**.
 
@@ -162,7 +173,8 @@ Die App sagt den Blutzucker für **30, 60 und 120 Minuten** voraus. Eingabedaten
 - Tageszeit (sin/cos-Kodierung)
 
 ### Wo sichtbar:
-- **Graph**: Gestrichelte Linien (Türkis=30 min, Gelb=60 min) mit transluzentem Konfidenzband
+- **Graph**: Gestrichelte farbige Linien für alle drei Horizonte (Blau=30 min, Lila=60 min, Orange=120 min) — sowohl als Live-Vorhersage als auch als **historische Linie** (wie gut hätte die Prognose vor 2 Stunden gepasst?)
+- **Filter-Popup** (🔍-Icon rechts neben den Zoom-Buttons): Historische Prognosen für 30/60/120 min ein-/ausblenden
 - **Prognose-Kachel**: Wert mit Konfidenzintervall (z. B. „142  (128–156) mg/dL")
 - **Prognose-Modal**: Klick auf die Kachel → alle Horizonte + MAE + Disclaimer
 - **BG-Modal**: Unten +30/+60/+120
@@ -187,7 +199,7 @@ Oben rechts im Dashboard erreichbar:
 | **Push** 🔔 | Push-Status prüfen, neu abonnieren |
 | **Twilio** 📞 | Telefonnummern, Testanruf |
 | **Benutzer** 👥 | Benutzer verwalten (nur Admin) |
-| **ML** 🧠 | Prognose-Modell trainieren + evaluieren |
+| **ML** 🧠 | Prognose-Modell trainieren + evaluieren. Nach jedem Training erscheint eine Notiz im Logbuch mit den Ergebnissen (MAE pro Horizont). |
 | **Hilfe** ❓ | Diese Anleitung |
 
 ---
@@ -196,7 +208,8 @@ Oben rechts im Dashboard erreichbar:
 
 1. **App installieren** — Nur auf dem Homescreen bekommst du Push-Alarme bei geschlossenem Browser
 2. **Jede Mahlzeit eintragen** — Damit Prognose, TIR und Insulin-Vorschlag korrekt arbeiten
-3. **Simulationsvorschau nutzen** — Vor dem Spritzen die gestrichelte Linie im Graph prüfen
+3. **KI-KE-Schätzung nutzen** — 🤖 für Text, 📷 für Foto. Spart Zeit beim Abwiegen und Berechnen
+4. **Simulationsvorschau nutzen** — Vor dem Spritzen die gestrichelte Linie im Graph prüfen
 4. **Aktualität checken** — Unter dem BG-Wert steht „vor X Min.". >10 Minuten = Sensor prüfen
 5. **Falsche Log-Einträge löschen** — Mit 🗑️ im Logbuch-Verlauf
 6. **BG-Modal nachts** — Auf den Wert tippen, Bildschirm bleibt an

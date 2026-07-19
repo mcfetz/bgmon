@@ -33,6 +33,12 @@
 - **Streak-Tracking** für konsequente Eintragungen
 - **TIR-Statistik** (Time-in-Range) auf Wochen-/Monatsbasis
 
+### KI-Integration
+- **KE-Schätzung aus Text**: Beschreibe die Mahlzeit („2 Scheiben Brot mit Käse") — die KI schätzt die Kohlenhydrate
+- **KE-Schätzung aus Foto**: 📷 Mahlzeit fotografieren, KI erkennt Lebensmittel, Portionen und berechnet KE
+- **Modell**: OpenAI-kompatibles LLM mit Vision-Support (konfigurierbar über `BGMON_LLM_*`-Env-Vars)
+- **Logbuch-Notiz bei ML-Training**: Nach jedem `flask predictor train` erscheint automatisch eine Notiz mit Modellversion, Sample-Anzahl und MAE-Werten
+
 ### BG-Prognose (ML)
 
 Die BG-Prognose sagt den Blutzucker in 30, 60 und 120 Minuten voraus — basierend auf
@@ -57,8 +63,9 @@ ausführen. Training und Evaluierung sind auch über Einstellungen → ML im Fro
 verfügbar (Admin-only, asynchron mit Status-Polling).
 
 **Anzeige**: Im Dashboard erscheinen farbige Prognose-Linien im GlucoseGraph
-(Türkis = 30 min, Gelb = 60 min) mit Konfidenzbändern, sowie Prognose-Karten
-in der StatsCard.
+(Blau = 30 min, Lila = 60 min, Orange = 120 min) mit Konfidenzbändern, sowie Prognose-Karten
+in der StatsCard. Ein **Filter-Popup** (🔍) erlaubt das Ein-/Ausblenden historischer Prognose-Linien
+zur Qualitätskontrolle („wie gut war die Vorhersage von vor 2 Stunden?").
 
 > Die Prognose ist display-only — keine Alarmierung, keine Behandlungsempfehlung.
 
@@ -232,6 +239,13 @@ Alle Einstellungen werden über Umgebungsvariablen konfiguriert (siehe `.env.exa
 | `BGMON_ML_ENABLED`       | `true` aktiviert die BG-Prognose (Default: `false`)      |
 | `BGMON_ML_MODEL_PATH`    | Pfad zu den trainierten Modell-Artifakten                |
 | `BGMON_ML_HORIZONS`      | Komma-getrennte Vorhersage-Horizonte (Default: `30,60,120`) |
+
+### KI-Integration (optional)
+| Variable                 | Beschreibung                                            |
+|--------------------------|---------------------------------------------------------|
+| `BGMON_LLM_BASE_URL`     | OpenAI-kompatible API-URL (z. B. `https://api.openai.com/v1`) |
+| `BGMON_LLM_MODEL`        | Modellname (z. B. `gpt-4o` für Text+Vision)              |
+| `BGMON_LLM_API_KEY`      | API-Key für den LLM-Provider                              |
 
 ### Scheduler
 | Variable                     | Beschreibung                                            |
