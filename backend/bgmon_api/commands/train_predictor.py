@@ -78,6 +78,8 @@ def train(_ctx: click.Context, model_dir: str | None) -> None:
             fg="cyan",
         )
 
+    _create_training_log_entry(result, training_input.sample_count)
+
 
 @predictor_group.command("evaluate", short_help="Evaluate saved prediction runs")
 @click.option(
@@ -111,6 +113,50 @@ def evaluate(tolerance_minutes: int, json_output: bool) -> None:
             f"mae={mae_text} matched_points={summary.matched_points} "
             f"completed_runs={summary.completed_runs}/{summary.run_count}"
         )
+
+
+def _create_training_log_entry(
+    result: TrainingResult,  # noqa: F821 — forward ref
+    sample_count: int,
+) -> None:
+    """Create a logbook note documenting the completed ML training run."""
+    from datetime import UTC, datetime
+
+    from bgmon_api.extensions import db
+    from bgmon_api.models import LogEntry, LogEntryType, User, UserRole
+
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if patient is None:
+        click.secho("  ⚠ No patient user found — skipping logbook entry", fg="yellow")
+        return
+
+    metrics_lines = []
+    for m in result.metrics:
+        metrics_lines.append(
+            f"{m.horizon_minutes}m: MAE {m.model_mae:.1f} "
+            f"(baseline {m.baseline_mae:.1f}, {m.n_splits} splits)"
+        )
+
+    now = datetime.now(UTC)
+    version = now.strftime("bgpred-%Y%m%dT%H%M%SZ")
+    notes = (
+        f"🤖 ML-Training abgeschlossen\n"
+        f"Version: {version}\n"
+        f"Samples: {sample_count}\n"
+        + "\n".join(metrics_lines)
+    )
+
+    entry = LogEntry(
+        user_id=patient.id,
+        entry_type=LogEntryType.NOTE,
+        value=0,
+        unit="",
+        notes=notes,
+        created_by_id=patient.id,
+    )
+    db.session.add(entry)
+    db.session.commit()
+    click.secho(f"  ✓ Logbuch-Notiz erstellt (id={entry.id})", fg="green")
 
 
 def _collect_training_data():
