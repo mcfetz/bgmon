@@ -161,7 +161,14 @@
 			.filter((p) => !isNaN(p.ts) && p.sgv != null)
 			.sort((a, b) => a.ts - b.ts);
 		if (mapped.length < 2) return '';
-		return mapped.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ');
+		const deduped: { ts: number; sgv: number }[] = [];
+		for (const p of mapped) {
+			const prev = deduped[deduped.length - 1];
+			if (prev && prev.ts === p.ts) deduped[deduped.length - 1] = p;
+			else deduped.push(p);
+		}
+		if (deduped.length < 2) return '';
+		return deduped.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(p.ts)},${yPos(p.sgv)}`).join(' ');
 	}
 
 	const historyPath30 = $derived(showHistory30 ? _historyPath(historyPredictions30) : '');

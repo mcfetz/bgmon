@@ -1044,13 +1044,36 @@ def prediction_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     since = datetime.now(UTC) - timedelta(hours=hours)
 
-    points = (
-        PredictionPoint.query
+    from sqlalchemy.sql import func  # noqa: PLC0415
+
+    from bgmon_api.extensions import db  # noqa: PLC0415
+
+    # Deduplicate overlapping runs: keep only the latest prediction per timestamp.
+    # Prediction runs overlap in time — without dedup, the chart line zigzags
+    # between different runs' values at the same timestamp.
+    latest_per_ts = (
+        db.session.query(
+            PredictionPoint.timestamp,
+            func.max(PredictionPoint.run_id).label("max_run_id"),
+        )
         .join(PredictionRun, PredictionPoint.run_id == PredictionRun.id)
         .filter(PredictionRun.horizon_minutes == horizon)
         .filter(PredictionRun.user_id == patient.id)
         .filter(PredictionPoint.timestamp >= since)
         .filter(PredictionPoint.predicted_sgv > 0)
+        .group_by(PredictionPoint.timestamp)
+        .subquery()
+    )
+
+    points = (
+        PredictionPoint.query
+        .join(
+            latest_per_ts,
+            db.and_(
+                PredictionPoint.timestamp == latest_per_ts.c.timestamp,
+                PredictionPoint.run_id == latest_per_ts.c.max_run_id,
+            ),
+        )
         .order_by(PredictionPoint.timestamp.asc())
         .with_entities(
             PredictionPoint.timestamp,
