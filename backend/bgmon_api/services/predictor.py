@@ -13,6 +13,7 @@ dashboard refresh.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -374,6 +375,11 @@ def predict(
     return outcome
 
 
+def _logger() -> logging.Logger:
+    """Lazy-initialised module-level logger."""
+    return logging.getLogger("bgmon.predict")
+
+
 # ── internal forecast generation ──────────────────────────────────────────
 
 
@@ -421,9 +427,20 @@ def _generate_and_persist(
         point = PredictionPoint()
         point.run_id = run.id
         point.timestamp = point_ts
-        point.predicted_sgv = round(float(y_mean), 1)
-        point.lower_bound = round(float(y_mean) - 15.0, 1)
-        point.upper_bound = round(float(y_mean) + 15.0, 1)
+        # Clamp to physiologically plausible range (≥ 20 mg/dL).
+        # LinearRegression can predict negative values when BG is in steep
+        # decline — without clamping these appear as spikes to 0 in the chart.
+        clamped_sgv = max(20.0, round(float(y_mean), 1))
+        clipped = " (clipped)" if clamped_sgv != round(float(y_mean), 1) else ""
+        point.predicted_sgv = clamped_sgv
+        point.lower_bound = max(0.0, round(float(y_mean) - 15.0, 1))
+        point.upper_bound = max(20.0, round(float(y_mean) + 15.0, 1))
+        if clipped:
+            _logger().info(
+                "clipped prediction for user=%d run=%d: %.1f → %.1f, target_ts=%s%s",
+                user_id, run.id, round(float(y_mean), 1), clamped_sgv,
+                point_ts.isoformat(), clipped,
+            )
         db.session.add(point)
 
     db.session.commit()
@@ -457,8 +474,6 @@ def predict_current(
     Designed for scheduler-driven background prediction.  Errors are
     caught and logged — never raised to the scheduler.
     """
-    import logging  # noqa: PLC0415
-
     logger = logging.getLogger("bgmon.predict")
 
     now = reference_time or datetime.now(UTC)

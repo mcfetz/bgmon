@@ -1050,6 +1050,7 @@ def prediction_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         .filter(PredictionRun.horizon_minutes == horizon)
         .filter(PredictionRun.user_id == patient.id)
         .filter(PredictionPoint.timestamp >= since)
+        .filter(PredictionPoint.predicted_sgv > 0)
         .order_by(PredictionPoint.timestamp.asc())
         .with_entities(
             PredictionPoint.timestamp,
