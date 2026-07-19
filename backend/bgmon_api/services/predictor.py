@@ -370,6 +370,9 @@ def predict(
         model_cache=model_cache,
     )
 
+    if run_id is None:
+        return UnavailableOutcome(reason="prediction_rejected")
+
     outcome = ReadyOutcome(reason="ready", run_id=run_id, reused=False)
     _UPCOMING_REUSE_CACHE[cache_key] = outcome
     return outcome
@@ -390,10 +393,11 @@ def _generate_and_persist(
     horizon_minutes: int,
     context_end_at: datetime,
     model_cache: _ModelCache,
-) -> int:
+) -> int | None:
     """Run inference with the loaded model and persist run + points.
 
-    Returns the ``PredictionRun.id`` of the newly created row.
+    Returns the ``PredictionRun.id`` of the newly created row, or None if
+    the model prediction was rejected (y_mean ≤ 0).
     """
     import numpy as np  # noqa: PLC0415
 
@@ -402,16 +406,24 @@ def _generate_and_persist(
 
     model = model_cache.models[horizon_minutes]
 
-    # Compute forecast: horizon_minutes / 5 points, each 5 min apart
     step_minutes = 5
     n_points = horizon_minutes // step_minutes
 
     X = np.array([feature_vec], dtype=np.float64)  # noqa: N806
     y_mean = model.predict(X)[0]  # scalar
 
-    # For LinearRegression we produce a simple flat forecast.
-    # Future versions may produce non-constant paths via multi-output models.
-    # Lower/upper bounds = mean ± 15 mg/dL (simple heuristic for v1).
+    y_mean_raw = round(float(y_mean), 1)
+
+    # Reject garbage predictions: LinearRegression can predict ≤ 0 when BG
+    # is in steep decline.  Clamping to 20 still creates visible chart spikes
+    # next to healthy values (100+).  Skip persistence entirely.
+    if y_mean_raw <= 0:
+        _logger().warning(
+            "skipping garbage prediction for user=%d horizon=%d: y_mean=%.1f",
+            user_id, horizon_minutes, y_mean_raw,
+        )
+        return None
+
     run = PredictionRun()
     run.user_id = user_id
     run.context_end_at = context_end_at
@@ -422,25 +434,15 @@ def _generate_and_persist(
     db.session.add(run)
     db.session.flush()  # get run.id
 
+    clamped_sgv = max(20.0, y_mean_raw)
     for i in range(n_points):
         point_ts = context_end_at + timedelta(minutes=step_minutes * (i + 1))
         point = PredictionPoint()
         point.run_id = run.id
         point.timestamp = point_ts
-        # Clamp to physiologically plausible range (≥ 20 mg/dL).
-        # LinearRegression can predict negative values when BG is in steep
-        # decline — without clamping these appear as spikes to 0 in the chart.
-        clamped_sgv = max(20.0, round(float(y_mean), 1))
-        clipped = " (clipped)" if clamped_sgv != round(float(y_mean), 1) else ""
         point.predicted_sgv = clamped_sgv
-        point.lower_bound = max(0.0, round(float(y_mean) - 15.0, 1))
-        point.upper_bound = max(20.0, round(float(y_mean) + 15.0, 1))
-        if clipped:
-            _logger().info(
-                "clipped prediction for user=%d run=%d: %.1f → %.1f, target_ts=%s%s",
-                user_id, run.id, round(float(y_mean), 1), clamped_sgv,
-                point_ts.isoformat(), clipped,
-            )
+        point.lower_bound = max(0.0, y_mean_raw - 15.0)
+        point.upper_bound = max(20.0, y_mean_raw + 15.0)
         db.session.add(point)
 
     db.session.commit()
