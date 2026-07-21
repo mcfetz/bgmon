@@ -11,6 +11,7 @@
 
 ### Kern
 - **Live-Dashboard** mit Verlaufsgraph (mg/dL / mmol/L), TIR-Stats und aktueller Glukosewert
+- **Now-Mode**: Das Dashboard folgt automatisch der aktuellen Zeit — der "Jetzt"-Button leuchtet farbig, Navigation beendet den Live-Modus
 - **CGM-Integration** via [LibreLinkUp](https://www.librelinkup.com/) — automatischer Polling im 30-Sekunden-Takt
 - **Persistenz** in PostgreSQL (Schwellwerte, Logs, Alarme, Konfiguration)
 - **InfluxDB** als optionaler sekundärer Storage für historische Auswertungen

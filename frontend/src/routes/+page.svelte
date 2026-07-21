@@ -55,6 +55,7 @@
 	let previousSgv = $state<number | null>(null);
 	let pulsing = $state(false);
 	let now = $state(Date.now());
+	let nowMode = $state(true);
 	let health = $state<{ libre: boolean }>({ libre: false });
 	let thresholds = $state<{
 		critical_low: number;
@@ -186,7 +187,7 @@
 	}
 
 	// Time window state
-	const initialWindowDurationMs = 3600 * 1000; // default 1h
+	const initialWindowDurationMs = 6 * 3600 * 1000; // default 6h
 	let windowDurationMs = $state(initialWindowDurationMs);
 	let windowEnd = $state<Date>(new Date());
 	let windowStart = $state<Date>(new Date(Date.now() - initialWindowDurationMs));
@@ -200,6 +201,7 @@
 	];
 
 	function setDuration(ms: number) {
+		nowMode = false;
 		windowDurationMs = ms;
 		const now = Date.now();
 		windowEnd = new Date(now);
@@ -208,6 +210,7 @@
 	}
 
 	function jumpToNow() {
+		nowMode = true;
 		const now = Date.now();
 		windowEnd = new Date(now);
 		windowStart = new Date(now - windowDurationMs);
@@ -215,6 +218,7 @@
 	}
 
 	function shiftWindow(direction: number) {
+		nowMode = false;
 		const shift = windowDurationMs * direction;
 		const now = Date.now();
 		let newEnd = windowEnd.getTime() + shift;
@@ -298,6 +302,11 @@
 	}
 
 	async function refreshDashboard() {
+		if (nowMode) {
+			const now = Date.now();
+			windowEnd = new Date(now);
+			windowStart = new Date(now - windowDurationMs);
+		}
 		const syncedCount = await flushPendingLogEntries();
 		await loadDashboard();
 		if (syncedCount > 0) {
@@ -524,7 +533,7 @@
 	{#if showTimeControls}
 		<div class="time-controls">
 			<div class="time-segments" aria-label="Zeitraum auswählen">
-				<button class="range-btn" onclick={jumpToNow} title="Zur aktuellen Zeit springen">Jetzt</button>
+				<button class="range-btn" class:now-active={nowMode} onclick={jumpToNow} title="Zur aktuellen Zeit springen. Im Now-Mode folgt das Dashboard automatisch der aktuellen Zeit.">Jetzt</button>
 				{#each durationButtons as btn}
 					<button
 						class="range-btn"
@@ -908,6 +917,12 @@
 	.range-btn.active {
 		background: var(--color-primary);
 		color: var(--color-primary-contrast);
+	}
+
+	.range-btn.now-active {
+		background: rgba(var(--color-primary-rgb), 0.2);
+		color: var(--color-primary);
+		box-shadow: inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.3);
 	}
 
 	.refresh-btn {
