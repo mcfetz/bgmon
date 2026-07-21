@@ -42,8 +42,8 @@ Das Dashboard ist deine Startseite.
 Die Blutzuckerkurve zeigt den Verlauf über den gewählten Zeitraum.
 
 - **Zoom-Buttons** über dem Graph: `-1h`, `-6h`, `-12h`, `-1t` (Tag), `-1w` (Woche)
-- **Jetzt-Button** springt zur aktuellen Zeit
-- **Wischgeste (Swipe)** im Graph: horizontal nach links/rechts blättern
+- **Jetzt-Button** springt zur aktuellen Zeit und aktiviert den **Now-Mode** (Button leuchtet farbig). Im Now-Mode folgt das Dashboard automatisch der aktuellen Zeit — neue BG-Werte erscheinen live. Sobald du im Graph blätterst oder zoomst, wird der Now-Mode beendet und der Zeitbereich bleibt stehen.
+- **Wischgeste (Swipe)** im Graph: horizontal nach links/rechts blättern (beendet den Now-Mode)
 - Auf einen Punkt im Graph **tippen/hovern** zeigt den genauen Wert zu diesem Zeitpunkt
 
 ### Stats-Kacheln
