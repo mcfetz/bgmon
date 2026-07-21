@@ -911,6 +911,48 @@ def check_and_log_streak() -> None:
             pass  # commit handled by context manager
 
 
+def check_and_log_badges() -> None:
+    """Check achievements and log a note for each newly earned badge."""
+    from bgmon_api.extensions import db
+    from bgmon_api.models import LogEntry, LogEntryType, Threshold, User, UserRole
+
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if not patient:
+        return
+
+    threshold = db.session.execute(
+        db.select(Threshold).where(Threshold.user_id == patient.id)
+    ).scalar_one_or_none()
+    if not threshold:
+        return
+    low = int(threshold.low)
+    high = int(threshold.high)
+
+    achievements = _calculate_achievements(patient.id, low, high)
+
+    for badge in achievements:
+        if not badge["unlocked"]:
+            continue
+
+        existing = LogEntry.query.filter(
+            LogEntry.user_id == patient.id,
+            LogEntry.entry_type == LogEntryType.SUCCESS,
+            LogEntry.notes == f"Badge freigeschaltet: {badge['name']} ({badge['icon']})",
+        ).first()
+        if existing is not None:
+            continue
+
+        note = f"Badge freigeschaltet: {badge['name']} ({badge['icon']})"
+        entry = LogEntry()
+        entry.user_id = patient.id
+        entry.entry_type = LogEntryType.SUCCESS
+        entry.value = 0
+        entry.unit = ""
+        entry.notes = note
+        with transactional_session():
+            db.session.add(entry)
+
+
 @dashboard_bp.route("/predict/simulate", methods=["POST"])
 def predict_simulate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()

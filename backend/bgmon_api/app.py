@@ -86,8 +86,9 @@ def _streak_job() -> None:
     if leader is not None and leader.is_leader and _app is not None:
         with _app.app_context():
             try:
-                from bgmon_api.routes.dashboard import check_and_log_streak
+                from bgmon_api.routes.dashboard import check_and_log_badges, check_and_log_streak
                 check_and_log_streak()
+                check_and_log_badges()
             finally:
                 db.session.remove()
     snapshot("streak_check", "after")
