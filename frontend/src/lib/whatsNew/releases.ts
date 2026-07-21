@@ -8,6 +8,18 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-07-21-now-mode',
+		versionPrefixes: ['2f3880b', '033dc37'],
+		publishedAt: '2026-07-21',
+		title: 'Now-Mode: Dashboard folgt automatisch der aktuellen Zeit',
+		highlights: [
+			'🔵 Now-Mode: Klick auf "Jetzt" aktiviert den Live-Modus — Diagramm und Logbuch bleiben automatisch auf dem aktuellen Zeitfenster.',
+			'🟢 Der "Jetzt"-Button leuchtet farbig, solange der Now-Mode aktiv ist — so siehst du sofort, dass du live bist.',
+			'⏪ Navigation beendet den Now-Mode: Sobald du im Diagramm nach vorne oder hinten blätterst, bleibt der Zeitbereich stehen.',
+			'⏱ Standard-Zeitbereich jetzt 6 Stunden — für einen besseren Überblick über den aktuellen Tag.'
+		]
+	},
+	{
 		id: '2026-07-18-ai-ke-ml-predictions',
 		versionPrefixes: ['3dd5c81'],
 		publishedAt: '2026-07-18',
@@ -47,18 +59,6 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 			'Das Logbuch zeigt Einträge übersichtlicher: pro Zeile steht nur noch die Uhrzeit, neue Tage erhalten eine eigene Überschrift und die Liste lässt sich ein- oder ausklappen.',
 			'Zum Löschen eines Eintrags erscheint jetzt eine klare Bestätigung statt einer engen Auswahl direkt in der Zeile.',
 			'In den Einstellungen sind die Bereiche jetzt nach Persönliches, Diabetes, Infos und Admin sortiert.'
-		]
-	},
-	{
-		id: '2026-07-21-now-mode',
-		versionPrefixes: ['2f3880b', '033dc37'],
-		publishedAt: '2026-07-21',
-		title: 'Now-Mode: Dashboard folgt automatisch der aktuellen Zeit',
-		highlights: [
-			'🔵 Now-Mode: Klick auf "Jetzt" aktiviert den Live-Modus — Diagramm und Logbuch bleiben automatisch auf dem aktuellen Zeitfenster.',
-			'🟢 Der "Jetzt"-Button leuchtet farbig, solange der Now-Mode aktiv ist — so siehst du sofort, dass du live bist.',
-			'⏪ Navigation beendet den Now-Mode: Sobald du im Diagramm nach vorne oder hinten blätterst, bleibt der Zeitbereich stehen.',
-			'⏱ Standard-Zeitbereich jetzt 6 Stunden — für einen besseren Überblick über den aktuellen Tag.'
 		]
 	}
 ];
