@@ -51,7 +51,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	},
 	{
 		id: '2026-07-21-now-mode',
-		versionPrefixes: ['033dc37'],
+		versionPrefixes: ['2f3880b', '033dc37'],
 		publishedAt: '2026-07-21',
 		title: 'Now-Mode: Dashboard folgt automatisch der aktuellen Zeit',
 		highlights: [
