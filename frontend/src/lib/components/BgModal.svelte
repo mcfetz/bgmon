@@ -196,13 +196,15 @@
 				<div class="compression-badge" title="Möglicher Kompressionstiefwert — Sensorposition prüfen">⚠️ Kompressionstiefwert</div>
 			{/if}
 			<div class="bg-unit">mg/dL</div>
-			{#if delta !== null}
-				<div class="bg-delta" style="color: {deltaColor(delta)}">
-					{delta > 0 ? '+' : ''}{delta}
-				</div>
-			{/if}
-			<div class="bg-trend" style="color: {color}">{trendArrow(direction)}</div>
-			<div class="bg-time">{timeAgo(lastUpdate)}</div>
+			<div class="bg-info-row">
+				{#if delta !== null}
+					<span class="bg-delta" style="color: {deltaColor(delta)}">
+						{delta > 0 ? '+' : ''}{delta}
+					</span>
+				{/if}
+				<span class="bg-trend" style="color: {color}">{trendArrow(direction)}</span>
+				<span class="bg-time">{timeAgo(lastUpdate)}</span>
+			</div>
 
 			{#if predictions30.length > 0 || predictions60.length > 0 || predictions120.length > 0}
 				<div class="prediction-row">
@@ -383,10 +385,18 @@
 		font-weight: 700;
 	}
 
-	@media (orientation: landscape) and (max-height: 500px) {
-		.bg-trend {
-			font-size: min(10vw, 12vh, 100px);
-		}
+	.bg-info-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+	}
+
+	.bg-info-row .bg-trend {
+		font-size: clamp(1.5rem, 5vw, 3rem);
+	}
+
+	.bg-info-row .bg-time {
+		font-size: clamp(1rem, 3vw, 1.5rem);
 	}
 
 	.bg-delta {
