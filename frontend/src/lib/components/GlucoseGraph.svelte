@@ -16,7 +16,7 @@
 		windowStart = null as Date | null,
 		windowEnd = new Date() as Date,
 		windowLabel = '',
-		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true } as Record<string, boolean>,
+		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true, success: false } as Record<string, boolean>,
 		historyPredictions30 = [] as PredictionPoint[],
 		historyPredictions60 = [] as PredictionPoint[],
 		historyPredictions120 = [] as PredictionPoint[]
@@ -292,7 +292,8 @@
 				if (log.entry_type === 'insulin') return logFilters.insulin;
 				if (log.entry_type === 'basal') return logFilters.basal;
 				if (log.entry_type === 'alarm') return logFilters.alarm;
-				if (log.entry_type === 'note' || log.entry_type === 'success') return logFilters.note;
+				if (log.entry_type === 'note') return logFilters.note;
+				if (log.entry_type === 'success') return logFilters.success;
 				return true;
 			})
 			.filter((l) => l.created_at)

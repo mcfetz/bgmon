@@ -8,7 +8,7 @@
 		windowEnd,
 		highlightedTimestamp,
 		onHighlight,
-		filters = { carbs: true, insulin: true, basal: true, alarm: false, note: true },
+		filters = { carbs: true, insulin: true, basal: true, alarm: false, note: true, success: false },
 		pendingLogs = [] as readonly PendingLogEntry[]
 	}: {
 		refreshTrigger?: number;
@@ -16,7 +16,7 @@
 		windowEnd: Date;
 		highlightedTimestamp: string | null;
 		onHighlight: (ts: string | null) => void;
-		filters: { carbs: boolean; insulin: boolean; basal: boolean; alarm: boolean; note: boolean };
+		filters: { carbs: boolean; insulin: boolean; basal: boolean; alarm: boolean; note: boolean; success: boolean };
 		pendingLogs?: readonly PendingLogEntry[];
 	} = $props();
 
@@ -66,7 +66,8 @@
 			if (log.entry_type === 'insulin') return filters.insulin;
 			if (log.entry_type === 'basal') return filters.basal;
 			if (log.entry_type === 'alarm') return filters.alarm;
-			if (log.entry_type === 'note' || log.entry_type === 'success') return filters.note;
+			if (log.entry_type === 'note') return filters.note;
+			if (log.entry_type === 'success') return filters.success;
 			return true;
 		})
 	);
@@ -179,7 +180,8 @@
 					{ key: 'insulin', label: 'Insulin', icon: '💉' },
 					{ key: 'basal', label: 'Basal', icon: '💉' },
 					{ key: 'alarm', label: 'Alarm', icon: '🔔' },
-					{ key: 'note', label: 'Notizen', icon: '📝' }
+					{ key: 'note', label: 'Notizen', icon: '📝' },
+					{ key: 'success', label: 'Erfolge', icon: '🏆' }
 				] as item}
 					<label class="filter-item">
 						<span class="filter-icon">{item.icon}</span>

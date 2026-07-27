@@ -72,7 +72,7 @@
 	let logRefreshTrigger = $state(0);
 	let bgModalOpen = $state(false);
 	let highlightedTimestamp = $state<string | null>(null);
-	let logFilters = $state({ carbs: true, insulin: true, basal: true, alarm: false, note: true });
+	let logFilters = $state({ carbs: true, insulin: true, basal: true, alarm: false, note: true, success: false });
 	let predictionStatus = $state<
 		'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'
 	>('idle');

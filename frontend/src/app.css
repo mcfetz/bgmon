@@ -69,6 +69,7 @@
 html,
 body {
 	min-height: 100vh;
+	touch-action: manipulation;
 	font-family:
 		'Inter',
 		system-ui,
