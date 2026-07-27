@@ -195,7 +195,6 @@
 			{#if compressionLow}
 				<div class="compression-badge" title="Möglicher Kompressionstiefwert — Sensorposition prüfen">⚠️ Kompressionstiefwert</div>
 			{/if}
-			<div class="bg-unit">mg/dL</div>
 			<div class="bg-info-row">
 				{#if delta !== null}
 					<span class="bg-delta" style="color: {deltaColor(delta)}">
