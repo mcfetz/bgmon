@@ -45,7 +45,7 @@ def list_logs() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
                 LogEntry.created_at <= parse_iso_datetime(end)
             )
 
-    logs = query.order_by(LogEntry.created_at.desc()).limit(100).all()
+    logs = query.order_by(LogEntry.created_at.desc()).all()
     return jsonify([log.to_dict() for log in logs])
 
 

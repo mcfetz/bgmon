@@ -187,8 +187,13 @@
 
 	function initNow() {
 		const now = new Date();
-		dateStr = now.toISOString().slice(0, 10);
-		timeStr = now.toTimeString().slice(0, 5);
+		const y = now.getFullYear();
+		const mo = String(now.getMonth() + 1).padStart(2, '0');
+		const d = String(now.getDate()).padStart(2, '0');
+		const h = String(now.getHours()).padStart(2, '0');
+		const mi = String(now.getMinutes()).padStart(2, '0');
+		dateStr = `${y}-${mo}-${d}`;
+		timeStr = `${h}:${mi}`;
 	}
 
 	function getTimestamp(): string {
@@ -202,8 +207,13 @@
 	function adjustTime(minutes: number) {
 		const d = new Date(`${dateStr}T${timeStr}`);
 		d.setMinutes(d.getMinutes() + minutes);
-		dateStr = d.toISOString().slice(0, 10);
-		timeStr = d.toTimeString().slice(0, 5);
+		const y = d.getFullYear();
+		const mo = String(d.getMonth() + 1).padStart(2, '0');
+		const day = String(d.getDate()).padStart(2, '0');
+		const h = String(d.getHours()).padStart(2, '0');
+		const mi = String(d.getMinutes()).padStart(2, '0');
+		dateStr = `${y}-${mo}-${day}`;
+		timeStr = `${h}:${mi}`;
 	}
 
 	function switchTab(tab: 'carbs' | 'insulin' | 'basal' | 'note') {

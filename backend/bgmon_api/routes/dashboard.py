@@ -51,6 +51,43 @@ def current() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     })
 
 
+def _query_and_downsample(
+    start_dt: datetime, end_dt: datetime
+) -> tuple[list, int]:
+    """Query glucose readings and downsample for large time ranges.
+
+    Aims for ~300-400 data points regardless of range duration.
+    """
+    duration_hours = (end_dt - start_dt).total_seconds() / 3600
+
+    if duration_hours <= 6:
+        step = 1
+    elif duration_hours <= 24:
+        step = 5
+    elif duration_hours <= 72:
+        step = 15
+    else:
+        step = 30
+
+    readings = (
+        GlucoseReading.query
+        .filter(GlucoseReading.timestamp >= start_dt)
+        .filter(GlucoseReading.timestamp <= end_dt)
+        .order_by(GlucoseReading.timestamp.asc())
+        .all()
+    )
+
+    if step == 1 or len(readings) <= 400:
+        return readings, step
+
+    result: list = []
+    for i, r in enumerate(readings):
+        if i == 0 or i == len(readings) - 1 or i % step == 0:
+            result.append(r)
+
+    return result, step
+
+
 @dashboard_bp.route("/history", methods=["GET"])
 def history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
@@ -68,23 +105,11 @@ def history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         except ValueError:
             return jsonify({"error": "invalid date format"}), HTTPStatus.BAD_REQUEST
 
-        readings = (
-            GlucoseReading.query
-            .filter(GlucoseReading.timestamp >= start_dt)
-            .filter(GlucoseReading.timestamp <= end_dt)
-            .order_by(GlucoseReading.timestamp.asc())
-            .all()
-        )
+        readings, step = _query_and_downsample(start_dt, end_dt)
     else:
-        # Default: last 24 hours
         from datetime import UTC, datetime, timedelta
         since = datetime.now(UTC) - timedelta(hours=24)
-        readings = (
-            GlucoseReading.query
-            .filter(GlucoseReading.timestamp >= since)
-            .order_by(GlucoseReading.timestamp.asc())
-            .all()
-        )
+        readings, step = _query_and_downsample(since, datetime.now(UTC))
 
     return jsonify([
         {

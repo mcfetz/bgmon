@@ -30,6 +30,14 @@
 - **Logbuch** für Kohlenhydrate, Insulin, Basal und Notizen
 - **Nachtprofil** mit reduzierter UI-Helligkeit und vereinfachter Bedienung
 
+### Kompressionstiefwert-Erkennung
+- **Automatische Erkennung** von falsch-niedrigen Werten durch Sensor-Kompression (z.B. beim Liegen auf dem Sensor)
+- **Drei Detektionsregeln**: Konstante Werte, starker Abfall ohne aktives Insulin, Boden-Plateau bei niedrigen Werten
+- **⚠️ Warn-Badge** am Glukosewert im Header und im großen BG-Modal
+- **Hinweis in Push- und Voice-Benachrichtigungen** bei aktiven Alarmen
+- **Logbuch-Eintrag** mit Deduplizierung (max. 1 pro 5 Minuten)
+- **Konfigurierbar** in den Einstellungen (aktivierbar, Confidence-Schwellwert)
+
 ### Gamification
 - **Streak-Tracking** für konsequente Eintragungen
 - **TIR-Statistik** (Time-in-Range) auf Wochen-/Monatsbasis
@@ -282,7 +290,7 @@ Alle Endpoints sind unter `/api/*` gemountet. Session-Cookie erforderlich, auße
 | Method | Endpoint                          | Beschreibung                                |
 |--------|-----------------------------------|---------------------------------------------|
 | GET    | `/api/dashboard/current`          | Aktueller Glukosewert + Trend               |
-| GET    | `/api/dashboard/history?hours=24`  | Historische Werte                           |
+| GET    | `/api/dashboard/history?start=...&end=...` | Historische Werte (auto-downsampling: ≤6h=1min, 6–24h=5min, 24–72h=15min, >72h=30min) |
 | GET    | `/api/dashboard/stats`            | TIR / Statistik                             |
 | GET    | `/api/dashboard/logs`             | Letzte Log-Einträge                         |
 | GET    | `/api/dashboard/thresholds`       | Aktuelle Schwellwerte                       |

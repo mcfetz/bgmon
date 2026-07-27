@@ -1320,6 +1320,7 @@
 							<li><strong>BG-Wert</strong> — Grün (70–180), Gelb, Rot. Trendpfeil + Delta</li>
 							<li><strong>Zeitangabe</strong> unter dem Wert: „vor X Min." — über 10 Min. = Sensor prüfen</li>
 							<li><strong>Graph</strong> — Zoom-Buttons (-1h … -1w), Jetzt, Wischgeste, Punkt antippen</li>
+							<li><strong>Performance</strong> — Bei großen Zeitbereichen (&gt;6h) wird der Graph automatisch reduziert, damit er flüssig lädt (5-Minuten-, 15-Minuten- oder 30-Minuten-Schritte)</li>
 							<li><strong>Großer BG-Bildschirm</strong> — Auf den Wert tippen, bleibt mit Wake Lock an</li>
 						</ul>
 
