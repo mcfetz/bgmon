@@ -16,7 +16,7 @@
 		windowStart = null as Date | null,
 		windowEnd = new Date() as Date,
 		windowLabel = '',
-		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true, success: false } as Record<string, boolean>,
+		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true, success: true } as Record<string, boolean>,
 		historyPredictions30 = [] as PredictionPoint[],
 		historyPredictions60 = [] as PredictionPoint[],
 		historyPredictions120 = [] as PredictionPoint[]
@@ -149,8 +149,8 @@
 	);
 
 	let historyFilterOpen = $state(false);
-	let showHistory30 = $state(false);
-	let showHistory60 = $state(true);
+	let showHistory30 = $state(true);
+	let showHistory60 = $state(false);
 	let showHistory120 = $state(false);
 
 	const HISTORY_COLORS: Record<number, string> = { 30: '#3b82f6', 60: '#8b5cf6', 120: '#f59e0b' };

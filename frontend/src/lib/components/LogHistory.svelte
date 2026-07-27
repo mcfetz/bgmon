@@ -8,7 +8,7 @@
 		windowEnd,
 		highlightedTimestamp,
 		onHighlight,
-		filters = { carbs: true, insulin: true, basal: true, alarm: false, note: true, success: false },
+		filters = { carbs: true, insulin: true, basal: true, alarm: false, note: true, success: true },
 		pendingLogs = [] as readonly PendingLogEntry[]
 	}: {
 		refreshTrigger?: number;
