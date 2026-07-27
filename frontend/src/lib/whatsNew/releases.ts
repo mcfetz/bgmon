@@ -9,10 +9,12 @@ export interface WhatsNewEntry {
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
 		id: '2026-07-27-compression-low-sampling',
-		versionPrefixes: ['fc0a538'],
+		versionPrefixes: ['fc0a538', '4435082', '0b0b1db', '8f690c8', '762e553'],
 		publishedAt: '2026-07-27',
 		title: 'Kompressionstiefwert-Erkennung & schnellere Diagramme',
 		highlights: [
+			'📱 Kein ungewolltes Zoomen mehr: Pinch-to-Zoom auf dem Handy ist jetzt deaktiviert — das Dashboard bleibt immer in der richtigen Größe.',
+			'🕐 Nachteinträge korrigiert: Einträge zwischen 0 und 2 Uhr nachts wurden vorher mit einem falschen Datum gespeichert und waren morgens verschwunden.',
 			'⚠️ Kompressionstiefwert-Warnung: Erkennt automatisch falsch-niedrige Werte durch Sensor-Kompression (z.\u00a0B. beim Liegen auf dem Sensor) und zeigt ein Warn-Badge am Glukosewert.',
 			'🔔 Kompressionstiefwert-Hinweis in Push- und Voice-Benachrichtigungen — so weißt du, dass der Wert möglicherweise nicht stimmt.',
 			'⚡ Schnellere Diagramme: Bei großen Zeitbereichen (ab 6 Stunden) lädt der Graph jetzt blitzschnell, weil die Daten automatisch reduziert werden.',
