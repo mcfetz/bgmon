@@ -274,10 +274,17 @@
 		z-index: 202;
 		display: flex;
 		flex-direction: column;
-		align-items: center;
-		justify-content: center;
 		padding: var(--spacing-md);
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+	}
+
+	@media (orientation: landscape) and (max-height: 500px) {
+		.bg-modal {
+			width: 95vw;
+			height: 95vh;
+			max-width: 95vw;
+			max-height: 95vh;
+		}
 	}
 
 	.bg-header {
@@ -334,9 +341,11 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
 		flex: 1;
-		gap: var(--spacing-md);
+		gap: var(--spacing-sm);
+		overflow-y: auto;
+		overflow-x: hidden;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.bg-value {
@@ -344,6 +353,12 @@
 		font-weight: 800;
 		line-height: 0.9;
 		font-variant-numeric: tabular-nums;
+	}
+
+	@media (orientation: landscape) and (max-height: 500px) {
+		.bg-value {
+			font-size: min(25vw, 35vh, 300px);
+		}
 	}
 
 	.bg-unit {
@@ -366,6 +381,12 @@
 		font-size: min(15vw, 15vh, 150px);
 		line-height: 0.9;
 		font-weight: 700;
+	}
+
+	@media (orientation: landscape) and (max-height: 500px) {
+		.bg-trend {
+			font-size: min(10vw, 12vh, 100px);
+		}
 	}
 
 	.bg-delta {
