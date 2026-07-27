@@ -8,6 +8,20 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-07-27-compression-low-sampling',
+		versionPrefixes: ['fc0a538'],
+		publishedAt: '2026-07-27',
+		title: 'Kompressionstiefwert-Erkennung & schnellere Diagramme',
+		highlights: [
+			'⚠️ Kompressionstiefwert-Warnung: Erkennt automatisch falsch-niedrige Werte durch Sensor-Kompression (z.\u00a0B. beim Liegen auf dem Sensor) und zeigt ein Warn-Badge am Glukosewert.',
+			'🔔 Kompressionstiefwert-Hinweis in Push- und Voice-Benachrichtigungen — so weißt du, dass der Wert möglicherweise nicht stimmt.',
+			'⚡ Schnellere Diagramme: Bei großen Zeitbereichen (ab 6 Stunden) lädt der Graph jetzt blitzschnell, weil die Daten automatisch reduziert werden.',
+			'📋 Logbuch zeigt jetzt alle Einträge im gewählten Zeitraum — keine Begrenzung mehr auf die 100 neuesten.',
+			'📈 Vorhersage-Zeile bleibt jetzt immer sichtbar (kein Springen mehr auf dem Handy).',
+			'💊 KE-Faktor und Korrekturfaktor unterstützen jetzt Komma-Eingabe (1,3 statt 1.3).'
+		]
+	},
+	{
 		id: '2026-07-21-now-mode',
 		versionPrefixes: ['2f3880b', '033dc37'],
 		publishedAt: '2026-07-21',
