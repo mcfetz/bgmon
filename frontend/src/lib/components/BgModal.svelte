@@ -342,11 +342,11 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		flex: 1;
 		gap: var(--spacing-sm);
 		overflow-y: auto;
 		overflow-x: hidden;
 		-webkit-overflow-scrolling: touch;
+		margin: auto 0;
 	}
 
 	.bg-value {
