@@ -819,24 +819,26 @@
 				{/if}
 
 				<!-- Simulation forecast preview -->
-				{#if simulationResult && !simulationLoading}
 					<div class="forecast-bar">
 						<span class="forecast-label">📈</span>
-						{#each Object.entries(simulationResult) as [key, data], i}
-							{#if data.points?.[0]?.predicted_sgv}
-								{@const sgv = data.points[0].predicted_sgv}
-								<span
-									class="forecast-value"
-									class:forecast-green={sgv >= 70 && sgv <= 180}
-									class:forecast-yellow={sgv > 180 && sgv <= 250}
-									class:forecast-red={sgv < 70 || sgv > 250}
-								>
-									{i > 0 ? ' | ' : ''}{key}min: {sgv}
-								</span>
-							{/if}
-						{/each}
+						{#if simulationResult && !simulationLoading}
+							{#each Object.entries(simulationResult) as [key, data], i}
+								{#if data.points?.[0]?.predicted_sgv}
+									{@const sgv = data.points[0].predicted_sgv}
+									<span
+										class="forecast-value"
+										class:forecast-green={sgv >= 70 && sgv <= 180}
+										class:forecast-yellow={sgv > 180 && sgv <= 250}
+										class:forecast-red={sgv < 70 || sgv > 250}
+									>
+										{i > 0 ? ' | ' : ''}{key}min: {sgv}
+									</span>
+								{/if}
+							{/each}
+						{:else}
+							<span class="forecast-placeholder">Werte eingeben für Vorhersage</span>
+						{/if}
 					</div>
-				{/if}
 
 				<button
 					class="submit-btn"
@@ -1346,6 +1348,11 @@
 
 	.forecast-value {
 		font-variant-numeric: tabular-nums;
+	}
+
+	.forecast-placeholder {
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
 	}
 
 	.forecast-green {

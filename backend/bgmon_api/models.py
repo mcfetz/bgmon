@@ -473,6 +473,10 @@ class GlobalSettings(db.Model):
     best_streak_achieved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    compression_low_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    compression_low_confidence_threshold: Mapped[int] = mapped_column(
+        Integer, default=60, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -485,6 +489,8 @@ class GlobalSettings(db.Model):
             "best_streak_achieved_at": (
                 self.best_streak_achieved_at.isoformat() if self.best_streak_achieved_at else None
             ),
+            "compression_low_enabled": self.compression_low_enabled,
+            "compression_low_confidence_threshold": self.compression_low_confidence_threshold,
         }
 
 
@@ -532,6 +538,7 @@ class GlucoseReading(db.Model):
     trend: Mapped[int | None] = mapped_column(Integer, nullable=True)
     direction: Mapped[str | None] = mapped_column(String(30), nullable=True)
     source: Mapped[str] = mapped_column(String(50), default="librelinkup", nullable=False)
+    is_compression_low: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

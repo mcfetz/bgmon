@@ -116,9 +116,10 @@
 	let high = $state(180);
 	let criticalHigh = $state(250);
 
-	let insulinActionHours = $state(4);
-	let correctionFactor = $state(50);
-	let carbFactor = $state(1);
+	let insulinActionHours: number | string = $state(4);
+	let correctionFactor: number | string = $state(50);
+	let carbFactor: number | string = $state(1);
+	let compressionLowEnabled: boolean = $state(true);
 
 	type NotificationArea = 'push' | 'call';
 	type NotificationThreshold = 'critical_low' | 'low' | 'high' | 'critical_high';
@@ -568,6 +569,7 @@
 				const data = await globalRes.json();
 				insulinActionHours = data.insulin_action_hours ?? 4;
 				correctionFactor = data.correction_factor ?? 50;
+				compressionLowEnabled = data.compression_low_enabled ?? true;
 			}
 
 			if (thresholdsRes.ok) {
@@ -728,6 +730,14 @@
 		message = 'Schwellwerte gespeichert';
 	}
 
+	function normalizeDecimal(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const raw = input.value.replace(',', '.');
+		if (raw !== input.value) {
+			input.value = raw;
+		}
+	}
+
 	async function saveTreatment() {
 		error = '';
 		message = '';
@@ -737,14 +747,15 @@
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					insulin_action_hours: insulinActionHours,
-					correction_factor: correctionFactor
+					insulin_action_hours: Number(insulinActionHours),
+					correction_factor: Number(correctionFactor),
+					compression_low_enabled: compressionLowEnabled,
 				})
 			}),
 			apiFetch('/api/log/carb-factor', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ factor: carbFactor })
+				body: JSON.stringify({ factor: Number(carbFactor) })
 			})
 		]);
 
@@ -1054,12 +1065,12 @@
 					<div class="field">
 						<label>KE-Faktor (IE pro g KE)</label>
 						<input
-							type="number"
+							type="text"
 							inputmode="decimal"
 							bind:value={carbFactor}
-							min="0.1"
-							max="10"
-							step="0.1"
+							oninput={normalizeDecimal}
+							pattern="[0-9]*"
+							placeholder="1"
 						/>
 						<p class="hint">
 							Wie viel Insulin pro Gramm Kohlenhydrate. Beispiel: 1.3 → 10g KE brauchen 13 U
@@ -1069,21 +1080,31 @@
 
 					<div class="field">
 						<label>Insulin-Wirkzeit (Stunden)</label>
-						<input type="number" bind:value={insulinActionHours} min="1" max="8" step="0.5" />
+						<input type="text" inputmode="decimal" bind:value={insulinActionHours} oninput={normalizeDecimal} pattern="[0-9]*" placeholder="4" />
 					</div>
 
 					<div class="field">
 						<label>Korrekturfaktor (mg/dL pro IE Insulin)</label>
 						<input
-							type="number"
+							type="text"
 							inputmode="decimal"
 							bind:value={correctionFactor}
-							min="1"
-							max="200"
-							step="1"
+							oninput={normalizeDecimal}
+							pattern="[0-9]*"
+							placeholder="50"
 						/>
 						<p class="hint">
 							Wie viele mg/dL eine Einheit Insulin senkt. Beispiel: 50 → 1 IE senkt BG um 50 Punkte.
+						</p>
+					</div>
+
+					<div class="field-checkbox">
+						<label>
+							<input type="checkbox" bind:checked={compressionLowEnabled} />
+							Compression Low Erkennung aktivieren
+						</label>
+						<p class="hint">
+							Warnt vor falsch-niedrigen Werten durch Sensor-Kompression (z.B. beim Liegen auf dem Sensor).
 						</p>
 					</div>
 

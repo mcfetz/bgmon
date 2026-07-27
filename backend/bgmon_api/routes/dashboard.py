@@ -47,6 +47,7 @@ def current() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         "trend": reading.trend,
         "direction": reading.direction,
         "timestamp": reading.timestamp.isoformat() if reading.timestamp else None,
+        "compression_warning": reading.is_compression_low,
     })
 
 

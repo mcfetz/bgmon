@@ -198,6 +198,8 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     data = request.get_json(silent=True) or {}
     insulin_hours = data.get("insulin_action_hours")
     correction_factor = data.get("correction_factor")
+    compression_low_enabled = data.get("compression_low_enabled")
+    compression_low_confidence_threshold = data.get("compression_low_confidence_threshold")
 
     if insulin_hours is not None and (
         not isinstance(insulin_hours, (int, float)) or insulin_hours <= 0
@@ -215,6 +217,16 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
             HTTPStatus.BAD_REQUEST,
         )
 
+    if compression_low_confidence_threshold is not None and (
+        not isinstance(compression_low_confidence_threshold, int)
+        or compression_low_confidence_threshold < 0
+        or compression_low_confidence_threshold > 100
+    ):
+        return (
+            jsonify({"error": "compression_low_confidence_threshold must be int 0-100"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
     settings = GlobalSettings.query.first()
     if not settings:
         settings = GlobalSettings()
@@ -225,6 +237,12 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
 
     if correction_factor is not None:
         settings.correction_factor = float(correction_factor)
+
+    if compression_low_enabled is not None:
+        settings.compression_low_enabled = bool(compression_low_enabled)
+
+    if compression_low_confidence_threshold is not None:
+        settings.compression_low_confidence_threshold = int(compression_low_confidence_threshold)
 
     with transactional_session():
         pass  # commit handled by context manager

@@ -45,7 +45,7 @@
 		type DashboardTile
 	} from '$lib/dashboardTiles';
 
-	let current = $state<{ sgv: number | null; direction: string | null } | null>(null);
+	let current = $state<{ sgv: number | null; direction: string | null; compression_warning?: boolean } | null>(null);
 	let readings = $state<GlucoseReading[]>([]);
 	let logs = $state<LogEntryReading[]>([]);
 	let stats = $state<StatsData | null>(null);
@@ -248,7 +248,7 @@
 				} else if (previousSgv === null) {
 					previousSgv = cur.sgv;
 				}
-				current = { sgv: cur.sgv, direction: cur.direction };
+				current = { sgv: cur.sgv, direction: cur.direction, compression_warning: cur.compression_warning ?? false };
 				lastUpdate = cur.timestamp;
 			}
 			readings = hist;
@@ -479,6 +479,9 @@
 							>
 							<span class="sgv-label">mg/dL</span>
 						</button>
+						{#if current.compression_warning}
+							<span class="compression-badge" title="Möglicher Kompressionstiefwert — Sensorposition prüfen">⚠️</span>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -522,6 +525,7 @@
 	color={glucoseColor(current?.sgv ?? null)}
 	{lastUpdate}
 	{previousSgv}
+	compressionLow={current?.compression_warning ?? false}
 	predictions30={predictionPoints30}
 	predictions60={predictionPoints60}
 	predictions120={predictionPoints120}
@@ -780,7 +784,7 @@
 	.header-sgv-block {
 		display: flex;
 		flex-direction: column;
-		align-items: flex-start;
+		align-items: center;
 		gap: 2px;
 		line-height: 1.1;
 	}
@@ -788,7 +792,7 @@
 	.sgv-btn {
 		display: flex;
 		flex-direction: column;
-		align-items: flex-start;
+		align-items: center;
 		gap: 2px;
 		background: transparent;
 		border: none;
@@ -844,6 +848,17 @@
 		color: var(--color-text-muted);
 		font-size: 0.7rem;
 		font-weight: 500;
+	}
+
+	.compression-badge {
+		background: var(--color-warning);
+		color: #fff;
+		font-size: 0.7rem;
+		padding: 2px 6px;
+		border-radius: 999px;
+		font-weight: 600;
+		line-height: 1.2;
+		cursor: help;
 	}
 
 	.header-info-block {

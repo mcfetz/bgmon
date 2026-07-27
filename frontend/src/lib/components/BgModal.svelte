@@ -12,6 +12,7 @@
 		color = '#22c55e',
 		lastUpdate = null as string | null,
 		previousSgv = null as number | null,
+		compressionLow = false,
 		predictions30 = [] as PredictionPoint[],
 		predictions60 = [] as PredictionPoint[],
 		predictions120 = [] as PredictionPoint[]
@@ -22,6 +23,7 @@
 		color?: string;
 		lastUpdate?: string | null;
 		previousSgv?: number | null;
+		compressionLow?: boolean;
 		predictions30?: PredictionPoint[];
 		predictions60?: PredictionPoint[];
 		predictions120?: PredictionPoint[];
@@ -190,6 +192,9 @@
 				</button>
 			{/if}
 			<div class="bg-value" style="color: {color}">{sgv}</div>
+			{#if compressionLow}
+				<div class="compression-badge" title="Möglicher Kompressionstiefwert — Sensorposition prüfen">⚠️ Kompressionstiefwert</div>
+			{/if}
 			<div class="bg-unit">mg/dL</div>
 			{#if delta !== null}
 				<div class="bg-delta" style="color: {deltaColor(delta)}">
@@ -345,6 +350,16 @@
 		font-size: clamp(1.5rem, 4vw, 3rem);
 		color: var(--color-text-muted);
 		font-weight: 500;
+	}
+
+	.compression-badge {
+		background: var(--color-warning);
+		color: #fff;
+		font-size: clamp(0.8rem, 2vw, 1.2rem);
+		padding: 4px 12px;
+		border-radius: 999px;
+		font-weight: 600;
+		margin: 4px 0;
 	}
 
 	.bg-trend {

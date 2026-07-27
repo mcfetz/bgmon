@@ -54,7 +54,7 @@ def _log_call_error(
         logger.error("Failed to log Twilio call error for user %d", user.id)
 
 
-def place_call(user: User, sgv: int | None, title: str) -> bool:
+def place_call(user: User, sgv: int | None, title: str, compression_low: bool = False) -> bool:
     """Place a Twilio voice call with retry on failure.
 
     Retries up to TWILIO_RETRY_COUNT times with TWILIO_RETRY_DELAY_S
@@ -78,6 +78,11 @@ def place_call(user: User, sgv: int | None, title: str) -> bool:
         logger.warning("Twilio from_number equals phone_number for user %d", user.id)
         return False
 
+    compression_text = (
+        "Achtung, möglicher Kompressionstiefwert. "
+        if compression_low
+        else ""
+    )
     sgv_text = (
         f"Der aktuelle Blutzuckerwert beträgt {sgv} Milligramm pro Deziliter. "
         if sgv is not None
@@ -85,7 +90,8 @@ def place_call(user: User, sgv: int | None, title: str) -> bool:
     )
     twiml = (
         '<Response><Say voice="alice" language="de-DE">'
-        f"{sgv_text}{title}. Bitte überprüfen Sie den Blutzuckerwert des Patienten."
+        f"{compression_text}{sgv_text}{title}. "
+        "Bitte überprüfen Sie den Blutzuckerwert des Patienten."
         "</Say></Response>"
     )
 

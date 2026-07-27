@@ -5,6 +5,7 @@ export interface GlucoseReading {
 	trend: number | null;
 	direction: string | null;
 	timestamp: string | null;
+	compression_warning?: boolean;
 }
 
 export interface LogEntryReading {

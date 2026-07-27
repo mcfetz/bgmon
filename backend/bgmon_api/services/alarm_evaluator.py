@@ -83,10 +83,80 @@ def _query_current_glucose() -> dict | None:
     return None
 
 
+def _run_compression_detection() -> bool:
+    """Run compression low detection and mark latest GlucoseReading."""
+    try:
+        from bgmon_api.models import GlucoseReading
+        from bgmon_api.services.compression_detector import detect_compression_low
+        result = detect_compression_low()
+        if result is not None:
+            latest = (
+                GlucoseReading.query
+                .order_by(GlucoseReading.timestamp.desc())
+                .first()
+            )
+            if latest is not None and not latest.is_compression_low:
+                latest.is_compression_low = True
+                db.session.commit()
+                logger.info(
+                    "Kompressionstiefwert erkannt: confidence=%d, regeln=%s",
+                    result["confidence"],
+                    result["rules"],
+                )
+                _log_compression_event(result)
+            return True
+        return False
+    except Exception:
+        logger.exception("Kompressionstiefwert-Erkennung fehlgeschlagen")
+        return False
+
+
+def _log_compression_event(result: dict) -> None:
+    """Log a compression low detection as a NOTE in the patient's logbook."""
+    m = _models()
+    patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
+    if not patient:
+        return
+
+    recent = (
+        m["LogEntry"].query
+        .filter(
+            m["LogEntry"].user_id == patient.id,
+            m["LogEntry"].entry_type == m["LogEntryType"].NOTE,
+            m["LogEntry"].notes.like("%Kompressionstiefwert%"),
+            m["LogEntry"].created_at >= datetime.now(UTC) - timedelta(minutes=5),
+        )
+        .first()
+    )
+    if recent is not None:
+        return
+
+    rules_text = ", ".join(result["rules"])
+    sgv_str = (
+        f" Conf: {result['confidence']}%"
+        f" (Regeln: {rules_text})"
+    )
+    note = f"Kompressionstiefwert erkannt — Sensorposition prüfen.{sgv_str}"
+    entry = m["LogEntry"](
+        user_id=patient.id,
+        entry_type=m["LogEntryType"].NOTE,
+        value=0,
+        unit="",
+        notes=note,
+    )
+    db.session.add(entry)
+    with transactional_session():
+        pass  # auto-commit
+
+
 def evaluate_alarms() -> None:
     """Check glucose against each user's thresholds and dispatch notifications."""
     m = _models()
     logger.info("evaluate_alarms() called")
+
+    # Run compression low detection
+    compression_low = _run_compression_detection()
+
     current = _query_current_glucose()
     logger.info("Glucose query result: %s", current)
     if current is None:
@@ -106,13 +176,13 @@ def evaluate_alarms() -> None:
 
     for active in active_profiles:
         try:
-            _evaluate_for_user(active.user_id, sgv)
+            _evaluate_for_user(active.user_id, sgv, compression_low)
         except Exception:
             logger.exception("Error evaluating alarms for user %d", active.user_id)
             db.session.rollback()
 
 
-def _evaluate_for_user(user_id: int, sgv: int) -> None:
+def _evaluate_for_user(user_id: int, sgv: int, compression_low: bool = False) -> None:
     m = _models()
 
     threshold = m["Threshold"].query.filter_by(user_id=user_id).first()
@@ -144,7 +214,7 @@ def _evaluate_for_user(user_id: int, sgv: int) -> None:
 
     if breached is not None:
         _create_or_update_alarm(user_id, breached, sgv)
-        _dispatch_to_user(user_id, breached, sgv)
+        _dispatch_to_user(user_id, breached, sgv, compression_low=compression_low)
     else:
         _resolve_open_alarms(user_id)
 
@@ -241,7 +311,8 @@ def _resolve_open_alarms(user_id: int) -> None:
 
 
 def _dispatch_to_user(
-    user_id: int, threshold, sgv: int | None, reason: str | None = None
+    user_id: int, threshold, sgv: int | None, reason: str | None = None,
+    compression_low: bool = False,
 ) -> None:
     m = _models()
 
@@ -329,20 +400,20 @@ def _dispatch_to_user(
 
     dispatched = False
     if area == "call":
-        dispatched = _dispatch_call(user, title, sgv)
+        dispatched = _dispatch_call(user, title, sgv, compression_low)
     elif area == "push":
-        dispatched = _dispatch_push(user, title, sgv)
+        dispatched = _dispatch_push(user, title, sgv, compression_low)
 
     if dispatched:
         _set_snooze(user_id, reason=f"alarm:{threshold.value}")
 
 
-def _dispatch_call(user: User, title: str, sgv: int | None) -> bool:
+def _dispatch_call(user: User, title: str, sgv: int | None, compression_low: bool = False) -> bool:
     if not user.phone_number:
         logger.warning("User %d has no phone_number, cannot call", user.id)
         return False
     try:
-        place_call(user, sgv, title)
+        place_call(user, sgv, title, compression_low=compression_low)
         _log_notification(user, title, sgv)
         return True
     except Exception as exc:
@@ -350,8 +421,13 @@ def _dispatch_call(user: User, title: str, sgv: int | None) -> bool:
         return False
 
 
-def _dispatch_push(user: User, title: str, sgv: int | None) -> bool:
-    body = f"Aktueller Wert: {sgv} mg/dL" if sgv is not None else ""
+def _dispatch_push(user: User, title: str, sgv: int | None, compression_low: bool = False) -> bool:
+    parts = []
+    if sgv is not None:
+        parts.append(f"Aktueller Wert: {sgv} mg/dL")
+    if compression_low:
+        parts.append("⚠️ Kompressionstiefwert erkannt — Sensorposition prüfen")
+    body = " — ".join(parts) if parts else ""
     try:
         send_push_to_user(user.id, title, body)
         _log_notification(user, title, sgv)
