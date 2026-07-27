@@ -99,7 +99,7 @@ def test_place_call_success(app, db_session, patient_user, observer_user):
         kwargs = client.calls.create.call_args.kwargs
         assert kwargs["to"] == observer.phone_number
         assert kwargs["from_"] == "+49999999999"
-        assert "48 Milligramm pro Deziliter" in kwargs["twiml"]
+        assert "Blutzucker aktuell 48" in kwargs["twiml"]
 
         call_log = db_session.query(TwilioCallLog).one()
         assert call_log.status == "queued"

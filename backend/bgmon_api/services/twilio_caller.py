@@ -78,20 +78,13 @@ def place_call(user: User, sgv: int | None, title: str, compression_low: bool = 
         logger.warning("Twilio from_number equals phone_number for user %d", user.id)
         return False
 
-    compression_text = (
-        "Achtung, möglicher Kompressionstiefwert. "
-        if compression_low
-        else ""
-    )
-    sgv_text = (
-        f"Der aktuelle Blutzuckerwert beträgt {sgv} Milligramm pro Deziliter. "
-        if sgv is not None
-        else ""
+    sgv_text = f"Blutzucker aktuell {sgv}." if sgv is not None else ""
+    compression_suffix = (
+        " Ggf. Kompressionstiefwert." if compression_low else ""
     )
     twiml = (
         '<Response><Say voice="alice" language="de-DE">'
-        f"{compression_text}{sgv_text}{title}. "
-        "Bitte überprüfen Sie den Blutzuckerwert des Patienten."
+        f"{sgv_text}{compression_suffix}"
         "</Say></Response>"
     )
 
