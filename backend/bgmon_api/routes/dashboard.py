@@ -367,28 +367,54 @@ def _calculate_weekly_scores(
     from datetime import timedelta
 
     from bgmon_api.extensions import db
-    from bgmon_api.models import LogEntry, LogEntryType
+    from bgmon_api.models import GlucoseReading, LogEntry, LogEntryType
 
     today = date_cls.today()
+    overall_start = datetime.combine(
+        today - timedelta(days=days - 1), datetime.min.time()
+    ).replace(tzinfo=UTC)
+    overall_end = datetime.combine(
+        today + timedelta(days=1), datetime.min.time()
+    ).replace(tzinfo=UTC)
+
+    all_logs = (
+        db.session.execute(
+            db.select(LogEntry)
+            .where(LogEntry.user_id == patient_id)
+            .where(LogEntry.created_at >= overall_start)
+            .where(LogEntry.created_at < overall_end)
+            .where(LogEntry.entry_type.in_(
+                [LogEntryType.CARBS, LogEntryType.INSULIN, LogEntryType.BASAL]
+            ))
+        )
+        .scalars()
+        .all()
+    )
+
+    all_readings = (
+        GlucoseReading.query
+        .filter(GlucoseReading.timestamp >= overall_start)
+        .filter(GlucoseReading.timestamp < overall_end)
+        .order_by(GlucoseReading.timestamp.asc())
+        .all()
+    )
+
+    logs_by_day: dict[str, list] = {}
+    for log in all_logs:
+        day_key = log.created_at.astimezone(UTC).strftime("%Y-%m-%d")
+        logs_by_day.setdefault(day_key, []).append(log)
+
+    readings_by_day: dict[str, list[int]] = {}
+    for r in all_readings:
+        day_key = r.timestamp.astimezone(UTC).strftime("%Y-%m-%d")
+        readings_by_day.setdefault(day_key, []).append(r.sgv)
+
     result: list[dict[str, Any]] = []
     for i in range(days - 1, -1, -1):
         day = today - timedelta(days=i)
-        day_start = datetime.combine(day, datetime.min.time()).replace(tzinfo=UTC)
-        day_end = day_start + timedelta(days=1)
-
-        day_logs = (
-            db.session.execute(
-                db.select(LogEntry)
-                .where(LogEntry.user_id == patient_id)
-                .where(LogEntry.created_at >= day_start)
-                .where(LogEntry.created_at < day_end)
-                .where(LogEntry.entry_type.in_(
-                    [LogEntryType.CARBS, LogEntryType.INSULIN, LogEntryType.BASAL]
-                ))
-            )
-            .scalars()
-            .all()
-        )
+        day_key = day.isoformat()
+        day_logs = logs_by_day.get(day_key, [])
+        day_values = readings_by_day.get(day_key, [])
 
         entry_count = len(day_logs)
         types_logged = {log.entry_type for log in day_logs}
@@ -407,13 +433,6 @@ def _calculate_weekly_scores(
                     timely += 1
                     break
 
-        day_readings = (
-            GlucoseReading.query
-            .filter(GlucoseReading.timestamp >= day_start)
-            .filter(GlucoseReading.timestamp < day_end)
-            .all()
-        )
-        day_values = [r.sgv for r in day_readings if r.sgv is not None]
         in_range = sum(1 for v in day_values if low <= v <= high)
         range_hours = in_range * 5 // 60
 
@@ -506,13 +525,41 @@ def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict[s
 
     today = date_cls.today()
     days_to_check = 30
-    day_boundaries = [
-        (
-            today - timedelta(days=i),
-            datetime.combine(today - timedelta(days=i), datetime.min.time()).replace(tzinfo=UTC),
+    overall_start = datetime.combine(
+        today - timedelta(days=days_to_check - 1), datetime.min.time()
+    ).replace(tzinfo=UTC)
+    overall_end = datetime.combine(
+        today + timedelta(days=1), datetime.min.time()
+    ).replace(tzinfo=UTC)
+
+    all_logs = (
+        db.session.execute(
+            db.select(LogEntry)
+            .where(LogEntry.user_id == patient_id)
+            .where(LogEntry.created_at >= overall_start)
+            .where(LogEntry.created_at < overall_end)
         )
-        for i in range(days_to_check)
-    ]
+        .scalars()
+        .all()
+    )
+
+    all_readings = (
+        GlucoseReading.query
+        .filter(GlucoseReading.timestamp >= overall_start)
+        .filter(GlucoseReading.timestamp < overall_end)
+        .order_by(GlucoseReading.timestamp.asc())
+        .all()
+    )
+
+    logs_by_day: dict[str, list] = {}
+    for log in all_logs:
+        day_key = log.created_at.astimezone(UTC).strftime("%Y-%m-%d")
+        logs_by_day.setdefault(day_key, []).append(log)
+
+    readings_by_day: dict[str, list[int]] = {}
+    for r in all_readings:
+        day_key = r.timestamp.astimezone(UTC).strftime("%Y-%m-%d")
+        readings_by_day.setdefault(day_key, []).append(r.sgv)
 
     perfect_days = 0
     good_days = 0
@@ -520,19 +567,11 @@ def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict[s
     max_consecutive = 0
     early_entry = False
 
-    for _i, (_day, day_start) in enumerate(day_boundaries):
-        day_end = day_start + timedelta(days=1)
-
-        day_logs = (
-            db.session.execute(
-                db.select(LogEntry)
-                .where(LogEntry.user_id == patient_id)
-                .where(LogEntry.created_at >= day_start)
-                .where(LogEntry.created_at < day_end)
-            )
-            .scalars()
-            .all()
-        )
+    for i in range(days_to_check - 1, -1, -1):
+        day = today - timedelta(days=i)
+        day_key = day.isoformat()
+        day_logs = logs_by_day.get(day_key, [])
+        day_values = readings_by_day.get(day_key, [])
 
         if day_logs:
             has_early = any(log.created_at.hour < 7 for log in day_logs)
@@ -550,13 +589,6 @@ def _calculate_achievements(patient_id: int, low: int, high: int) -> list[dict[s
                 complete_days = 0
             max_consecutive = max(max_consecutive, complete_days)
 
-        day_readings = (
-            GlucoseReading.query
-            .filter(GlucoseReading.timestamp >= day_start)
-            .filter(GlucoseReading.timestamp < day_end)
-            .all()
-        )
-        day_values = [r.sgv for r in day_readings if r.sgv is not None]
         if day_values:
             in_range = sum(1 for v in day_values if low <= v <= high)
             tir = in_range / len(day_values) * 100
