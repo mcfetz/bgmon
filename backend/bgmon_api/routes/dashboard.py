@@ -793,13 +793,7 @@ def stats() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     from bgmon_api.models import User, UserRole
 
     today_start = datetime.combine(date_cls.today(), datetime.min.time()).replace(tzinfo=UTC)
-    today_readings = (
-        GlucoseReading.query
-        .filter(GlucoseReading.timestamp >= today_start)
-        .order_by(GlucoseReading.timestamp.asc())
-        .all()
-    )
-    today_values = [r.sgv for r in today_readings if r.sgv is not None]
+    today_values = [r.sgv for r in readings if r.timestamp >= today_start]
 
     patient = db.session.execute(
         db.select(User).where(User.role == UserRole.PATIENT).limit(1)

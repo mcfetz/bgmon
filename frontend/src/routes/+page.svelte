@@ -237,13 +237,11 @@
 		try {
 			const startIso = windowStart.toISOString();
 			const endIso = windowEnd.toISOString();
-			const [cur, hist, logEntries, stat, thresh, globalSettings] = await Promise.all([
+
+			// 1. Graph first — update immediately
+			const [cur, hist] = await Promise.all([
 				fetchCurrent(),
 				fetchHistoryRange(startIso, endIso),
-				fetchLogsRange(startIso, endIso),
-				fetchStatsRange(startIso, endIso),
-				fetchThresholds(),
-				fetchGlobalSettings()
 			]);
 			if (cur) {
 				if (current?.sgv != null && current.sgv !== cur.sgv) {
@@ -255,7 +253,17 @@
 				lastUpdate = cur.timestamp;
 			}
 			readings = hist;
+
+			// 2. Logbook second
+			const logEntries = await fetchLogsRange(startIso, endIso);
 			logs = logEntries;
+
+			// 3. Stats last
+			const [stat, thresh, globalSettings] = await Promise.all([
+				fetchStatsRange(startIso, endIso),
+				fetchThresholds(),
+				fetchGlobalSettings(),
+			]);
 			stats = stat;
 			if (thresh) thresholds = thresh;
 			if (globalSettings) insulinActionHours = globalSettings.insulin_action_hours;
