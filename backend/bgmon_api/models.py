@@ -477,6 +477,16 @@ class GlobalSettings(db.Model):
     compression_low_confidence_threshold: Mapped[int] = mapped_column(
         Integer, default=60, nullable=False
     )
+    spike_threshold_mgdl: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    rebound_rise_threshold_mgdl: Mapped[int] = mapped_column(Integer, default=80, nullable=False)
+    rebound_window_minutes: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
+    stacking_warning_hours: Mapped[float] = mapped_column(Float, default=3.0, nullable=False)
+    dawn_start_hour_utc: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
+    dawn_end_hour_utc: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
+    dawn_rise_threshold_mgdl: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
+    bounce_window_hours: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
+    bounce_hypo_threshold: Mapped[int] = mapped_column(Integer, default=70, nullable=False)
+    bounce_hyper_threshold: Mapped[int] = mapped_column(Integer, default=180, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -491,6 +501,16 @@ class GlobalSettings(db.Model):
             ),
             "compression_low_enabled": self.compression_low_enabled,
             "compression_low_confidence_threshold": self.compression_low_confidence_threshold,
+            "spike_threshold_mgdl": self.spike_threshold_mgdl,
+            "rebound_rise_threshold_mgdl": self.rebound_rise_threshold_mgdl,
+            "rebound_window_minutes": self.rebound_window_minutes,
+            "stacking_warning_hours": self.stacking_warning_hours,
+            "dawn_start_hour_utc": self.dawn_start_hour_utc,
+            "dawn_end_hour_utc": self.dawn_end_hour_utc,
+            "dawn_rise_threshold_mgdl": self.dawn_rise_threshold_mgdl,
+            "bounce_window_hours": self.bounce_window_hours,
+            "bounce_hypo_threshold": self.bounce_hypo_threshold,
+            "bounce_hyper_threshold": self.bounce_hyper_threshold,
         }
 
 

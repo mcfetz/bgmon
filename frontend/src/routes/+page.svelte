@@ -24,7 +24,9 @@
 		fetchStatsRange,
 		fetchThresholds,
 		fetchGlobalSettings,
-		fetchPrediction
+		fetchPrediction,
+		fetchSmartAlerts,
+		type SmartAlert
 	} from '$lib/api/dashboard';
 	import type {
 		GlucoseReading,
@@ -73,6 +75,7 @@
 	let bgModalOpen = $state(false);
 	let highlightedTimestamp = $state<string | null>(null);
 	let logFilters = $state({ carbs: true, insulin: true, basal: true, alarm: false, note: true, success: true });
+	let smartAlerts = $state<SmartAlert[]>([]);
 	let predictionStatus = $state<
 		'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'
 	>('idle');
@@ -363,6 +366,7 @@
 		loadHistoricalPredictions();
 		checkHealth();
 		checkVersion();
+		fetchSmartAlerts().then((a) => (smartAlerts = a)).catch(() => {});
 		const handleOnline = () => {
 			refreshDashboard().catch((e) => console.error('Online sync failed:', e));
 		};
@@ -372,6 +376,7 @@
 			loadPrediction().catch((e) => console.error('Prediction refresh failed:', e));
 			loadHistoricalPredictions().catch((e) => console.error('Historical prediction refresh failed:', e));
 			checkHealth();
+			fetchSmartAlerts().then((a) => (smartAlerts = a)).catch(() => {});
 		}, 30_000);
 		// Check for new app version every 5 minutes
 		const versionInterval = setInterval(checkVersion, 5 * 60_000);
@@ -516,6 +521,16 @@
 	<div class="snooze-bar">
 		<SnoozeIndicator />
 	</div>
+
+	{#if smartAlerts.length > 0}
+		<div class="smart-alerts-bar">
+			{#each smartAlerts as alert}
+				<span class="smart-alert-badge" title={alert.recommendation}>
+					{alert.icon} {alert.title}
+				</span>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <BgModal
@@ -717,6 +732,25 @@
 		display: flex;
 		justify-content: center;
 		padding: 0 var(--spacing-md) var(--spacing-sm);
+	}
+
+	.smart-alerts-bar {
+		display: flex;
+		justify-content: center;
+		gap: 8px;
+		padding: 0 var(--spacing-md) var(--spacing-sm);
+		flex-wrap: wrap;
+	}
+
+	.smart-alert-badge {
+		background: var(--color-warning);
+		color: #fff;
+		font-size: 0.7rem;
+		padding: 3px 8px;
+		border-radius: 999px;
+		font-weight: 600;
+		cursor: help;
+		white-space: nowrap;
 	}
 
 	.header-pill {

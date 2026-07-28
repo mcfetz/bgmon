@@ -152,3 +152,18 @@ export async function fetchPrediction(minutes: number = 60): Promise<PredictionR
 	if (!res.ok) return null;
 	return res.json();
 }
+
+export interface SmartAlert {
+	id: string;
+	title: string;
+	recommendation: string;
+	icon: string;
+	created_at: string | null;
+}
+
+export async function fetchSmartAlerts(): Promise<SmartAlert[]> {
+	const res = await apiFetch(`${BASE}/smart-alerts`);
+	if (!res.ok) return [];
+	const data = await res.json();
+	return data.alerts ?? [];
+}

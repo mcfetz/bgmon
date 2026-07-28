@@ -19,6 +19,7 @@ from bgmon_api.models import (
     GlobalSettings,
     GlucoseReading,
     LogEntry,
+    LogEntryType,
     PredictionPoint,
     PredictionRun,
     Threshold,
@@ -1189,3 +1190,59 @@ def prediction_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         }
         for p in points
     ])
+
+
+@dashboard_bp.route("/smart-alerts", methods=["GET"])
+def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+
+    patient = User.query.filter_by(role=UserRole.PATIENT).first()
+    if not patient:
+        return jsonify({"alerts": []})
+
+    from bgmon_api.services.smart_alerts import ALERT_DEDUP_MINUTES
+    cutoff = datetime.now(UTC) - timedelta(minutes=ALERT_DEDUP_MINUTES)
+
+    entries = (
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient.id,
+            LogEntry.entry_type == LogEntryType.NOTE,
+            LogEntry.notes.like("%SmartAlert:%"),
+            LogEntry.created_at >= cutoff,
+        )
+        .order_by(LogEntry.created_at.desc())
+        .all()
+    )
+
+    alerts = []
+    for e in entries:
+        if not e.notes:
+            continue
+        parts = e.notes.split(": ", 2)
+        if len(parts) < 3:
+            continue
+        alert_id = parts[1]
+        title = parts[2].split(". Empfehlung: ")[0]
+        recommendation = ""
+        if ". Empfehlung: " in parts[2]:
+            recommendation = parts[2].split(". Empfehlung: ")[1].split(" (")[0]
+
+        icons = {
+            "postprandial_spike": "🚀",
+            "hypo_rebound": "🔄",
+            "insulin_stacking": "💉",
+            "dawn_phenomenon": "🌅",
+            "bouncing": "🎢",
+        }
+        alerts.append({
+            "id": alert_id,
+            "title": title,
+            "recommendation": recommendation,
+            "icon": icons.get(alert_id, "⚠️"),
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        })
+
+    return jsonify({"alerts": alerts})

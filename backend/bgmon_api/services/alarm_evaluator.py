@@ -193,6 +193,15 @@ def _log_compression_event(result: dict) -> None:
         pass  # auto-commit
 
 
+def _run_smart_alerts() -> None:
+    """Run smart alert pattern detection."""
+    try:
+        from bgmon_api.services.smart_alerts import detect_all
+        detect_all()
+    except Exception:
+        logger.exception("Smart alerts detection failed")
+
+
 def evaluate_alarms() -> None:
     """Check glucose against each user's thresholds and dispatch notifications."""
     m = _models()
@@ -200,6 +209,9 @@ def evaluate_alarms() -> None:
 
     # Run compression low detection
     compression_low = _run_compression_detection()
+
+    # Run smart alerts detection
+    _run_smart_alerts()
 
     current = _query_current_glucose()
     logger.info("Glucose query result: %s", current)
