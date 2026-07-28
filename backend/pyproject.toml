@@ -12,7 +12,6 @@ dependencies = [
     "alembic>=1.13.0",
     "bcrypt>=4.1.0",
     "apscheduler>=3.10.0",
-    "influxdb-client>=1.39.0",
     "pylibrelinkup>=0.1.0",
     "pywebpush>=1.14.0",
     "twilio>=8.0.0",

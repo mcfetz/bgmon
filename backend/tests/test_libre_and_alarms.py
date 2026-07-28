@@ -7,7 +7,7 @@ from unittest.mock import patch
 class TestLibreDataStorage:
     """Test glucose data storage from LibreLinkUp or fallback sources."""
 
-    def test_glucose_reading_storage_from_influxdb_fallback(self, db_session, app):
+    def test_glucose_reading_storage(self, db_session, app):
         """Test that glucose readings can be stored in PostgreSQL."""
         from bgmon_api.models import GlucoseReading
 

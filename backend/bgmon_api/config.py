@@ -86,11 +86,6 @@ class Config:
 
     PUBLIC_BASE_URL = os.getenv("BGMON_PUBLIC_BASE_URL", "http://localhost:5000")
 
-    INFLUXDB_URL = os.getenv("BGMON_INFLUXDB_URL", "")
-    INFLUXDB_TOKEN = os.getenv("BGMON_INFLUXDB_TOKEN", "")
-    INFLUXDB_ORG = os.getenv("BGMON_INFLUXDB_ORG", "familie-heise.de")
-    INFLUXDB_BUCKET = os.getenv("BGMON_INFLUXDB_BUCKET", "gluroo")
-
     LIBRE_EMAIL = os.getenv("BGMON_LIBRE_EMAIL", "")
     LIBRE_PASSWORD = os.getenv("BGMON_LIBRE_PASSWORD", "")
     LIBRE_REGION = os.getenv("BGMON_LIBRE_REGION", "EU2")

@@ -12,7 +12,6 @@ from sqlalchemy.exc import IntegrityError
 from bgmon_api.config import Config
 from bgmon_api.extensions import db
 from bgmon_api.models import GlucoseReading
-from bgmon_api.services.influx_writer import write_glucose_to_influx
 from bgmon_api.utils import transactional_session
 
 logger = logging.getLogger(__name__)
@@ -168,7 +167,7 @@ def _get_latest_sgv(
 
 
 def _store_historical_data(graph_data: list[dict]) -> int:
-    """Write historical glucose readings from graphData to InfluxDB + PostgreSQL.
+    """Write historical glucose readings from graphData to PostgreSQL.
 
     Idempotency strategy:
     - Query existing timestamps in the graphData range once (uses the unique
@@ -235,18 +234,6 @@ def _store_historical_data(graph_data: list[dict]) -> int:
     written = 0
     for ts, value, trend_arrow in to_write:
         trend_num, direction = _TREND_MAP.get(trend_arrow, (4, "Flat"))
-        date_string = str(int(ts.timestamp() * 1_000_000_000))
-
-        influx_ok = write_glucose_to_influx(
-            sgv=value,
-            trend=trend_num,
-            direction=direction,
-            date_string=date_string,
-            glucose_id=None,
-        )
-
-        if not influx_ok:
-            logger.warning("Historical: InfluxDB write failed for ts=%s, continuing with PG", ts)
 
         try:
             reading = GlucoseReading(
@@ -267,7 +254,7 @@ def _store_historical_data(graph_data: list[dict]) -> int:
             logger.error("Historical: failed to write reading at %s: %s", ts, exc)
 
     logger.info(
-        "Historical: wrote %d/%d new entries to InfluxDB + PostgreSQL",
+        "Historical: wrote %d/%d new entries to PostgreSQL",
         written, len(to_write),
     )
     return written
@@ -321,21 +308,8 @@ def fetch_and_store(fetch_history: bool = False) -> None:
             ts = date_parser.parse(measurement["timestamp"])
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=ZoneInfo("Europe/Berlin")).astimezone(UTC)
-            date_string = str(int(ts.timestamp() * 1_000_000_000))
         except (ValueError, KeyError):
             ts = datetime.now(UTC)
-            date_string = str(int(ts.timestamp() * 1_000_000_000))
-
-        ok = write_glucose_to_influx(
-            sgv=measurement["sgv"],
-            trend=measurement["trend"],
-            direction=measurement["direction"],
-            date_string=date_string,
-            glucose_id=None,
-        )
-
-        if not ok:
-            logger.warning("InfluxDB write failed for current reading, continuing with PG")
 
         try:
             from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -370,7 +344,7 @@ def fetch_and_store(fetch_history: bool = False) -> None:
             historical_written = _store_historical_data(graph_data)
             logger.info("Historical backfill wrote %d new entries", historical_written)
 
-        _last_fetch_status = "ok" if ok else "ok_influx_failed"
+        _last_fetch_status = "ok"
         logger.info(
             "Fetched glucose: %s mg/dL, trend=%s, direction=%s, ts=%s",
             measurement["sgv"],

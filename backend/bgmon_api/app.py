@@ -268,14 +268,6 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         from datetime import UTC, datetime
 
         from bgmon_api.models import GlucoseReading
-        from bgmon_api.services.influx_reader import query_current_glucose
-
-        influx_ok = False
-        try:
-            influx_data = query_current_glucose()
-            influx_ok = influx_data is not None and influx_data.get("sgv") is not None
-        except Exception:
-            pass
 
         libre_ok = False
         last_reading = None
@@ -302,7 +294,6 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                     "status": "ok",
                     "is_leader": leader.is_leader if leader else False,
                     "instance_id": leader.instance_id[:8] if leader else None,
-                    "influxdb_connected": influx_ok,
                     "last_libre_fetch_at": (
                         last_reading.timestamp.isoformat() if last_reading else None
                     ),

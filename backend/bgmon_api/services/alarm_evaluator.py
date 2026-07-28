@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from sqlalchemy.exc import SQLAlchemyError
 
 from bgmon_api.extensions import db
-from bgmon_api.services.influx_reader import query_current_glucose as query_influx
 from bgmon_api.services.twilio_caller import place_call
 from bgmon_api.services.web_push import send_push_to_user
 from bgmon_api.utils import transactional_session
@@ -57,11 +56,7 @@ def _models():
 
 
 def _query_current_glucose() -> dict | None:
-    """Get current glucose from InfluxDB, fallback to PostgreSQL."""
-    result = query_influx()
-    if result is not None:
-        return result
-    logger.warning("InfluxDB unavailable, falling back to PostgreSQL")
+    """Get current glucose from PostgreSQL."""
     try:
         from bgmon_api.models import GlucoseReading
         row = (
@@ -77,7 +72,7 @@ def _query_current_glucose() -> dict | None:
                 "timestamp": row.timestamp.isoformat() if row.timestamp else None,
             }
     except SQLAlchemyError as exc:
-        logger.exception("PostgreSQL fallback query failed: %s", exc)
+        logger.exception("Glucose query failed: %s", exc)
     except (AttributeError, ValueError) as exc:
         logger.exception("Error processing glucose reading: %s", exc)
     return None

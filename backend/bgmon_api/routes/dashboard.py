@@ -1,8 +1,4 @@
-"""Dashboard blueprint — glucose current value, history, stats.
-
-Primary storage: PostgreSQL (GlucoseReading model).
-InfluxDB is kept as legacy passthrough only.
-"""
+"""Dashboard blueprint — glucose current value, history, stats."""
 
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
