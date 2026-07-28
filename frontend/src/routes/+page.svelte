@@ -537,7 +537,7 @@
 	color={glucoseColor(current?.sgv ?? null)}
 	{lastUpdate}
 	{previousSgv}
-	compressionLow={current?.compression_warning ?? false}
+	{smartAlerts}
 	predictions30={predictionPoints30}
 	predictions60={predictionPoints60}
 	predictions120={predictionPoints120}

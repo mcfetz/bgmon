@@ -3,7 +3,7 @@
 	import { apiFetch } from '$lib/auth';
 	import SnoozeModal from './SnoozeModal.svelte';
 
-	import type { PredictionPoint } from '$lib/api/dashboard';
+	import type { PredictionPoint, SmartAlert } from '$lib/api/dashboard';
 
 	let {
 		open = $bindable(false),
@@ -12,7 +12,7 @@
 		color = '#22c55e',
 		lastUpdate = null as string | null,
 		previousSgv = null as number | null,
-		compressionLow = false,
+		smartAlerts = [] as SmartAlert[],
 		predictions30 = [] as PredictionPoint[],
 		predictions60 = [] as PredictionPoint[],
 		predictions120 = [] as PredictionPoint[]
@@ -23,7 +23,7 @@
 		color?: string;
 		lastUpdate?: string | null;
 		previousSgv?: number | null;
-		compressionLow?: boolean;
+		smartAlerts?: SmartAlert[];
 		predictions30?: PredictionPoint[];
 		predictions60?: PredictionPoint[];
 		predictions120?: PredictionPoint[];
@@ -192,8 +192,14 @@
 				</button>
 			{/if}
 			<div class="bg-value" style="color: {color}">{sgv}</div>
-			{#if compressionLow}
-				<div class="compression-badge" title="Möglicher Kompressionstiefwert — Sensorposition prüfen">⚠️ Kompressionstiefwert</div>
+			{#if smartAlerts.length > 0}
+				<div class="smart-alerts-row">
+					{#each smartAlerts as alert}
+						<span class="smart-alert-badge" title={alert.recommendation}>
+							{alert.icon} {alert.title}
+						</span>
+					{/each}
+				</div>
 			{/if}
 			<div class="bg-info-row">
 				{#if delta !== null}
@@ -368,14 +374,22 @@
 		font-weight: 500;
 	}
 
-	.compression-badge {
+	.smart-alerts-row {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 4px;
+		margin: 2px 0;
+	}
+
+	.smart-alert-badge {
 		background: var(--color-warning);
 		color: #fff;
-		font-size: clamp(0.8rem, 2vw, 1.2rem);
-		padding: 4px 12px;
+		font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+		padding: 2px 8px;
 		border-radius: 999px;
 		font-weight: 600;
-		margin: 4px 0;
+		cursor: help;
 	}
 
 	.bg-trend {
