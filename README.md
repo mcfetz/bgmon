@@ -38,6 +38,16 @@
 - **Logbuch-Eintrag** mit Deduplizierung (max. 1 pro 5 Minuten)
 - **Konfigurierbar** in den Einstellungen (aktivierbar, Confidence-Schwellwert)
 
+### Smart Alerts — Mustererkennung & Handlungsempfehlungen
+- **🚀 Postprandialer Spike**: Erkennt Blutzucker-Anstiege >100 mg/dL nach Mahlzeiten und empfiehlt Spritz-Ess-Abstand
+- **🔄 Hypo-Rebound**: Erkennt Gegenregulation nach Unterzuckerungen ohne Kohlenhydrat-Gabe und warnt vor Überkorrektur
+- **💉 Insulin-Stacking**: Warnt vor mehrfachen Korrektur-Insulin-Gaben innerhalb der Wirkdauer mit IOB-Berechnung
+- **🌅 Dawn-Phänomen**: Erkennt morgendliche Blutzucker-Anstiege ohne Nahrungsaufnahme (04:00–08:00)
+- **🎢 Überkorrektur-Kreislauf**: Erkennt den gefährlichen Hypo→Hyper→Hypo-Zyklus im 4-Stunden-Fenster
+- **⚠️ Einheitliche Badge-Leiste** unter dem Header und im BG-Modal
+- **Logbuch-Eintrag** als NOTE mit SmartAlert-Präfix für Audit-Trail
+- **Konfigurierbar** in `global_settings` (alle Schwellwerte anpassbar)
+
 ### Gamification
 - **Streak-Tracking** für konsequente Eintragungen
 - **TIR-Statistik** (Time-in-Range) auf Wochen-/Monatsbasis

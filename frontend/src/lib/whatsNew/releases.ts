@@ -8,6 +8,21 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-07-28-smart-alerts',
+		versionPrefixes: ['4ad1763', 'c9e99ff', '93f9daf'],
+		publishedAt: '2026-07-28',
+		title: 'Smart Alerts: Mustererkennung & Handlungsempfehlungen',
+		highlights: [
+			'🚀 Postprandialer Spike: Erkennt starke Blutzucker-Anstiege nach dem Essen und empfiehlt Spritz-Ess-Abstand.',
+			'🔄 Hypo-Rebound: Warnt vor Gegenregulation nach Unterzuckerungen — kein unnötiges Korrektur-Insulin spritzen!',
+			'💉 Insulin-Stacking: Warnt vor mehrfachen Korrektur-Gaben innerhalb der Insulin-Wirkdauer inkl. IOB-Berechnung.',
+			'🌅 Dawn-Phänomen: Erkennt morgendliche Blutzucker-Anstiege ohne Essen (04:00–08:00).',
+			'🎢 Überkorrektur-Kreislauf: Erkennt den gefährlichen Hypo→Hyper→Hypo-Zyklus.',
+			'⚠️ Alle Warnungen erscheinen als einheitliche Badges unter dem Header und im großen BG-Modal.',
+			'📝 Jeder Alert wird automatisch im Logbuch dokumentiert für die Diabetes-Besprechung.'
+		]
+	},
+	{
 		id: '2026-07-27-compression-low-sampling',
 		versionPrefixes: ['fc0a538', '4435082', '0b0b1db', '8f690c8', '762e553'],
 		publishedAt: '2026-07-27',
