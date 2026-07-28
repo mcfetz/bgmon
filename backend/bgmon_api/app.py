@@ -3,10 +3,11 @@
 import logging
 import signal
 import sys
+import time as _time
 from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, Response, jsonify, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from bgmon_api.config import Config
@@ -240,6 +241,27 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                     logger.exception("Initial streak recalc failed")
         else:
             logger.info("Scheduler disabled for Gunicorn workers (run run_scheduler.py separately)")
+
+    @app.before_request
+    def _start_timer() -> None:
+        request._start_time = _time.time()  # type: ignore[attr-defined]
+
+    @app.after_request
+    def _log_request_time(response: Response) -> Response:
+        start = getattr(request, "_start_time", None)
+        if start is not None:
+            elapsed = (_time.time() - start) * 1000
+            if elapsed > 500:
+                logger.warning(
+                    "SLOW REQUEST %s %s — %.0fms",
+                    request.method, request.path, elapsed,
+                )
+            else:
+                logger.info(
+                    "%s %s — %.0fms",
+                    request.method, request.path, elapsed,
+                )
+        return response
 
     @app.get("/health")
     def health() -> Response:

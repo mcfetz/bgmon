@@ -40,7 +40,7 @@ lsof -ti:5000 | xargs kill -9 2>/dev/null
 cd /home/daniel/development/bgmon/backend
 source .venv/bin/activate
 export FLASK_APP=bgmon_api.app:create_app FLASK_ENV=development
-setsid nohup python -u -m flask run --host=0.0.0.0 --port=5000 --no-reload > /tmp/bgmon-backend.log 2>&1 < /dev/null & disown
+setsid nohup python -u -m flask run --host=0.0.0.0 --port=5000 --no-reload --with-threads > /tmp/bgmon-backend.log 2>&1 < /dev/null & disown
 ```
 
 ## Frontend
