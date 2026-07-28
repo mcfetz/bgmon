@@ -755,7 +755,9 @@
 		border-radius: 999px;
 		font-weight: 600;
 		cursor: help;
-		white-space: nowrap;
+		max-width: 280px;
+		text-align: center;
+		line-height: 1.3;
 	}
 
 	.header-pill {

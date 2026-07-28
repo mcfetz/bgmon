@@ -390,6 +390,9 @@
 		border-radius: 999px;
 		font-weight: 600;
 		cursor: help;
+		max-width: 90vw;
+		text-align: center;
+		line-height: 1.3;
 	}
 
 	.bg-trend {
