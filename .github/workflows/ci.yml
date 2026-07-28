@@ -56,6 +56,7 @@ jobs:
             tests/test_notification_profiles.py tests/test_users_api.py tests/test_settings_api.py \
             tests/test_log_api.py tests/test_leader_election.py tests/test_twilio_caller.py \
             tests/test_web_push.py tests/test_dashboard.py tests/test_shifts_night_family.py \
+            tests/test_compression_detector.py \
             -v --tb=short
 
   frontend:

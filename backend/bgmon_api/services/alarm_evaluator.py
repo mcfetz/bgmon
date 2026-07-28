@@ -104,11 +104,55 @@ def _run_compression_detection() -> bool:
                     result["rules"],
                 )
                 _log_compression_event(result)
+            _check_recovery_jump()
             return True
+        _check_recovery_jump()
         return False
     except Exception:
         logger.exception("Kompressionstiefwert-Erkennung fehlgeschlagen")
         return False
+
+
+def _check_recovery_jump() -> None:
+    """Post-hoc: check if a previous compression low was validated by a recovery jump."""
+    try:
+        from bgmon_api.models import GlucoseReading
+        from bgmon_api.services.compression_detector import check_recovery_jump
+        recent_compression = (
+            GlucoseReading.query
+            .filter(
+                GlucoseReading.is_compression_low.is_(True),
+                GlucoseReading.timestamp >= datetime.now(UTC) - timedelta(minutes=30),
+            )
+            .first()
+        )
+        if recent_compression is None:
+            return
+        result = check_recovery_jump()
+        if result is not None:
+            m = _models()
+            patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
+            if not patient:
+                return
+            note = (
+                f"Kompressionstief bestätigt durch Recovery-Sprung: "
+                f"+{result['rise_mgdl']} mg/dL "
+                f"(von {result['from_sgv']} auf {result['to_sgv']}) "
+                f"in {result['duration_min']} Min"
+            )
+            entry = m["LogEntry"](
+                user_id=patient.id,
+                entry_type=m["LogEntryType"].NOTE,
+                value=0,
+                unit="",
+                notes=note,
+            )
+            db.session.add(entry)
+            with transactional_session():
+                pass  # auto-commit
+            logger.info("Recovery jump confirmed: %s", result)
+    except Exception:
+        logger.exception("Recovery jump check failed")
 
 
 def _log_compression_event(result: dict) -> None:
