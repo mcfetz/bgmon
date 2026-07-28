@@ -484,9 +484,6 @@
 							>
 							<span class="sgv-label">mg/dL</span>
 						</button>
-						{#if current.compression_warning}
-							<span class="compression-badge" title="Möglicher Kompressionstiefwert — Sensorposition prüfen">⚠️</span>
-						{/if}
 					</div>
 				{/if}
 			</div>

@@ -1245,4 +1245,22 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             "created_at": e.created_at.isoformat() if e.created_at else None,
         })
 
+    # Also include active compression low in the same badge bar
+    latest_reading = (
+        GlucoseReading.query
+        .filter(GlucoseReading.is_compression_low.is_(True))
+        .order_by(GlucoseReading.timestamp.desc())
+        .first()
+    )
+    if latest_reading and latest_reading.timestamp and (
+        datetime.now(UTC) - latest_reading.timestamp
+    ).total_seconds() < 300:
+        alerts.append({
+            "id": "compression_low",
+            "title": "Kompressionstiefwert erkannt",
+            "recommendation": "Sensorposition prüfen.",
+            "icon": "⚠️",
+            "created_at": latest_reading.timestamp.isoformat(),
+        })
+
     return jsonify({"alerts": alerts})
