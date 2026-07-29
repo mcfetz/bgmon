@@ -69,6 +69,36 @@ def test_post_global_settings_with_valid_values(client, observer_user, auth_head
     assert response.get_json()["correction_factor"] == 42.0
 
 
+def test_post_global_settings_updates_smart_alert_config(client, observer_user, auth_headers):
+    response = client.post(
+        "/api/settings/global",
+        json={
+            "hypo_rebound_cooldown_minutes": 120,
+            "combined_overdose_iob_warning_threshold": 3.5,
+            "rebound_require_no_carbs": True,
+        },
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.get_json()
+    assert data["hypo_rebound_cooldown_minutes"] == 120
+    assert data["combined_overdose_iob_warning_threshold"] == 3.5
+    assert data["rebound_require_no_carbs"] is True
+
+
+def test_post_global_settings_rejects_invalid_smart_alert_config(
+    client, observer_user, auth_headers
+):
+    response = client.post(
+        "/api/settings/global",
+        json={"hypo_rebound_cooldown_minutes": 0},
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
 def test_get_thresholds_returns_defaults(client, patient_user, auth_headers):
     response = client.get("/api/settings/thresholds", headers=auth_headers(patient_user))
 

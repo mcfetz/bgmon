@@ -200,6 +200,23 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     correction_factor = data.get("correction_factor")
     compression_low_enabled = data.get("compression_low_enabled")
     compression_low_confidence_threshold = data.get("compression_low_confidence_threshold")
+    smart_alert_int_fields = {
+        "compression_cooldown_minutes": (1, 1440),
+        "postprandial_spike_cooldown_minutes": (1, 1440),
+        "hypo_rebound_cooldown_minutes": (1, 1440),
+        "insulin_stacking_cooldown_minutes": (1, 1440),
+        "dawn_phenomenon_cooldown_minutes": (1, 1440),
+        "bounce_cycle_cooldown_minutes": (1, 1440),
+        "combined_overdose_cooldown_minutes": (1, 1440),
+        "combined_overdose_crash_threshold_mgdl": (40, 150),
+        "combined_overdose_fall_rate_mgdl_per_5min": (1, 100),
+    }
+    smart_alert_float_fields = {
+        "combined_overdose_crash_window_hours": (1.0, 12.0),
+        "combined_overdose_iob_warning_threshold": (0.1, 20.0),
+        "combined_overdose_meal_age_hours": (0.1, 12.0),
+    }
+    smart_alert_bool_fields = {"rebound_require_no_carbs"}
 
     if insulin_hours is not None and (
         not isinstance(insulin_hours, (int, float)) or insulin_hours <= 0
@@ -227,6 +244,36 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
             HTTPStatus.BAD_REQUEST,
         )
 
+    for field, (minimum, maximum) in smart_alert_int_fields.items():
+        value = data.get(field)
+        if value is not None and (
+            not isinstance(value, int) or isinstance(value, bool)
+            or value < minimum or value > maximum
+        ):
+            return (
+                jsonify({"error": f"{field} must be an integer from {minimum} to {maximum}"}),
+                HTTPStatus.BAD_REQUEST,
+            )
+
+    for field, (minimum, maximum) in smart_alert_float_fields.items():
+        value = data.get(field)
+        if value is not None and (
+            not isinstance(value, (int, float)) or isinstance(value, bool)
+            or value < minimum or value > maximum
+        ):
+            return (
+                jsonify({"error": f"{field} must be a number from {minimum} to {maximum}"}),
+                HTTPStatus.BAD_REQUEST,
+            )
+
+    for field in smart_alert_bool_fields:
+        value = data.get(field)
+        if value is not None and not isinstance(value, bool):
+            return (
+                jsonify({"error": f"{field} must be boolean"}),
+                HTTPStatus.BAD_REQUEST,
+            )
+
     settings = GlobalSettings.query.first()
     if not settings:
         settings = GlobalSettings()
@@ -243,6 +290,13 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
 
     if compression_low_confidence_threshold is not None:
         settings.compression_low_confidence_threshold = int(compression_low_confidence_threshold)
+
+    for field in smart_alert_int_fields | smart_alert_float_fields:
+        if data.get(field) is not None:
+            setattr(settings, field, data[field])
+    for field in smart_alert_bool_fields:
+        if data.get(field) is not None:
+            setattr(settings, field, data[field])
 
     with transactional_session():
         pass  # commit handled by context manager

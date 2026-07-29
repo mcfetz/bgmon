@@ -22,7 +22,17 @@ ALERTS = [
     "insulin_stacking",
     "dawn_phenomenon",
     "bouncing",
+    "combined_overdose",
 ]
+
+COOLDOWN_FIELDS = {
+    "postprandial_spike": "postprandial_spike_cooldown_minutes",
+    "hypo_rebound": "hypo_rebound_cooldown_minutes",
+    "insulin_stacking": "insulin_stacking_cooldown_minutes",
+    "dawn_phenomenon": "dawn_phenomenon_cooldown_minutes",
+    "bouncing": "bounce_cycle_cooldown_minutes",
+    "combined_overdose": "combined_overdose_cooldown_minutes",
+}
 
 
 def _settings() -> GlobalSettings:
@@ -39,12 +49,13 @@ def _get_patient_id() -> int | None:
     return patient.id if patient else None
 
 
-def _was_alerted(alert_id: str, window_minutes: int | None = None) -> bool:
-    """Check if this alert was already logged in the recent window."""
+def _was_alerted(alert_id: str, settings: GlobalSettings) -> bool:
+    """Check the per-alert cooldown before creating another NOTE."""
     patient_id = _get_patient_id()
     if not patient_id:
         return True
-    window = window_minutes or ALERT_DEDUP_MINUTES
+    cooldown_field = COOLDOWN_FIELDS.get(alert_id)
+    window = getattr(settings, cooldown_field) if cooldown_field else ALERT_DEDUP_MINUTES
     cutoff = datetime.now(UTC) - timedelta(minutes=window)
     count = (
         LogEntry.query
@@ -79,6 +90,56 @@ def _log_alert(alert_id: str, title: str, recommendation: str, details: str = ""
     logger.info("Smart alert logged: %s", alert_id)
 
 
+def _has_carbs(patient_id: int, start: datetime, end: datetime) -> bool:
+    return (
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient_id,
+            LogEntry.entry_type == LogEntryType.CARBS,
+            LogEntry.created_at >= start,
+            LogEntry.created_at <= end,
+        )
+        .count()
+        > 0
+    )
+
+
+def _insulin_entries(
+    patient_id: int, start: datetime, end: datetime
+) -> list[LogEntry]:
+    return (
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient_id,
+            LogEntry.entry_type == LogEntryType.INSULIN,
+            LogEntry.created_at >= start,
+            LogEntry.created_at <= end,
+        )
+        .order_by(LogEntry.created_at.asc())
+        .all()
+    )
+
+
+def _calculate_iob(entries: list[LogEntry], now: datetime, action_hours: float) -> float:
+    duration_seconds = max(action_hours, 0.1) * 3600
+    return sum(
+        entry.value
+        * max(0.0, 1.0 - (now - entry.created_at).total_seconds() / duration_seconds)
+        for entry in entries
+        if entry.created_at <= now
+    )
+
+
+def _falling_rate(readings: list[GlucoseReading]) -> float:
+    if len(readings) < 2:
+        return 0.0
+    first, last = readings[0], readings[-1]
+    minutes = (last.timestamp - first.timestamp).total_seconds() / 60
+    if minutes <= 0:
+        return 0.0
+    return (first.sgv - last.sgv) / minutes * 5
+
+
 def detect_all() -> list[dict]:
     """Run all detectors and return list of active alerts."""
     s = _settings()
@@ -104,6 +165,10 @@ def detect_all() -> list[dict]:
     if bounce:
         results.append(bounce)
 
+    overdose = _detect_combined_overdose(s)
+    if overdose:
+        results.append(overdose)
+
     return results
 
 
@@ -111,7 +176,7 @@ def detect_all() -> list[dict]:
 
 
 def _detect_postprandial_spike(s: GlobalSettings) -> dict | None:
-    if _was_alerted("postprandial_spike"):
+    if _was_alerted("postprandial_spike", s):
         return None
 
     patient_id = _get_patient_id()
@@ -199,7 +264,7 @@ def _detect_postprandial_spike(s: GlobalSettings) -> dict | None:
 
 
 def _detect_hypo_rebound(s: GlobalSettings) -> dict | None:
-    if _was_alerted("hypo_rebound"):
+    if _was_alerted("hypo_rebound", s):
         return None
 
     patient_id = _get_patient_id()
@@ -253,18 +318,8 @@ def _detect_hypo_rebound(s: GlobalSettings) -> dict | None:
     if rise <= s.rebound_rise_threshold_mgdl:
         return None
 
-    # Check no carbs during the rebound
-    has_carbs = (
-        LogEntry.query
-        .filter(
-            LogEntry.user_id == patient_id,
-            LogEntry.entry_type == LogEntryType.CARBS,
-            LogEntry.created_at >= hypo_end,
-            LogEntry.created_at <= rebound_end,
-        )
-        .count()
-    ) > 0
-    if has_carbs:
+    # A carb treatment explains the rise and is not a pure counter-regulation.
+    if s.rebound_require_no_carbs and _has_carbs(patient_id, hypo_start, hypo_end):
         return None
 
     _log_alert(
@@ -287,7 +342,7 @@ def _detect_hypo_rebound(s: GlobalSettings) -> dict | None:
 
 
 def _detect_insulin_stacking(s: GlobalSettings) -> dict | None:
-    if _was_alerted("insulin_stacking"):
+    if _was_alerted("insulin_stacking", s):
         return None
 
     patient_id = _get_patient_id()
@@ -320,7 +375,7 @@ def _detect_insulin_stacking(s: GlobalSettings) -> dict | None:
 
     # Simple IOB
     now = datetime.now(UTC)
-    total_hours = s.stacking_warning_hours
+    total_hours = s.insulin_action_hours
     iob = sum(
         c.value * max(0, 1 - (now - c.created_at).total_seconds() / (total_hours * 3600))
         for c in corrections
@@ -340,11 +395,163 @@ def _detect_insulin_stacking(s: GlobalSettings) -> dict | None:
     }
 
 
+def _find_combined_meal(
+    patient_id: int, start: datetime, end: datetime
+) -> tuple[datetime, list[LogEntry]] | None:
+    logs = (
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient_id,
+            LogEntry.created_at >= start,
+            LogEntry.created_at <= end,
+            LogEntry.entry_type.in_([LogEntryType.CARBS, LogEntryType.INSULIN]),
+        )
+        .order_by(LogEntry.created_at.asc())
+        .all()
+    )
+    carbs = [entry for entry in logs if entry.entry_type == LogEntryType.CARBS]
+    meal_boluses = [
+        entry for entry in logs
+        if entry.entry_type == LogEntryType.INSULIN
+        and "Korrektur" not in (entry.notes or "")
+    ]
+    corrections = [
+        entry for entry in logs
+        if entry.entry_type == LogEntryType.INSULIN
+        and "Korrektur" in (entry.notes or "")
+    ]
+
+    candidates: list[tuple[datetime, list[LogEntry]]] = []
+    for carb in carbs:
+        matching_bolus = next(
+            (bolus for bolus in meal_boluses
+             if abs((bolus.created_at - carb.created_at).total_seconds()) <= 300),
+            None,
+        )
+        matching_correction = next(
+            (correction for correction in corrections
+             if abs((correction.created_at - carb.created_at).total_seconds()) <= 300),
+            None,
+        )
+        if matching_bolus and matching_correction:
+            meal_time = max(carb.created_at, matching_bolus.created_at)
+            candidates.append((meal_time, [carb, matching_bolus, matching_correction]))
+    return max(candidates, key=lambda candidate: candidate[0]) if candidates else None
+
+
+def _detect_combined_overdose(s: GlobalSettings) -> dict | None:
+    if _was_alerted("combined_overdose", s):
+        return None
+
+    patient_id = _get_patient_id()
+    if not patient_id:
+        return None
+
+    now = datetime.now(UTC)
+    lookback = now - timedelta(hours=s.combined_overdose_crash_window_hours)
+    meal = _find_combined_meal(patient_id, lookback, now)
+    if meal is None:
+        return None
+    meal_time, meal_entries = meal
+    meal_age = (now - meal_time).total_seconds() / 3600
+
+    correction_time = max(
+        entry.created_at for entry in meal_entries
+        if entry.entry_type == LogEntryType.INSULIN
+        and "Korrektur" in (entry.notes or "")
+    )
+    later_bolus = (
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient_id,
+            LogEntry.entry_type == LogEntryType.INSULIN,
+            LogEntry.created_at > correction_time,
+            LogEntry.created_at <= now,
+        )
+        .count()
+    )
+    if later_bolus:
+        return None
+
+    recent_readings = (
+        GlucoseReading.query
+        .filter(
+            GlucoseReading.timestamp >= meal_time,
+            GlucoseReading.timestamp <= now,
+        )
+        .order_by(GlucoseReading.timestamp.asc())
+        .all()
+    )
+    crash = next(
+        (reading for reading in recent_readings
+         if reading.timestamp >= meal_time + timedelta(hours=2)
+         and reading.timestamp <= meal_time + timedelta(
+             hours=s.combined_overdose_crash_window_hours
+         )
+         and reading.sgv < s.combined_overdose_crash_threshold_mgdl),
+        None,
+    )
+    if crash is not None:
+        details = f"{meal_age:.1f}h nach der Mahlzeit auf {crash.sgv} mg/dL"
+        _log_alert(
+            "combined_overdose",
+            "Mahlzeiten-Bolus und Korrektur-Insulin waren zusammen zu viel",
+            "Nächstes Mal weniger Korrektur-Insulin oder nur die halbe Korrekturdosis.",
+            details,
+        )
+        return {
+            "id": "combined_overdose",
+            "icon": "💉",
+            "title": f"Überdosierung: {crash.sgv} mg/dL nach {meal_age:.1f}h",
+            "recommendation": "Korrektur-Insulin reduzieren oder halbieren.",
+        }
+
+    if meal_age < s.combined_overdose_meal_age_hours:
+        return None
+
+    recent = [
+        reading for reading in recent_readings
+        if reading.timestamp >= now - timedelta(minutes=5)
+    ]
+    iob_entries = _insulin_entries(
+        patient_id,
+        now - timedelta(hours=s.insulin_action_hours),
+        now,
+    )
+    iob = _calculate_iob(iob_entries, now, s.insulin_action_hours)
+    if _has_carbs(
+        patient_id,
+        meal_time + timedelta(minutes=5),
+        now,
+    ):
+        return None
+
+    if (
+        iob <= s.combined_overdose_iob_warning_threshold
+        or _falling_rate(recent) <= s.combined_overdose_fall_rate_mgdl_per_5min
+    ):
+        return None
+
+    _log_alert(
+        "combined_overdose",
+        f"Aktives Insulin: noch etwa {iob:.1f} IE",
+        "Bei fallendem Trend besteht in der nächsten Stunde "
+        "Unterzuckerungsgefahr. Nicht nachkorrigieren.",
+        "Vorab-Warnung nach Mahlzeit mit zusätzlicher Korrektur",
+    )
+    return {
+        "id": "combined_overdose",
+        "icon": "💉",
+        "title": f"IOB-Warnung: {iob:.1f} IE aktiv",
+        "recommendation": "Bei fallendem Trend nicht nachkorrigieren.",
+    }
+
+
 # ── 4. Dawn Phenomenon ─────────────────────────────────────────────────
 
 
 def _detect_dawn_phenomenon(s: GlobalSettings) -> dict | None:
-    if _was_alerted("dawn_phenomenon"):
+    if _was_alerted("dawn_phenomenon", s):
         return None
 
     now = datetime.now(UTC)
@@ -407,7 +614,7 @@ def _detect_dawn_phenomenon(s: GlobalSettings) -> dict | None:
 
 
 def _detect_bouncing(s: GlobalSettings) -> dict | None:
-    if _was_alerted("bouncing"):
+    if _was_alerted("bouncing", s):
         return None
 
     window = datetime.now(UTC) - timedelta(hours=s.bounce_window_hours)

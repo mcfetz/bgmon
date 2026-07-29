@@ -157,13 +157,16 @@ def _log_compression_event(result: dict) -> None:
     if not patient:
         return
 
+    from bgmon_api.models import GlobalSettings
+    settings = GlobalSettings.query.first()
+    cooldown = getattr(settings, "compression_cooldown_minutes", 60)
     recent = (
         m["LogEntry"].query
         .filter(
             m["LogEntry"].user_id == patient.id,
             m["LogEntry"].entry_type == m["LogEntryType"].NOTE,
             m["LogEntry"].notes.like("%Kompressionstiefwert%"),
-            m["LogEntry"].created_at >= datetime.now(UTC) - timedelta(minutes=5),
+            m["LogEntry"].created_at >= datetime.now(UTC) - timedelta(minutes=cooldown),
         )
         .first()
     )
@@ -549,4 +552,3 @@ def _is_night_time(profile: NightProfile) -> bool:
     if start <= end:
         return start <= current_time <= end
     return current_time >= start or current_time <= end
-

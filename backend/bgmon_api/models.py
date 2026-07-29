@@ -487,6 +487,39 @@ class GlobalSettings(db.Model):
     bounce_window_hours: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
     bounce_hypo_threshold: Mapped[int] = mapped_column(Integer, default=70, nullable=False)
     bounce_hyper_threshold: Mapped[int] = mapped_column(Integer, default=180, nullable=False)
+    compression_cooldown_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    postprandial_spike_cooldown_minutes: Mapped[int] = mapped_column(
+        Integer, default=120, nullable=False
+    )
+    hypo_rebound_cooldown_minutes: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
+    insulin_stacking_cooldown_minutes: Mapped[int] = mapped_column(
+        Integer, default=180, nullable=False
+    )
+    dawn_phenomenon_cooldown_minutes: Mapped[int] = mapped_column(
+        Integer, default=240, nullable=False
+    )
+    bounce_cycle_cooldown_minutes: Mapped[int] = mapped_column(
+        Integer, default=240, nullable=False
+    )
+    combined_overdose_cooldown_minutes: Mapped[int] = mapped_column(
+        Integer, default=300, nullable=False
+    )
+    combined_overdose_crash_window_hours: Mapped[float] = mapped_column(
+        Float, default=4.0, nullable=False
+    )
+    combined_overdose_crash_threshold_mgdl: Mapped[int] = mapped_column(
+        Integer, default=70, nullable=False
+    )
+    combined_overdose_iob_warning_threshold: Mapped[float] = mapped_column(
+        Float, default=3.0, nullable=False
+    )
+    combined_overdose_meal_age_hours: Mapped[float] = mapped_column(
+        Float, default=2.0, nullable=False
+    )
+    combined_overdose_fall_rate_mgdl_per_5min: Mapped[int] = mapped_column(
+        Integer, default=5, nullable=False
+    )
+    rebound_require_no_carbs: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -511,6 +544,21 @@ class GlobalSettings(db.Model):
             "bounce_window_hours": self.bounce_window_hours,
             "bounce_hypo_threshold": self.bounce_hypo_threshold,
             "bounce_hyper_threshold": self.bounce_hyper_threshold,
+            "compression_cooldown_minutes": self.compression_cooldown_minutes,
+            "postprandial_spike_cooldown_minutes": self.postprandial_spike_cooldown_minutes,
+            "hypo_rebound_cooldown_minutes": self.hypo_rebound_cooldown_minutes,
+            "insulin_stacking_cooldown_minutes": self.insulin_stacking_cooldown_minutes,
+            "dawn_phenomenon_cooldown_minutes": self.dawn_phenomenon_cooldown_minutes,
+            "bounce_cycle_cooldown_minutes": self.bounce_cycle_cooldown_minutes,
+            "combined_overdose_cooldown_minutes": self.combined_overdose_cooldown_minutes,
+            "combined_overdose_crash_window_hours": self.combined_overdose_crash_window_hours,
+            "combined_overdose_crash_threshold_mgdl": self.combined_overdose_crash_threshold_mgdl,
+            "combined_overdose_iob_warning_threshold": self.combined_overdose_iob_warning_threshold,
+            "combined_overdose_meal_age_hours": self.combined_overdose_meal_age_hours,
+            "combined_overdose_fall_rate_mgdl_per_5min": (
+                self.combined_overdose_fall_rate_mgdl_per_5min
+            ),
+            "rebound_require_no_carbs": self.rebound_require_no_carbs,
         }
 
 

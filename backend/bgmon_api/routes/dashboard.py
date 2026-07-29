@@ -1192,8 +1192,14 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if not patient:
         return jsonify({"alerts": []})
 
-    from bgmon_api.services.smart_alerts import ALERT_DEDUP_MINUTES
-    cutoff = datetime.now(UTC) - timedelta(minutes=ALERT_DEDUP_MINUTES)
+    from bgmon_api.services.smart_alerts import COOLDOWN_FIELDS
+    settings = GlobalSettings.query.first()
+    now = datetime.now(UTC)
+    max_cooldown = max(
+        (getattr(settings, field) for field in COOLDOWN_FIELDS.values()),
+        default=30,
+    )
+    cutoff = now - timedelta(minutes=max_cooldown)
 
     entries = (
         LogEntry.query
@@ -1215,6 +1221,10 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         if len(parts) < 3:
             continue
         alert_id = parts[1]
+        cooldown_field = COOLDOWN_FIELDS.get(alert_id)
+        cooldown = getattr(settings, cooldown_field) if cooldown_field and settings else 30
+        if not e.created_at or e.created_at < now - timedelta(minutes=cooldown):
+            continue
         title = parts[2].split(". Empfehlung: ")[0]
         recommendation = ""
         if ". Empfehlung: " in parts[2]:
@@ -1226,6 +1236,7 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             "insulin_stacking": "💉",
             "dawn_phenomenon": "🌅",
             "bouncing": "🎢",
+            "combined_overdose": "💉",
         }
         alerts.append({
             "id": alert_id,
@@ -1235,22 +1246,28 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             "created_at": e.created_at.isoformat() if e.created_at else None,
         })
 
-    # Also include active compression low in the same badge bar
-    latest_reading = (
-        GlucoseReading.query
-        .filter(GlucoseReading.is_compression_low.is_(True))
-        .order_by(GlucoseReading.timestamp.desc())
+    # Compression warnings use the same cooldown semantics as smart alerts.
+    compression_cutoff = datetime.now(UTC) - timedelta(
+        minutes=getattr(settings, "compression_cooldown_minutes", 60)
+    )
+    compression_note = (
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient.id,
+            LogEntry.entry_type == LogEntryType.NOTE,
+            LogEntry.notes.like("%Kompressionstiefwert erkannt%"),
+            LogEntry.created_at >= compression_cutoff,
+        )
+        .order_by(LogEntry.created_at.desc())
         .first()
     )
-    if latest_reading and latest_reading.timestamp and (
-        datetime.now(UTC) - latest_reading.timestamp
-    ).total_seconds() < 300:
+    if compression_note:
         alerts.append({
             "id": "compression_low",
             "title": "Kompressionstiefwert erkannt",
             "recommendation": "Sensorposition prüfen.",
             "icon": "⚠️",
-            "created_at": latest_reading.timestamp.isoformat(),
+            "created_at": compression_note.created_at.isoformat(),
         })
 
     return jsonify({"alerts": alerts})
