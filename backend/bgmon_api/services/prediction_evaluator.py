@@ -12,6 +12,8 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.orm import selectinload
+
 from bgmon_api.extensions import db
 from bgmon_api.models import GlucoseReading, PredictionRun
 from bgmon_api.services.prediction_evaluation_types import (
@@ -31,15 +33,25 @@ class _NormalizedReading:
     sgv: int
 
 
+_EVALUATION_WINDOW_DAYS = 7
+
+
 def evaluate_saved_predictions(*, tolerance_minutes: int = 5) -> EvaluationReport:
     """Compare stored predictions with later actual glucose readings.
+
+    Only evaluates runs from the last ``_EVALUATION_WINDOW_DAYS`` days to
+    keep the query fast.  Points are eagerly loaded via ``selectinload``
+    to avoid N+1 lazy loading on the ``run.points`` relationship.
 
     Args:
         tolerance_minutes: Allowed absolute timestamp delta between a predicted
             point and the actual reading chosen for scoring.
     """
+    cutoff = datetime.now(UTC) - timedelta(days=_EVALUATION_WINDOW_DAYS)
     runs = (
         db.session.query(PredictionRun)
+        .filter(PredictionRun.generated_at >= cutoff)
+        .options(selectinload(PredictionRun.points))
         .order_by(PredictionRun.generated_at.asc(), PredictionRun.id.asc())
         .all()
     )
