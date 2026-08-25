@@ -77,7 +77,8 @@
 
 	export function getMonthGroups(days: DayOverview[]): MonthGroup[] {
 		const groups: MonthGroup[] = [];
-		let current = '';
+		let currentKey = '';
+		let currentLabel = '';
 		let currentDays: DayOverview[] = [];
 		const monthNames = [
 			'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -85,17 +86,18 @@
 		];
 
 		for (const day of days) {
-			const d = new Date(day.date);
+			const d = new Date(day.date + 'T12:00:00');
 			const key = `${d.getFullYear()}-${d.getMonth()}`;
 			const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-			if (key !== current) {
-				if (currentDays.length > 0) groups.push({ label: current, days: currentDays });
-				current = label;
+			if (key !== currentKey) {
+				if (currentDays.length > 0) groups.push({ label: currentLabel, days: currentDays });
+				currentKey = key;
+				currentLabel = label;
 				currentDays = [];
 			}
 			currentDays.push(day);
 		}
-		if (currentDays.length > 0) groups.push({ label: current, days: currentDays });
+		if (currentDays.length > 0) groups.push({ label: currentLabel, days: currentDays });
 		return groups;
 	}
 </script>
