@@ -3,6 +3,7 @@
 	import ReportHeader from './ReportHeader.svelte';
 	import GlucoseStatsSection from './GlucoseStatsSection.svelte';
 	import AGPCurve from './AGPCurve.svelte';
+	import GlucosePattern from './GlucosePattern.svelte';
 	import DailyProfiles from './DailyProfiles.svelte';
 	import MonthlyCalendar from './MonthlyCalendar.svelte';
 	import DailyProtocol from './DailyProtocol.svelte';
@@ -25,6 +26,11 @@
 	<section class="report-section">
 		<h2>Ambulantes Glukoseprofil (AGP)</h2>
 		<AGPCurve points={report.agp_curve} />
+	</section>
+
+	<section class="report-section">
+		<h2>Glukosemuster</h2>
+		<GlucosePattern profiles={report.daily_profiles} />
 	</section>
 
 	<section class="report-section">
