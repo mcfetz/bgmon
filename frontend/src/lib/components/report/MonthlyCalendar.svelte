@@ -11,49 +11,63 @@
 		if (sgv <= 250) return 'high';
 		return 'critical-high';
 	}
+
+	// Monday=1 .. Sunday=7 → grid column 1..7
+	function weekdayCol(date: string): number {
+		const d = new Date(date + 'T12:00:00');
+		const jsDay = d.getDay(); // 0=Sun
+		return jsDay === 0 ? 7 : jsDay; // shift so Mon=1
+	}
 </script>
 
 <div class="calendar-grid">
-	<div class="cal-header">
-		<span></span>
+	<div class="cal-header-row">
 		<span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
 	</div>
-	{#each days as day}
-		<div class="cal-cell">
-			<div class="cal-date">{parseInt(day.date.slice(8))}</div>
-			{#if day.avg_sgv !== null}
-				<div class="cal-avg {sgvColor(day.avg_sgv)}">{day.avg_sgv}</div>
-			{/if}
-			<div class="cal-meta">
-				{#if day.carbs_grams !== null}
-					<span title="KH">{day.carbs_grams}g</span>
+	<div class="cal-body">
+		{#each days as day}
+			<div class="cal-cell" style="grid-column: {weekdayCol(day.date)}">
+				<div class="cal-date">{parseInt(day.date.slice(8))}</div>
+				{#if day.avg_sgv !== null}
+					<div class="cal-avg {sgvColor(day.avg_sgv)}">{day.avg_sgv}</div>
 				{/if}
-				{#if day.insulin_units !== null}
-					<span title="Insulin">{day.insulin_units}U</span>
-				{/if}
-				{#if day.hypo_events > 0}
-					<span class="hypo" title="Hypo">{day.hypo_events}</span>
-				{/if}
+				<div class="cal-meta">
+					{#if day.carbs_grams !== null}
+						<span title="KH">{day.carbs_grams}g</span>
+					{/if}
+					{#if day.insulin_units !== null}
+						<span title="Insulin">{day.insulin_units}U</span>
+					{/if}
+					{#if day.hypo_events > 0}
+						<span class="hypo" title="Hypo">{day.hypo_events}</span>
+					{/if}
+				</div>
 			</div>
-		</div>
-	{/each}
+		{/each}
+	</div>
 </div>
 
 <style>
 	.calendar-grid {
+		width: 100%;
+	}
+	.cal-header-row {
 		display: grid;
 		grid-template-columns: repeat(7, 1fr);
 		gap: 2px;
+		margin-bottom: 2px;
 	}
-	.cal-header {
-		display: contents;
-	}
-	.cal-header span {
+	.cal-header-row span {
 		text-align: center;
 		font-size: 0.75rem;
 		font-weight: 600;
 		padding: 0.3rem;
 		color: var(--color-text-muted, #666);
+	}
+	.cal-body {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 2px;
 	}
 	.cal-cell {
 		border: 1px solid var(--color-border, #e5e7eb);
