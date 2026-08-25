@@ -8,6 +8,18 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-08-24-no-data-alarm',
+		versionPrefixes: ['4733a82'],
+		publishedAt: '2026-08-24',
+		title: 'Keine-Daten-Alarm: Werdet informiert, wenn der Sensor nicht mehr liefert',
+		highlights: [
+			'📡 Alarm bei Datenausfall: Wenn keine Blutzuckerwerte mehr einlaufen, wird jetzt zuverlässig alarmiert — nicht nur bei hohen oder tiefen Werten.',
+			'⏱ Einstellbarer Schwellwert: In den Einstellungen → Schwellwerte legst du fest, nach wie vielen Minuten ohne Werte der Alarm auslöst (Standard: 15).',
+			'🔔 Individuell im Profil: In deinem Benachrichtigungs-Profil wählst du wie gewohnt, was passieren soll — Push, Anruf oder nichts.',
+			'📝 Wie bei allen Alarms: Eintrag ins Logbuch und Snooze inklusive. Sobald wieder frische Werte da sind, wird der Alarm automatisch beendet.'
+		]
+	},
+	{
 		id: '2026-07-28-smart-alerts',
 		versionPrefixes: ['4ad1763', 'c9e99ff', '93f9daf'],
 		publishedAt: '2026-07-28',
