@@ -178,6 +178,7 @@ class Threshold(db.Model):
     low: Mapped[float] = mapped_column(Float, default=70.0, nullable=False)
     high: Mapped[float] = mapped_column(Float, default=180.0, nullable=False)
     critical_high: Mapped[float] = mapped_column(Float, default=250.0, nullable=False)
+    no_data_after_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -193,6 +194,7 @@ class Threshold(db.Model):
             "low": self.low,
             "high": self.high,
             "critical_high": self.critical_high,
+            "no_data_after_minutes": self.no_data_after_minutes,
         }
 
 
@@ -647,6 +649,7 @@ class NotificationThreshold(enum.StrEnum):
     LOW = "low"
     HIGH = "high"
     CRITICAL_HIGH = "critical_high"
+    NO_DATA = "no_data"
 
 
 class NotificationProfile(db.Model):

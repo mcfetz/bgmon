@@ -171,7 +171,7 @@ def notification_profile_with_assignments(db_session, patient_user):
     )
     db_session.add(profile)
     db_session.flush()
-    for th in ["critical_low", "low", "high", "critical_high"]:
+    for th in ["critical_low", "low", "high", "critical_high", "no_data"]:
         db_session.add(
             NotificationAssignment(
                 profile_id=profile.id,
@@ -206,6 +206,7 @@ def notification_profile_with_call(db_session, patient_user):
         ("low", "PUSH"),
         ("high", "PUSH"),
         ("critical_high", "CALL"),
+        ("no_data", "PUSH"),
     ]
     for th, area in threshold_areas:
         db_session.add(

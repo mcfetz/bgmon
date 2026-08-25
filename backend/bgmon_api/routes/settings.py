@@ -336,6 +336,7 @@ def update_thresholds() -> FlaskResponse | tuple[FlaskResponse, int]:
     if not threshold:
         threshold = Threshold(user_id=user.id)
         db.session.add(threshold)
+        db.session.flush()
 
     for field in ["critical_low", "low", "high", "critical_high"]:
         if field in data:
@@ -343,6 +344,15 @@ def update_thresholds() -> FlaskResponse | tuple[FlaskResponse, int]:
             if not isinstance(val, (int, float)):
                 return jsonify({"error": f"{field} must be number"}), HTTPStatus.BAD_REQUEST
             setattr(threshold, field, float(val))
+
+    if "no_data_after_minutes" in data:
+        val = data["no_data_after_minutes"]
+        if isinstance(val, bool) or not isinstance(val, int) or val < 1 or val > 1440:
+            return (
+                jsonify({"error": "no_data_after_minutes must be int 1-1440"}),
+                HTTPStatus.BAD_REQUEST,
+            )
+        threshold.no_data_after_minutes = int(val)
 
     if threshold.critical_low >= threshold.low:
         return jsonify({"error": "critical_low must be < low"}), HTTPStatus.BAD_REQUEST

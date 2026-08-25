@@ -115,6 +115,7 @@
 	let low = $state(70);
 	let high = $state(180);
 	let criticalHigh = $state(250);
+	let noDataAlertMinutes = $state(15);
 
 	let insulinActionHours: number | string = $state(4);
 	let correctionFactor: number | string = $state(50);
@@ -122,13 +123,14 @@
 	let compressionLowEnabled: boolean = $state(true);
 
 	type NotificationArea = 'push' | 'call';
-	type NotificationThreshold = 'critical_low' | 'low' | 'high' | 'critical_high';
+	type NotificationThreshold = 'critical_low' | 'low' | 'high' | 'critical_high' | 'no_data';
 	const NOTIFICATION_AREAS: NotificationArea[] = ['push', 'call'];
 	const NOTIFICATION_THRESHOLDS: NotificationThreshold[] = [
 		'critical_low',
 		'low',
 		'high',
-		'critical_high'
+		'critical_high',
+		'no_data'
 	];
 	const NOTIFICATION_AREA_LABELS: Record<NotificationArea, string> = {
 		push: 'Push',
@@ -138,7 +140,8 @@
 		critical_low: 'Critical Low',
 		low: 'Low',
 		high: 'High',
-		critical_high: 'Critical High'
+		critical_high: 'Critical High',
+		no_data: 'Keine Daten'
 	};
 
 	interface NotificationAssignment {
@@ -578,6 +581,7 @@
 				low = data.low ?? 70;
 				high = data.high ?? 180;
 				criticalHigh = data.critical_high ?? 250;
+				noDataAlertMinutes = data.no_data_after_minutes ?? 15;
 			}
 
 			if (carbRes.ok) {
@@ -717,7 +721,8 @@
 				critical_low: criticalLow,
 				low,
 				high,
-				critical_high: criticalHigh
+				critical_high: criticalHigh,
+				no_data_after_minutes: noDataAlertMinutes
 			})
 		});
 
@@ -1060,6 +1065,15 @@
 						<input type="number" bind:value={criticalHigh} min="180" max="350" />
 					</div>
 
+					<div class="field">
+						<label>Keine Daten (Minuten)</label>
+						<input type="number" bind:value={noDataAlertMinutes} min="1" max="600" />
+						<p class="hint">
+							Alarm wenn länger keine Blutzuckerwerte einlaufen. Was passieren soll
+							(„Keine Daten" im Profil) stellst du unter Profile ein.
+						</p>
+					</div>
+
 					<button class="submit-btn" onclick={saveThresholds}>Speichern</button>
 				{:else if currentView === 'treatment'}
 					<div class="field">
@@ -1215,7 +1229,7 @@
 										(editingProfile = editingProfile?.id === profile.id ? null : profile)}
 								>
 									<span class="profile-name">{profile.name}</span>
-									<span class="profile-count">{profile.assignments.length}/4</span>
+									<span class="profile-count">{profile.assignments.length}/{NOTIFICATION_THRESHOLDS.length}</span>
 								</button>
 								{#if editingProfile?.id === profile.id}
 									<div class="profile-editor">
@@ -1340,7 +1354,7 @@
 							<li>Push: Nur mit installierter App (Homescreen). Bei Erstabfrage „Erlauben" wählen</li>
 							<li>Telefonanruf (Twilio): Automatischer Anruf mit Sprachansage</li>
 							<li>15-Min-Snooze nach jedem Alarm</li>
-							<li>Notification-Profile: Profile für Tag/Nacht, je Schwellwert Push/Anruf wählbar</li>
+							<li>Notification-Profile: Profile für Tag/Nacht, je Schwellwert (inkl. „Keine Daten") Push/Anruf wählbar</li>
 						</ul>
 
 						<h3>Familie-Dashboard</h3>

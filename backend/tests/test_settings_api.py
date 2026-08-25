@@ -108,6 +108,7 @@ def test_get_thresholds_returns_defaults(client, patient_user, auth_headers):
         "low": 70.0,
         "high": 180.0,
         "critical_high": 250.0,
+        "no_data_after_minutes": 15,
     }
 
 
@@ -151,6 +152,36 @@ def test_post_thresholds_negative_value_is_stored(client, patient_user, auth_hea
 
     assert response.status_code == HTTPStatus.OK
     assert response.get_json()["critical_low"] == -10.0
+
+
+def test_post_thresholds_updates_no_data_after_minutes(
+    client, patient_user, auth_headers
+):
+    response = client.post(
+        "/api/settings/thresholds",
+        json={"no_data_after_minutes": 30},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json()["no_data_after_minutes"] == 30
+
+
+def test_post_thresholds_rejects_invalid_no_data_after_minutes(
+    client,
+    patient_user,
+    auth_headers,
+    db_session,
+):
+    response = client.post(
+        "/api/settings/thresholds",
+        json={"no_data_after_minutes": 0},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.get_json() == {"error": "no_data_after_minutes must be int 1-1440"}
+    db_session.rollback()
 
 
 def test_change_password_with_correct_current_password(

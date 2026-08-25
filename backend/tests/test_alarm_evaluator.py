@@ -206,8 +206,82 @@ def test_no_data_alarm_when_empty(app, patient_user, notification_profile_with_a
 def test_no_data_sets_snooze(app, patient_user, notification_profile_with_assignments):
     _evaluate(app)
     snooze = UserSnooze.query.get(patient_user.id)
-    assert snooze is not None and snooze.reason == "no_data"
+    assert snooze is not None and snooze.reason == "alarm:no_data"
     assert snooze.snooze_until > datetime.now(UTC)
+
+
+def test_no_data_dispatched_via_profile_assignment(
+    app, db_session, patient_user, notification_profile_with_assignments
+):
+    mock_push, mock_call = _evaluate(app)
+    mock_call.assert_not_called()
+    assert mock_push.call_count == 1
+    called_user, called_title, _called_body = mock_push.call_args.args
+    assert (called_user, called_title) == (patient_user.id, "Keine Daten")
+
+
+def test_no_data_fires_when_reading_stale(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    _insert_reading(db_session, 120, minutes_ago=30)
+    mock_push, mock_call = _evaluate(app)
+    alarm = Alarm.query.filter_by(user_id=patient_user.id).one()
+    assert alarm.alarm_type == AlarmType.NO_DATA
+    assert alarm.acknowledged_at is None
+    mock_push.assert_called_once()
+    mock_call.assert_not_called()
+
+
+def test_no_data_not_fired_within_stale_threshold(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    _insert_reading(db_session, 120, minutes_ago=5)
+    mock_push, mock_call = _evaluate(app)
+    assert Alarm.query.filter_by(user_id=patient_user.id).count() == 0
+    mock_push.assert_not_called()
+    mock_call.assert_not_called()
+
+
+def test_no_data_custom_stale_threshold(app, db_session, patient_user, thresholds):
+    thresholds.no_data_after_minutes = 60
+    db_session.commit()
+    _create_profile(db_session, patient_user.id, {"no_data": "push"})
+    _insert_reading(db_session, 120, minutes_ago=30)
+    mock_push, mock_call = _evaluate(app)
+    assert Alarm.query.filter_by(user_id=patient_user.id).count() == 0
+    mock_push.assert_not_called()
+    mock_call.assert_not_called()
+
+    db_session.query(GlucoseReading).delete()
+    db_session.commit()
+    _insert_reading(db_session, 120, minutes_ago=90)
+    mock_push, mock_call = _evaluate(app)
+    alarm = Alarm.query.filter_by(user_id=patient_user.id).one()
+    assert alarm.alarm_type == AlarmType.NO_DATA
+    mock_push.assert_called_once()
+
+
+def test_no_data_alarm_resolved_when_fresh_data_returns(
+    app, db_session, patient_user, notification_profile_with_assignments
+):
+    _evaluate(app)
+    alarm = Alarm.query.filter_by(user_id=patient_user.id).one()
+    assert alarm.acknowledged_at is None
+    _insert_reading(db_session, 120)
+    _evaluate(app)
+    alarm = db_session.get(Alarm, alarm.id)
+    assert alarm.acknowledged_at is not None
+
+
+def test_no_data_without_assignment_skips_dispatch(
+    app, db_session, patient_user, thresholds
+):
+    _create_profile(db_session, patient_user.id, {"low": "push"})
+    mock_push, mock_call = _evaluate(app)
+    mock_push.assert_not_called()
+    mock_call.assert_not_called()
+    assert Alarm.query.filter_by(user_id=patient_user.id).one().alarm_type == AlarmType.NO_DATA
+    assert UserSnooze.query.get(patient_user.id) is None
 
 
 def test_alarm_resolved_when_glucose_normalizes(app, db_session, patient_user, thresholds, notification_profile_with_assignments):

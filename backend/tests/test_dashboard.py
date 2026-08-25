@@ -105,6 +105,7 @@ def test_thresholds(client, patient_user, thresholds, auth_headers):
         "low": thresholds.low,
         "high": thresholds.high,
         "critical_high": thresholds.critical_high,
+        "no_data_after_minutes": thresholds.no_data_after_minutes,
     }
 
 

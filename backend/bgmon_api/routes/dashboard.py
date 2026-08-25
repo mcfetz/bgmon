@@ -826,6 +826,7 @@ def get_thresholds() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             "low": 70,
             "high": 180,
             "critical_high": 250,
+            "no_data_after_minutes": 15,
         })
 
     return jsonify(threshold.to_dict())

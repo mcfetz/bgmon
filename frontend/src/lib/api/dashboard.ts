@@ -100,6 +100,7 @@ export interface Thresholds {
 	low: number;
 	high: number;
 	critical_high: number;
+	no_data_after_minutes?: number;
 }
 
 export async function fetchThresholds(): Promise<Thresholds | null> {

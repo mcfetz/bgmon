@@ -78,7 +78,7 @@ def place_call(user: User, sgv: int | None, title: str, compression_low: bool = 
         logger.warning("Twilio from_number equals phone_number for user %d", user.id)
         return False
 
-    sgv_text = f"Blutzucker aktuell {sgv}." if sgv is not None else ""
+    sgv_text = f"Blutzucker aktuell {sgv}." if sgv is not None else f"{title}."
     compression_suffix = (
         " Ggf. Kompressionstiefwert." if compression_low else ""
     )

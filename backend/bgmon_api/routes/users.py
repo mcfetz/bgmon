@@ -149,6 +149,14 @@ def thresholds(user_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
             th.high = float(data["high"])
         if "critical_high" in data:
             th.critical_high = float(data["critical_high"])
+        if "no_data_after_minutes" in data:
+            val = data["no_data_after_minutes"]
+            if isinstance(val, bool) or not isinstance(val, int) or val < 1 or val > 1440:
+                return (
+                    jsonify({"error": "no_data_after_minutes must be int 1-1440"}),
+                    HTTPStatus.BAD_REQUEST,
+                )
+            th.no_data_after_minutes = int(val)
         with transactional_session():
             pass  # commit handled by context manager
 

@@ -212,31 +212,53 @@ def evaluate_alarms() -> None:
     _run_smart_alerts()
 
     current = _query_current_glucose()
-    logger.info("Glucose query result: %s", current)
-    if current is None:
+    now = datetime.now(UTC)
+    minutes_since_reading: float | None = None
+    sgv: int | None = None
+    if current is not None:
+        sgv = current.get("sgv")
+        raw_ts = current.get("timestamp")
+        if raw_ts:
+            try:
+                ts = datetime.fromisoformat(raw_ts)
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=UTC)
+                minutes_since_reading = max(0.0, (now - ts).total_seconds() / 60)
+            except (TypeError, ValueError):
+                logger.exception("Could not parse glucose timestamp %r", raw_ts)
+    if current is None or sgv is None:
         logger.info("No glucose data available for alarm evaluation")
-        _check_no_data_alarm()
-        return
-
-    sgv = current.get("sgv")
-    if sgv is None:
-        logger.info("Current glucose has no SGV value")
-        return
+    else:
+        logger.info("Glucose query result: %s", current)
 
     active_profiles = m["UserActiveProfile"].query.all()
     if not active_profiles:
         logger.info("No users have an active notification profile, skipping")
         return
 
+    any_stale = False
     for active in active_profiles:
         try:
-            _evaluate_for_user(active.user_id, sgv, compression_low)
+            stale = _evaluate_for_user(active.user_id, sgv, minutes_since_reading, compression_low)
+            any_stale = any_stale or stale
         except Exception:
             logger.exception("Error evaluating alarms for user %d", active.user_id)
             db.session.rollback()
 
+    if not any_stale:
+        _resolve_no_data_alarms()
 
-def _evaluate_for_user(user_id: int, sgv: int, compression_low: bool = False) -> None:
+
+def _evaluate_for_user(
+    user_id: int,
+    sgv: int | None,
+    minutes_since_reading: float | None,
+    compression_low: bool = False,
+) -> bool:
+    """Evaluate a single user's alarms.
+
+    Returns True when that user's data is considered stale (no-data alarm path).
+    """
     m = _models()
 
     threshold = m["Threshold"].query.filter_by(user_id=user_id).first()
@@ -245,6 +267,15 @@ def _evaluate_for_user(user_id: int, sgv: int, compression_low: bool = False) ->
         db.session.add(threshold)
         with transactional_session():
             pass  # auto-commit
+
+    no_data_minutes = getattr(threshold, "no_data_after_minutes", 15) or 15
+    if minutes_since_reading is None or minutes_since_reading > no_data_minutes:
+        _handle_no_data(user_id, minutes_since_reading)
+        return True
+
+    if sgv is None:
+        logger.info("Current glucose has no SGV value")
+        return False
 
     active_low = threshold.low
     active_high = threshold.high
@@ -271,25 +302,43 @@ def _evaluate_for_user(user_id: int, sgv: int, compression_low: bool = False) ->
         _dispatch_to_user(user_id, breached, sgv, compression_low=compression_low)
     else:
         _resolve_open_alarms(user_id)
+    return False
 
 
-def _check_no_data_alarm() -> None:
+def _handle_no_data(user_id: int, minutes_since_reading: float | None) -> None:
+    m = _models()
+    patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
+    if patient is not None:
+        open_no_data = m["Alarm"].query.filter_by(
+            user_id=patient.id, alarm_type=m["AlarmType"].NO_DATA, acknowledged_at=None
+        ).first()
+        if open_no_data is None:
+            alarm = m["Alarm"](user_id=patient.id, alarm_type=m["AlarmType"].NO_DATA, sgv=None)
+            db.session.add(alarm)
+            with transactional_session():
+                pass  # auto-commit
+    if minutes_since_reading is None:
+        reason = "Keine Daten empfangen"
+    else:
+        reason = f"Keine Daten seit {int(minutes_since_reading)} Minuten"
+    _dispatch_to_user(user_id, m["NotificationThreshold"].NO_DATA, None, reason=reason)
+
+
+def _resolve_no_data_alarms() -> None:
+    """Acknowledge open NO_DATA alarms once fresh glucose data is available."""
     m = _models()
     patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
     if patient is None:
         return
-    open_no_data = m["Alarm"].query.filter_by(
+    open_alarms = m["Alarm"].query.filter_by(
         user_id=patient.id, alarm_type=m["AlarmType"].NO_DATA, acknowledged_at=None
-    ).first()
-    if open_no_data is None:
-        alarm = m["Alarm"](user_id=patient.id, alarm_type=m["AlarmType"].NO_DATA, sgv=None)
-        db.session.add(alarm)
+    ).all()
+    for alarm in open_alarms:
+        alarm.acknowledged_at = datetime.now(UTC)
+    if open_alarms:
         with transactional_session():
             pass  # auto-commit
-
-    active_profiles = m["UserActiveProfile"].query.all()
-    for active in active_profiles:
-        _dispatch_to_user(active.user_id, None, None, reason="Keine Daten seit >15 Minuten")
+        logger.info("Resolved %d open no-data alarms", len(open_alarms))
 
 
 def check_profile_schedules() -> None:
@@ -423,9 +472,7 @@ def _dispatch_to_user(
         return
 
     if threshold is None:
-        if reason:
-            _log_notification(user, reason, sgv)
-            _set_snooze(user_id, reason="no_data")
+        logger.warning("_dispatch_to_user called without threshold for user %d", user_id)
         return
 
     profile = m["NotificationProfile"].query.get(active.profile_id)
@@ -456,7 +503,7 @@ def _dispatch_to_user(
     if area == "call":
         dispatched = _dispatch_call(user, title, sgv, compression_low)
     elif area == "push":
-        dispatched = _dispatch_push(user, title, sgv, compression_low)
+        dispatched = _dispatch_push(user, title, sgv, compression_low, reason=reason)
 
     if dispatched:
         _set_snooze(user_id, reason=f"alarm:{threshold.value}")
@@ -475,13 +522,16 @@ def _dispatch_call(user: User, title: str, sgv: int | None, compression_low: boo
         return False
 
 
-def _dispatch_push(user: User, title: str, sgv: int | None, compression_low: bool = False) -> bool:
+def _dispatch_push(
+    user: User, title: str, sgv: int | None, compression_low: bool = False,
+    reason: str | None = None,
+) -> bool:
     parts = []
     if sgv is not None:
         parts.append(f"Aktueller Wert: {sgv} mg/dL")
     if compression_low:
         parts.append("⚠️ Kompressionstiefwert erkannt — Sensorposition prüfen")
-    body = " — ".join(parts) if parts else ""
+    body = " — ".join(parts) if parts else (reason or "")
     try:
         send_push_to_user(user.id, title, body)
         _log_notification(user, title, sgv)
@@ -531,6 +581,7 @@ def _threshold_to_alarm_type(threshold) -> AlarmType:
         threshold.LOW: m["AlarmType"].LOW,
         threshold.HIGH: m["AlarmType"].HIGH,
         threshold.CRITICAL_HIGH: m["AlarmType"].CRITICAL_HIGH,
+        threshold.NO_DATA: m["AlarmType"].NO_DATA,
     }
     return mapping[threshold]
 
@@ -541,6 +592,7 @@ def _alarm_title_for(threshold, _sgv: int | None) -> str:
         threshold.LOW: "Niedrig",
         threshold.HIGH: "Hoch",
         threshold.CRITICAL_HIGH: "Kritisch hoch",
+        threshold.NO_DATA: "Keine Daten",
     }[threshold]
 
 
