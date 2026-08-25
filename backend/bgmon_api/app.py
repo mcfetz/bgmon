@@ -142,6 +142,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     from bgmon_api.routes.log import log_bp
     from bgmon_api.routes.night import night_bp
     from bgmon_api.routes.notifications import notifications_bp
+    from bgmon_api.routes.report import report_bp
     from bgmon_api.routes.settings import settings_bp
     from bgmon_api.routes.shifts import shifts_bp
     from bgmon_api.routes.users import users_bp
@@ -154,6 +155,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(log_bp, url_prefix="/api/log")
     app.register_blueprint(night_bp, url_prefix="/api/night")
     app.register_blueprint(notifications_bp)
+    app.register_blueprint(report_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(shifts_bp, url_prefix="/api/shifts")
     app.register_blueprint(users_bp, url_prefix="/api/users")

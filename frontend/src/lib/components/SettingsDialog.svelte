@@ -1,6 +1,7 @@
 
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 	import { apiFetch } from '$lib/auth';
 	import { logout } from '$lib/auth';
 	import { applyUserColors, getStoredColors, type UserColors } from '$lib/theme';
@@ -18,6 +19,7 @@
 		| 'notifications'
 		| 'users'
 		| 'ml'
+		| 'report'
 		| 'whatsnew'
 		| 'help'
 		| 'preferences';
@@ -38,7 +40,8 @@
 			label: 'Diabetes',
 			sections: [
 				{ id: 'treatment', label: 'Faktoren', icon: '💊' },
-				{ id: 'thresholds', label: 'Schwellwerte', icon: '📊' }
+				{ id: 'thresholds', label: 'Schwellwerte', icon: '📊' },
+				{ id: 'report', label: 'AGP-Bericht', icon: '📋' }
 			]
 		},
 		{
@@ -67,6 +70,7 @@
 		notifications: 'Profile',
 		users: 'Benutzer',
 		ml: 'Prognose',
+		report: 'AGP-Bericht',
 		whatsnew: 'Was ist neu?',
 		help: 'Hilfe',
 		preferences: 'Einstellungen'
@@ -79,6 +83,11 @@
 	});
 
 	function navigateTo(view: View) {
+		if (view === 'report') {
+			goto('/report');
+			open = false;
+			return;
+		}
 		currentView = view;
 		if (view === 'whatsnew') {
 			markWhatsNewAsSeen();
