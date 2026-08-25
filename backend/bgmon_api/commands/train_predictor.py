@@ -223,7 +223,24 @@ def _collect_training_data():
     if not readings:
         return TrainingInput()
 
-    training_input = TrainingInput()
+    # Real sampling cadence (median gap) — drives leakage-safe CV gaps
+    from statistics import median  # noqa: PLC0415
+
+    ts_list = [
+        r.timestamp for r in readings
+        if r.timestamp is not None and r.sgv is not None
+    ]
+    sample_interval_s: float | None = None
+    if len(ts_list) >= 2:
+        diffs = [
+            (t2 - t1).total_seconds()
+            for t1, t2 in zip(ts_list, ts_list[1:], strict=False)
+            if t2 > t1
+        ]
+        if diffs:
+            sample_interval_s = float(median(diffs))
+
+    training_input = TrainingInput(sample_interval_s=sample_interval_s)
 
     bg_window: deque[GlucoseReading] = deque()
     log_window: deque[LogEntry] = deque()

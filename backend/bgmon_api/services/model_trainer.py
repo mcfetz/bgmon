@@ -92,6 +92,7 @@ class TrainingInput:  # noqa: MUTABLE_OK — accumulator
     targets: dict[int, list[float | None]] = field(default_factory=dict)
     window_start: datetime | None = None
     window_end: datetime | None = None
+    sample_interval_s: float | None = None
 
     @property
     def sample_count(self) -> int:
@@ -163,22 +164,51 @@ def _walk_forward_splits(
     test_size: int,
     gap: int = 0,
 ) -> list[tuple[int, int, int]]:
-    """Return (train_start, test_start, test_end) triples for walk-forward CV.
+    """Return (train_end, test_start, test_end) triples for walk-forward CV.
 
-    Each fold expands the training window left-to-right, leaves a *gap*
-    samples between train and test, and holds out *test_size* consecutive
-    samples for validation.
+    Folds are non-overlapping blocks walking backwards from the end of the
+    series.  ``gap`` samples between ``train_end`` and ``test_start`` are
+    excluded from BOTH sides — the gap MUST cover the forecast horizon
+    expressed in samples, otherwise training data peeks into the test
+    targets (leakage).
     """
-    min_train = max(1, (n_samples - (n_splits * (test_size + gap))) // 2)
+    min_train = max(test_size * 4, n_samples // 4)
     splits: list[tuple[int, int, int]] = []
     for i in range(n_splits):
-        test_start = n_samples - (n_splits - i) * (test_size + gap)
+        test_end = n_samples - i * test_size
+        test_start = test_end - test_size
         train_end = test_start - gap
-        test_end = test_start + test_size
-        if train_end < min_train or test_end > n_samples:
+        if train_end < min_train or test_start <= 0:
             continue
-        splits.append((0, train_end, test_end))  # always start from 0
-    return splits or [(0, n_samples - test_size, n_samples)]
+        splits.append((train_end, test_start, test_end))
+    if splits:
+        return sorted(splits)
+    # Last resort: single split squeezed into whatever data exists
+    fallback_test_start = max(1, n_samples - test_size)
+    fallback_train_end = max(1, min(min_train, fallback_test_start))
+    return [(fallback_train_end, fallback_test_start, n_samples)]
+
+
+def _infer_sample_interval_s(training_input: TrainingInput) -> float:
+    """Estimate median seconds between consecutive training rows.
+
+    Prefers the measured median reading cadence recorded during
+    collection; falls back to a span-based estimate.  The CV gap is
+    derived from this value — underestimating it would let training data
+    peek into test targets (leakage), so gaps inflate rather than shrink.
+    """
+    if training_input.sample_interval_s:
+        return max(training_input.sample_interval_s, 1.0)
+    if (
+        training_input.window_start is not None
+        and training_input.window_end is not None
+        and training_input.sample_count > 1
+    ):
+        span_s = (
+            training_input.window_end - training_input.window_start
+        ).total_seconds()
+        return max(span_s / (training_input.sample_count - 1), 1.0)
+    return 300.0  # legacy assumption: 5-minute CGM cadence
 
 
 # ── trainer ─────────────────────────────────────────────────────────────
@@ -214,6 +244,8 @@ class ModelTrainer:
                 f"got {len(feat)}"
             )
 
+        interval_s = _infer_sample_interval_s(training_input)
+
         metrics: list[HorizonMetrics] = []
         models: dict[int, LinearRegression] = {}
 
@@ -221,7 +253,11 @@ class ModelTrainer:
             y = y_by_horizon[horizon]
 
             horizon_metrics = self._train_one_horizon(
-                feat, y, horizon_minutes=horizon, n_splits=self._cv_splits
+                feat,
+                y,
+                horizon_minutes=horizon,
+                n_splits=self._cv_splits,
+                sample_interval_s=interval_s,
             )
             metrics.append(horizon_metrics)
 
@@ -251,26 +287,25 @@ class ModelTrainer:
         *,
         horizon_minutes: int,
         n_splits: int,
+        sample_interval_s: float = 300.0,
     ) -> HorizonMetrics:
         """Walk-forward validation for a single horizon.
 
-        Uses a horizon-aware manual walk-forward split: expands training
-        window left-to-right and holds out a contiguous test block of
-        ``test_size`` samples.  A gap of ``horizon_minutes // 5`` samples
-        is inserted between train and test to prevent data leakage from
-        observations inside the forecast horizon.
+        The gap between training window and test block spans the full
+        forecast horizon expressed in *actual* samples (derived from the
+        real sampling interval), preventing data leakage.  Test blocks are
+        sized so the reported MAE rests on hundreds of samples, not a
+        handful.
 
         Baseline = always-predict-last-BG-value. Model = LinearRegression.
         """
-        # Horizon-aware gap: prevent train data from peeking into the
-        # forecast window.  5-minute sampling assumed.
-        gap = max(1, horizon_minutes // 5)
-        test_size = max(1, min(4, len(feat) // (n_splits * 2)))
+        # Horizon-aware gap in SAMPLES from the real sampling cadence
+        gap = max(1, int(np.ceil(horizon_minutes * 60 / sample_interval_s)))
+        test_size = max(24, len(feat) // 50)
 
-        min_train_size = test_size + gap + 1
-        if len(feat) < min_train_size * n_splits:
+        if len(feat) < test_size + gap + 1:
             # Fall back to single-split — not ideal but survives tiny data
-            splits = [(0, len(feat) - test_size, len(feat))]
+            splits = [(len(feat) - test_size - gap, len(feat) - test_size, len(feat))]
         else:
             splits = _walk_forward_splits(
                 n_samples=len(feat),
@@ -283,10 +318,10 @@ class ModelTrainer:
         baseline_maes: list[float] = []
         split_count = 0
 
-        for start, split_point, end in splits:
-            X_train = feat[start:split_point]  # noqa: N806
-            X_test = feat[split_point:end]  # noqa: N806
-            y_train, y_test = y[start:split_point], y[split_point:end]
+        for train_end, test_start, end in splits:
+            X_train = feat[:train_end]  # noqa: N806
+            X_test = feat[test_start:end]  # noqa: N806
+            y_train, y_test = y[:train_end], y[test_start:end]
 
             model = LinearRegression()
             model.fit(X_train, y_train)
