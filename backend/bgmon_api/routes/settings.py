@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from datetime import UTC, datetime
 from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request
@@ -74,6 +75,71 @@ def _put_job(job_id: str, data: dict) -> None:
     jobs = _load_jobs()
     jobs[job_id] = data
     _save_jobs(jobs)
+
+
+# Background threads die with the worker process; a running job whose
+# started_at is missing or older than this is a zombie and gets failed.
+_ML_JOB_TIMEOUT_S = 29 * 60
+
+
+def _stale_running_job(job: dict) -> bool:
+    """Return True when a 'running' job is a leftover and must be failed.
+
+    Only meaningful for jobs in status 'running'; anything else returns False.
+    """
+    if job.get("status") != "running":
+        return False
+    raw = job.get("started_at")
+    if not raw:
+        return True
+    try:
+        started = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return True
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - started).total_seconds() > _ML_JOB_TIMEOUT_S
+
+
+def _resolve_job(job_id: str) -> dict | None:
+    """Return the job with stale 'running' entries transitioned to failed."""
+    jobs = _load_jobs()
+    job = jobs.get(job_id)
+    if job is None or job.get("status") != "running":
+        return job
+    if _stale_running_job(job):
+        job = {**job, "status": "failed", "error": "Training abgebrochen (Zeitüberschreitung)"}
+        jobs[job_id] = job
+        _save_jobs(jobs)
+    return job
+
+
+def _has_running_job() -> bool:
+    """True when a *live* background job is currently running.
+
+    Stale 'running' leftovers (missing/expired started_at) are ignored —
+    they are zombies from killed workers and must not block new runs.
+    """
+    return any(
+        j.get("status") == "running" and not _stale_running_job(j)
+        for j in _load_jobs().values()
+    )
+
+
+def _fail_stale_jobs() -> None:
+    """Mark leftover 'running' jobs as failed (killed workers/restarts)."""
+    jobs = _load_jobs()
+    changed = False
+    for job_id, job in jobs.items():
+        if job.get("status") == "running" and _stale_running_job(job):
+            jobs[job_id] = {
+                **job,
+                "status": "failed",
+                "error": "Training abgebrochen (Zeitüberschreitung)",
+            }
+            changed = True
+    if changed:
+        _save_jobs(jobs)
 
 
 @settings_bp.route("/preferences", methods=["GET"])
@@ -602,10 +668,20 @@ def ml_train_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if user.role != UserRole.ADMIN:
         return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
 
+    _fail_stale_jobs()
+    if _has_running_job():
+        return (
+            jsonify({"error": "training already in progress"}),
+            HTTPStatus.CONFLICT,
+        )
+
     import uuid  # noqa: PLC0415
 
     job_id = uuid.uuid4().hex[:12]
-    _put_job(job_id, {"status": "running"})
+    _put_job(job_id, {
+        "status": "running",
+        "started_at": datetime.now(UTC).isoformat(),
+    })
 
     thread = threading.Thread(target=_run_train, args=(job_id,))
     thread.start()
@@ -619,7 +695,7 @@ def ml_train_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
     if isinstance(user, tuple):
         return jsonify(user[0]), user[1]
 
-    job = _get_job(job_id)
+    job = _resolve_job(job_id)
     if not job:
         return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
     return jsonify(job)
@@ -665,10 +741,20 @@ def ml_evaluate_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if user.role != UserRole.ADMIN:
         return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
 
+    _fail_stale_jobs()
+    if _has_running_job():
+        return (
+            jsonify({"error": "evaluation already in progress"}),
+            HTTPStatus.CONFLICT,
+        )
+
     import uuid  # noqa: PLC0415
 
     job_id = uuid.uuid4().hex[:12]
-    _put_job(job_id, {"status": "running"})
+    _put_job(job_id, {
+        "status": "running",
+        "started_at": datetime.now(UTC).isoformat(),
+    })
 
     thread = threading.Thread(target=_run_evaluate, args=(job_id,))
     thread.start()
@@ -682,7 +768,7 @@ def ml_evaluate_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTP
     if isinstance(user, tuple):
         return jsonify(user[0]), user[1]
 
-    job = _get_job(job_id)
+    job = _resolve_job(job_id)
     if not job:
         return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
     return jsonify(job)

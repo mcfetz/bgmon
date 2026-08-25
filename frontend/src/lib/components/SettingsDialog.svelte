@@ -307,7 +307,7 @@
 					clearInterval(interval);
 					setStatus('completed');
 					setResult(data);
-				} else if (data.status === 'error') {
+				} else if (data.status === 'error' || data.status === 'failed') {
 					clearInterval(interval);
 					setStatus('Fehler: ' + (data.error || 'Unbekannter Fehler'));
 				} else {
@@ -327,7 +327,10 @@
 			const res = await apiFetch('/api/settings/ml/train', { method: 'POST' });
 			if (!res.ok) {
 				const data = await res.json();
-				mlTrainStatus = 'Fehler: ' + (data.error || res.status);
+				mlTrainStatus =
+					data.error === 'training already in progress'
+						? 'Fehler: Es läuft bereits ein Training'
+						: 'Fehler: ' + (data.error || res.status);
 				return;
 			}
 			const data = await res.json();
@@ -350,7 +353,10 @@
 			const res = await apiFetch('/api/settings/ml/evaluate', { method: 'POST' });
 			if (!res.ok) {
 				const data = await res.json();
-				mlEvalStatus = 'Fehler: ' + (data.error || res.status);
+				mlEvalStatus =
+					data.error === 'evaluation already in progress'
+						? 'Fehler: Es läuft bereits eine Evaluierung'
+						: 'Fehler: ' + (data.error || res.status);
 				return;
 			}
 			const data = await res.json();

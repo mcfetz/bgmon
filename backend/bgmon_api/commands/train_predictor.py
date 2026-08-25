@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timedelta
+from datetime import UTC, timedelta
 from pathlib import Path
 
 import click
@@ -163,14 +163,22 @@ def _create_training_log_entry(
 
 
 def _collect_training_data():
-    """Collect training samples from the database.
+    """Collect training samples from the database (near-linear throughput).
 
     Strategy: For each GlucoseReading that has a future reading at exactly
     the configured horizon offsets (±5 min), build a feature row at the
     reading's timestamp and record the future SGV as the target.  Persisted
     GlobalSettings and the most recent BasalRateHistory at or before each
     reference time are included for richer context.
+
+    Context is computed from a *bounded rolling window* (6h) instead of the
+    full history.  All features only look back ≤4h, so this produces
+    identical vectors while keeping the runtime linear in the number of
+    readings (previously the whole history was rescanned and re-sorted per
+    row, which made training unusably slow once the dataset grew).
     """
+    from collections import deque  # noqa: PLC0415
+
     from bgmon_api.config import Config
     from bgmon_api.models import (
         BasalRateHistory,
@@ -180,6 +188,7 @@ def _collect_training_data():
     )
 
     horizons = Config.ML_HORIZONS
+    context_window = timedelta(hours=6)
 
     # Fetch all readings ordered by timestamp
     readings: list[GlucoseReading] = (
@@ -216,12 +225,51 @@ def _collect_training_data():
 
     training_input = TrainingInput()
 
-    for _idx in range(len(readings)):
-        r = readings[_idx]
+    bg_window: deque[GlucoseReading] = deque()
+    log_window: deque[LogEntry] = deque()
+    log_idx = 0
+    basal_idx = 0
+    basal_rate: BasalRateHistory | None = None
+
+    for r in readings:
         if r.timestamp is None or r.sgv is None:
             continue
 
-        ref_time = r.timestamp.replace(tzinfo=r.timestamp.tzinfo)
+        ref_time = r.timestamp
+        if ref_time.tzinfo is None:
+            ref_time = ref_time.replace(tzinfo=UTC)
+
+        cutoff = ref_time - context_window
+
+        # Advance basal-rate pointer to the entry active at/before ref_time
+        while basal_idx < len(basal_rates):
+            br = basal_rates[basal_idx]
+            if br.changed_at is not None and br.changed_at <= ref_time:
+                basal_rate = br
+                basal_idx += 1
+            else:
+                break
+
+        # Feed log entries up to ref_time, pruning anything outside the window
+        while log_idx < len(log_entries):
+            le = log_entries[log_idx]
+            if le.created_at is not None and le.created_at <= ref_time:
+                log_window.append(le)
+                log_idx += 1
+            else:
+                break
+        while log_window and (
+            log_window[0].created_at is None
+            or log_window[0].created_at <= cutoff
+        ):
+            log_window.popleft()
+
+        # Rolling BG window: keep readings within the context window
+        while bg_window and (
+            bg_window[0].timestamp is None or bg_window[0].timestamp <= cutoff
+        ):
+            bg_window.popleft()
+        bg_window.append(r)
 
         # Look up future targets for all configured horizons
         target_vals: dict[int, float | None] = {}
@@ -245,30 +293,11 @@ def _collect_training_data():
         if all_none:
             continue
 
-        # Build context: readings up to and including ref_time
-        context_readings = [
-            cr for cr in readings
-            if cr.timestamp is not None and cr.timestamp <= ref_time
-        ]
-
-        # Filter log entries up to ref_time
-        context_logs = [
-            le for le in log_entries
-            if le.created_at is not None and le.created_at <= ref_time
-        ]
-
-        # Most recent basal rate at or before ref_time
-        basal_rate: BasalRateHistory | None = None
-        for br in reversed(basal_rates):
-            if br.changed_at is not None and br.changed_at <= ref_time:
-                basal_rate = br
-                break
-
         training_input.add_context(
             ref_time=ref_time,
             targets=target_vals,
-            glucose_readings=context_readings,
-            log_entries=context_logs,
+            glucose_readings=list(bg_window),
+            log_entries=list(log_window),
             basal_rate=basal_rate,
             global_settings=global_settings,
         )
