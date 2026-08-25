@@ -22,12 +22,13 @@
 		return pad.top + chartH - ((v - Y_MIN) / (Y_MAX - Y_MIN)) * chartH;
 	}
 
-	// Colors: distinct hues for each day line
-	const DAY_COLORS = [
-		'#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
-		'#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#06b6d4',
-		'#84cc16', '#a855f7', '#6366f1', '#d946ef', '#10b981'
-	];
+	function bandColor(avg: number | null): string {
+		if (avg === null) return '#94a3b8';
+		if (avg < LOW) return '#ef4444';
+		if (avg <= HIGH) return '#22c55e';
+		if (avg <= 250) return '#eab308';
+		return '#ef4444';
+	}
 
 	function pathD(readings: [string, number][]): string {
 		let d = '';
@@ -78,12 +79,12 @@
 		{/each}
 
 		<!-- Day lines -->
-		{#each profiles as profile, i}
+		{#each profiles as profile}
 			{#if profile.readings.length > 1}
 				<path
 					d={pathD(profile.readings)}
 					fill="none"
-					stroke={DAY_COLORS[i % DAY_COLORS.length]}
+					stroke={bandColor(profile.avg)}
 					stroke-width="1.2"
 					opacity="0.6"
 				/>
@@ -99,12 +100,9 @@
 	</svg>
 
 	<div class="legend">
-		{#each profiles as profile, i}
-			<span class="legend-item">
-				<span class="swatch" style="background: {DAY_COLORS[i % DAY_COLORS.length]}"></span>
-				{profile.weekday} {profile.date.slice(8)}.{profile.date.slice(5, 7)}
-			</span>
-		{/each}
+		<span class="legend-item"><span class="swatch" style="background: #22c55e"></span> Zielbereich (70–180)</span>
+		<span class="legend-item"><span class="swatch" style="background: #eab308"></span> Hoch (180–250)</span>
+		<span class="legend-item"><span class="swatch" style="background: #ef4444"></span> Niedrig / Sehr hoch</span>
 	</div>
 </div>
 
