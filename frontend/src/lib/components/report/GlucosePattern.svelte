@@ -13,7 +13,9 @@
 	const Y_MAX = 350;
 
 	const LOW = 70;
+	const CRITICAL_LOW = 54;
 	const HIGH = 180;
+	const CRITICAL_HIGH = 250;
 
 	function xScale(minutes: number): number {
 		return pad.left + (minutes / (24 * 60)) * chartW;
@@ -22,29 +24,36 @@
 		return pad.top + chartH - ((v - Y_MIN) / (Y_MAX - Y_MIN)) * chartH;
 	}
 
-	function bandColor(avg: number | null): string {
-		if (avg === null) return '#94a3b8';
-		if (avg < LOW) return '#ef4444';
-		if (avg <= HIGH) return '#22c55e';
-		if (avg <= 250) return '#eab308';
+	function sgvColor(v: number): string {
+		if (v < CRITICAL_LOW) return '#dc2626';
+		if (v < LOW) return '#ef4444';
+		if (v <= HIGH) return '#22c55e';
+		if (v <= CRITICAL_HIGH) return '#eab308';
 		return '#ef4444';
 	}
 
-	function pathD(readings: [string, number][]): string {
-		let d = '';
-		let started = false;
-		for (const [time, sgv] of readings) {
-			const [h, m] = time.split(':').map(Number);
-			const x = xScale(h * 60 + m);
-			const y = yScale(sgv);
-			if (!started) {
-				d += `M${x},${y}`;
-				started = true;
-			} else {
-				d += `L${x},${y}`;
-			}
+	interface Segment {
+		d: string;
+		color: string;
+	}
+
+	function segments(readings: [string, number][]): Segment[] {
+		const result: Segment[] = [];
+		if (readings.length < 2) return result;
+
+		for (let i = 0; i < readings.length - 1; i++) {
+			const [h1, m1] = readings[i][0].split(':').map(Number);
+			const [h2, m2] = readings[i + 1][0].split(':').map(Number);
+			const x1 = xScale(h1 * 60 + m1);
+			const y1 = yScale(readings[i][1]);
+			const x2 = xScale(h2 * 60 + m2);
+			const y2 = yScale(readings[i + 1][1]);
+
+			// Use the higher of the two values for the segment color
+			const color = sgvColor(Math.max(readings[i][1], readings[i + 1][1]));
+			result.push({ d: `M${x1},${y1}L${x2},${y2}`, color });
 		}
-		return d;
+		return result;
 	}
 
 	const tickLabels = $derived(
@@ -78,17 +87,11 @@
 			</text>
 		{/each}
 
-		<!-- Day lines -->
+		<!-- Day lines — segments colored by glucose band -->
 		{#each profiles as profile}
-			{#if profile.readings.length > 1}
-				<path
-					d={pathD(profile.readings)}
-					fill="none"
-					stroke={bandColor(profile.avg)}
-					stroke-width="1.2"
-					opacity="0.6"
-				/>
-			{/if}
+			{#each segments(profile.readings) as seg}
+				<path d={seg.d} fill="none" stroke={seg.color} stroke-width="1.2" opacity="0.7" />
+			{/each}
 		{/each}
 
 		<!-- X axis labels -->
@@ -102,7 +105,7 @@
 	<div class="legend">
 		<span class="legend-item"><span class="swatch" style="background: #22c55e"></span> Zielbereich (70–180)</span>
 		<span class="legend-item"><span class="swatch" style="background: #eab308"></span> Hoch (180–250)</span>
-		<span class="legend-item"><span class="swatch" style="background: #ef4444"></span> Niedrig / Sehr hoch</span>
+		<span class="legend-item"><span class="swatch" style="background: #ef4444"></span> Niedrig (&lt;70) / Sehr hoch (&gt;250)</span>
 	</div>
 </div>
 
