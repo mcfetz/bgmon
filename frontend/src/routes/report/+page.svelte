@@ -81,7 +81,7 @@
 
 <style>
 	.report-page {
-		padding: 1rem;
+		padding: calc(env(safe-area-inset-top, 0px) + 1rem) 1rem 1rem;
 		max-width: 1200px;
 		margin: 0 auto;
 	}
