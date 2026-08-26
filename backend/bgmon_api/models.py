@@ -25,6 +25,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bgmon_api.extensions import db
 
+MAX_LOG_ENTRY_VALUE = 10_000.0
+MAX_LOG_ENTRY_NOTE_CHARS = 2_000
+
 
 class UserRole(enum.StrEnum):
     """User roles: patient, observer, admin."""

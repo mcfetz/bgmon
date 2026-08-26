@@ -1,167 +1,272 @@
 <script lang="ts">
 	import type { DailyPatternPoint } from '$lib/api/report';
+	import { areaPaths, clampGlucose, glucoseRangeCapMarkers, linePath } from './chart';
 
 	let { points }: { points: DailyPatternPoint[] } = $props();
 
-	const width = 800;
-	const height = 350;
-	const pad = { top: 20, right: 20, bottom: 60, left: 50 };
-	const chartW = width - pad.left - pad.right;
-	const chartH = height - pad.top - pad.bottom;
-	const barAreaH = 60;
-	const glucoseH = chartH - barAreaH - 10;
+	const width = 860;
+	const height = 405;
+	const pad = { top: 18, right: 24, bottom: 47, left: 52 };
+	const chartWidth = width - pad.left - pad.right;
+	const glucoseHeight = 214;
+	const treatmentTop = pad.top + glucoseHeight + 43;
+	const treatmentHeight = 60;
 
-	const Y_MIN = 0;
-	const Y_MAX = 350;
-
-	function xScale(i: number): number {
-		return pad.left + (i / (points.length - 1 || 1)) * chartW;
-	}
-	function yScale(v: number): number {
-		return pad.top + glucoseH - ((v - Y_MIN) / (Y_MAX - Y_MIN)) * glucoseH;
+	function xScale(index: number): number {
+		return pad.left + (index / Math.max(points.length, 1)) * chartWidth;
 	}
 
-	function pathD(accessor: (p: DailyPatternPoint) => number | null): string {
-		let d = '';
-		let started = false;
-		for (let i = 0; i < points.length; i++) {
-			const v = accessor(points[i]);
-			if (v === null) continue;
-			const x = xScale(i);
-			const y = yScale(v);
-			if (!started) {
-				d += `M${x},${y}`;
-				started = true;
-			} else {
-				d += `L${x},${y}`;
-			}
-		}
-		return d;
+	function yScale(value: number): number {
+		return pad.top + glucoseHeight - (clampGlucose(value) / 350) * glucoseHeight;
 	}
 
-	function areaD(lower: (p: DailyPatternPoint) => number | null, upper: (p: DailyPatternPoint) => number | null): string {
-		const fwd: string[] = [];
-		const bwd: string[] = [];
-		for (let i = 0; i < points.length; i++) {
-			const lo = lower(points[i]);
-			const hi = upper(points[i]);
-			if (lo !== null && hi !== null) {
-				fwd.push(`${xScale(i)},${yScale(lo)}`);
-				bwd.unshift(`${xScale(i)},${yScale(hi)}`);
-			}
-		}
-		if (fwd.length < 2) return '';
-		return `M${fwd.join('L')}L${bwd.join('L')}Z`;
+	function values(key: 'p5' | 'p25' | 'p50' | 'p75' | 'p95'): (number | null)[] {
+		const series = points.map((point) => point[key]);
+		return points.at(-1)?.time_label === '23:30' ? [...series, series.at(-1) ?? null] : series;
 	}
 
-	const maxCarbs = $derived(Math.max(1, ...points.map((p) => p.carbs_avg ?? 0)));
-	const maxInsulin = $derived(Math.max(1, ...points.map((p) => p.insulin_avg ?? 0)));
-
-	const tickLabels = $derived(
-		points
-			.filter((_, i) => i % 6 === 0)
-			.map((p) => ({ x: xScale(points.indexOf(p)), label: p.time_label }))
+	const outerAreas = $derived(areaPaths(values('p5'), values('p95'), xScale, yScale));
+	const innerAreas = $derived(areaPaths(values('p25'), values('p75'), xScale, yScale));
+	const medianPath = $derived(linePath(values('p50'), xScale, yScale));
+	const glucoseCaps = $derived(
+		glucoseRangeCapMarkers(
+			[values('p5'), values('p25'), values('p50'), values('p75'), values('p95')],
+			xScale,
+			yScale
+		)
 	);
+	const maxTreatment = $derived(
+		Math.max(
+			1,
+			...points.flatMap((point) => [
+				point.carbs_avg,
+				point.rapid_insulin_avg,
+				point.basal_insulin_avg
+			])
+		)
+	);
+	const timeTicks = $derived([
+		...points
+			.filter((_, index) => index % 4 === 0)
+			.map((point, index) => ({ index: index * 4, label: point.time_label })),
+		{ index: points.length, label: '24:00' }
+	]);
+	const hasGlucose = $derived(points.some((point) => point.p50 !== null));
+
+	function treatmentY(value: number): number {
+		return treatmentTop + treatmentHeight - (value / maxTreatment) * treatmentHeight;
+	}
 </script>
 
-<div class="pattern-container">
-	<svg viewBox="0 0 {width} {height}" class="pattern-svg">
-		<!-- Target range -->
-		<rect x={pad.left} y={yScale(180)} width={chartW} height={yScale(70) - yScale(180)}
-			fill="#dcfce7" opacity="0.4" />
-
-		<!-- Grid -->
-		{#each [0, 70, 180, 250, 350] as y}
-			<line x1={pad.left} y1={yScale(y)} x2={pad.left + chartW} y2={yScale(y)}
-				stroke="#e5e7eb" stroke-width="0.5" />
-			<text x={pad.left - 5} y={yScale(y) + 4} text-anchor="end" class="axis-label">{y}</text>
+<div class="daily-pattern">
+	<svg
+		viewBox={`0 0 ${width} ${height}`}
+		class="daily-pattern-svg"
+		role="img"
+		aria-label="Tagesmuster mit Glukose und protokollierten Mengen"
+	>
+		<rect
+			x={pad.left}
+			y={yScale(180)}
+			width={chartWidth}
+			height={yScale(70) - yScale(180)}
+			fill="#dcefdc"
+		/>
+		{#each [0, 70, 180, 250, 350] as value}
+			<line
+				x1={pad.left}
+				y1={yScale(value)}
+				x2={pad.left + chartWidth}
+				y2={yScale(value)}
+				class:threshold={value === 70 || value === 180}
+				class="grid"
+			/>
+			<text x={pad.left - 7} y={yScale(value) + 3.5} text-anchor="end" class="axis">{value}</text>
 		{/each}
-
-		<!-- 5-95 area -->
-		<path d={areaD((p) => p.p5, (p) => p.p95)} fill="#93c5fd" opacity="0.3" />
-		<!-- 25-75 area -->
-		<path d={areaD((p) => p.p25, (p) => p.p75)} fill="#3b82f6" opacity="0.3" />
-		<!-- Median -->
-		<path d={pathD((p) => p.p50)} fill="none" stroke="#1d4ed8" stroke-width="2.5" />
-
-		<!-- Carb bars -->
-		{#each points as pt, i}
-			{#if pt.carbs_avg !== null}
-				<rect
-					x={xScale(i) - 3}
-					y={pad.top + glucoseH + 10 + barAreaH - (pt.carbs_avg / maxCarbs) * barAreaH * 0.5}
-					width={6}
-					height={(pt.carbs_avg / maxCarbs) * barAreaH * 0.5}
-					fill="#22c55e"
-					opacity="0.7"
-					rx="1"
-				/>
-			{/if}
-			{#if pt.insulin_avg !== null}
-				<rect
-					x={xScale(i) + 3}
-					y={pad.top + glucoseH + 10 + barAreaH - (pt.insulin_avg / maxInsulin) * barAreaH * 0.5}
-					width={6}
-					height={(pt.insulin_avg / maxInsulin) * barAreaH * 0.5}
-					fill="#f97316"
-					opacity="0.7"
-					rx="1"
-				/>
-			{/if}
+		{#each timeTicks as tick}
+			<line
+				x1={xScale(tick.index)}
+				y1={pad.top}
+				x2={xScale(tick.index)}
+				y2={treatmentTop + treatmentHeight}
+				class="vertical"
+			/>
+			<text x={xScale(tick.index)} y={height - 11} text-anchor="middle" class="axis"
+				>{tick.label}</text
+			>
 		{/each}
-
-		<!-- X axis -->
-		{#each tickLabels as tick}
-			<text x={tick.x} y={height - 15} text-anchor="middle" class="axis-label">
-				{tick.label}
-			</text>
+		<text x={pad.left} y={11} class="unit">Glukose mg/dL</text>
+		{#each outerAreas as path}<path d={path} fill="#c9d5e7" opacity="0.7" />{/each}
+		{#each innerAreas as path}<path d={path} fill="#8ca8cb" opacity="0.72" />{/each}
+		<path d={medianPath} fill="none" stroke="#176b87" stroke-width="2.4" />
+		{#each glucoseCaps as cap}
+			<path d={cap.d} fill={cap.color} stroke="#fff" stroke-width="0.8">
+				<title>{cap.label}</title>
+			</path>
 		{/each}
+		<text x={pad.left} y={treatmentTop - 26} class="treatment-label"
+			>Durchschnittliche protokollierte Mengen je Tageszeit</text
+		>
+		<line
+			x1={pad.left}
+			y1={treatmentTop + treatmentHeight}
+			x2={pad.left + chartWidth}
+			y2={treatmentTop + treatmentHeight}
+			class="treatment-baseline"
+		/>
+		{#each points as point, index}
+			<rect
+				x={xScale(index) - 4}
+				y={treatmentY(point.carbs_avg)}
+				width="2.5"
+				height={treatmentTop + treatmentHeight - treatmentY(point.carbs_avg)}
+				fill="#b57600"
+			/>
+			<rect
+				x={xScale(index) - 0.75}
+				y={treatmentY(point.rapid_insulin_avg)}
+				width="2.5"
+				height={treatmentTop + treatmentHeight - treatmentY(point.rapid_insulin_avg)}
+				fill="#176b87"
+			/>
+			<rect
+				x={xScale(index) + 2.5}
+				y={treatmentY(point.basal_insulin_avg)}
+				width="2.5"
+				height={treatmentTop + treatmentHeight - treatmentY(point.basal_insulin_avg)}
+				fill="#5c4b8a"
+			/>
+		{/each}
+		<text x={pad.left} y={treatmentTop + 10} class="bar-label">KH</text>
+		<text x={pad.left} y={treatmentTop + 21} class="bar-label">Schnell</text>
+		<text x={pad.left} y={treatmentTop + 32} class="bar-label">Basal</text>
 	</svg>
-
+	{#if !hasGlucose}<p class="no-data">Keine Glukosewerte im ausgewählten Zeitraum.</p>{/if}
 	<div class="legend">
-		<span class="legend-item"><span class="swatch" style="background: #93c5fd"></span> 5.–95. Perzentil</span>
-		<span class="legend-item"><span class="swatch" style="background: #3b82f6"></span> 25.–75. Perzentil</span>
-		<span class="legend-item"><span class="swatch line" style="background: #1d4ed8"></span> Median</span>
-		<span class="legend-item"><span class="swatch" style="background: #22c55e"></span> KH (g/Tag)</span>
-		<span class="legend-item"><span class="swatch" style="background: #f97316"></span> Insulin (E/Tag)</span>
+		<span><i class="outer"></i>5.-95. Perzentil</span><span
+			><i class="inner"></i>25.-75. Perzentil</span
+		><span><i class="median"></i>Median</span><span><i class="carbs"></i>KH g/Tag</span><span
+			><i class="rapid"></i>Schnellinsulin E/Tag</span
+		><span><i class="basal"></i>Basalinsulin E/Tag</span>
 	</div>
 </div>
 
 <style>
-	.pattern-container {
+	.daily-pattern {
 		width: 100%;
-		overflow-x: auto;
+		min-width: 0;
+		max-width: 100%;
 	}
-	.pattern-svg {
+
+	.daily-pattern-svg {
+		display: block;
 		width: 100%;
 		height: auto;
-		max-height: 350px;
+		min-width: 560px;
 	}
-	.axis-label {
+
+	.grid,
+	.vertical {
+		stroke: #d7e0e2;
+		stroke-width: 0.8;
+		stroke-dasharray: 3 3;
+	}
+
+	.threshold {
+		stroke: #6d9e70;
+		stroke-width: 1.1;
+		stroke-dasharray: none;
+	}
+
+	.axis,
+	.unit,
+	.treatment-label,
+	.bar-label {
 		font-size: 10px;
-		fill: #666;
+		fill: #506a74;
 	}
+
+	.unit,
+	.treatment-label {
+		font-weight: 700;
+	}
+
+	.bar-label {
+		font-size: 7px;
+	}
+
+	.treatment-baseline {
+		stroke: #7e9299;
+		stroke-width: 1;
+	}
+
 	.legend {
 		display: flex;
-		gap: 1rem;
-		justify-content: center;
-		margin-top: 0.5rem;
-		font-size: 0.8rem;
 		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.3rem 0.8rem;
+		margin-top: 0.25rem;
+		font-size: 0.67rem;
+		color: #536b75;
 	}
-	.legend-item {
-		display: flex;
+
+	.legend span {
+		display: inline-flex;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.22rem;
 	}
-	.swatch {
+
+	.legend i {
 		display: inline-block;
-		width: 12px;
-		height: 12px;
-		border-radius: 2px;
+		width: 0.7rem;
+		height: 0.55rem;
+		border-radius: 0.1rem;
 	}
-	.swatch.line {
-		height: 2px;
-		border-radius: 0;
+
+	.outer {
+		background: #c9d5e7;
+	}
+	.inner {
+		background: #8ca8cb;
+	}
+	.median {
+		height: 0.18rem !important;
+		background: #176b87;
+	}
+	.carbs {
+		background: #b57600;
+	}
+	.rapid {
+		background: #176b87;
+	}
+	.basal {
+		background: #5c4b8a;
+	}
+
+	.no-data {
+		margin: 0.35rem 0 0;
+		text-align: center;
+		font-size: 0.78rem;
+		color: #6b7e85;
+	}
+
+	@media (max-width: 600px) {
+		.daily-pattern {
+			overflow-x: auto;
+		}
+	}
+
+	@media print {
+		.daily-pattern {
+			overflow: visible !important;
+		}
+
+		.daily-pattern-svg {
+			min-width: 0;
+		}
+
+		.legend {
+			font-size: 6.5pt;
+		}
 	}
 </style>

@@ -20,6 +20,17 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    networks:
+      - bgmon
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.bgmon.app == true
+
   app:
     image: ${BGMON_IMAGE:-bgmon:latest}
     environment:
@@ -42,6 +53,7 @@ services:
       BGMON_BOOTSTRAP_ADMIN_PASSWORD: ${BGMON_BOOTSTRAP_ADMIN_PASSWORD}
       BGMON_LEASE_TTL_S: "30"
       BGMON_LEADER_RENEW_S: "10"
+      BGMON_RATELIMIT_STORAGE_URI: redis://redis:6379/0
     networks:
       - bgmon
     deploy:

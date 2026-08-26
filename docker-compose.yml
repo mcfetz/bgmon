@@ -15,6 +15,15 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build:
       context: .
@@ -34,10 +43,13 @@ services:
       BGMON_BOOTSTRAP_ADMIN_PASSWORD: ${BGMON_BOOTSTRAP_ADMIN_PASSWORD:-admin}
       BGMON_LEASE_TTL_S: "30"
       BGMON_LEADER_RENEW_S: "10"
+      BGMON_RATELIMIT_STORAGE_URI: redis://redis:6379/0
     ports:
       - "5000:5000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./backend:/app/backend

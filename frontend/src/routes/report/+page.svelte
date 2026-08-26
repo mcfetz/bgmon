@@ -2,25 +2,36 @@
 	import { onMount } from 'svelte';
 	import ReportView from '$lib/components/report/ReportView.svelte';
 	import { fetchReport, type ReportData } from '$lib/api/report';
+	import { defaultBerlinReportDates } from '$lib/utils/reportDates';
 
-	let start = $state<string>(
-		new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10)
-	);
-	let end = $state<string>(new Date().toISOString().slice(0, 10));
+	const defaultDates = defaultBerlinReportDates(new Date());
+	let start = $state<string>(defaultDates.start);
+	let end = $state<string>(defaultDates.end);
 	let report = $state<ReportData | null>(null);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+	let loadSequence = 0;
 
 	async function loadReport() {
+		const sequence = ++loadSequence;
 		loading = true;
 		error = null;
+		report = null;
 		try {
-			report = await fetchReport(start, end);
+			const nextReport = await fetchReport(start, end);
+			if (sequence === loadSequence) report = nextReport;
 		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
+			if (sequence === loadSequence) error = e instanceof Error ? e.message : String(e);
 		} finally {
-			loading = false;
+			if (sequence === loadSequence) loading = false;
 		}
+	}
+
+	function invalidateReport() {
+		loadSequence += 1;
+		report = null;
+		error = null;
+		loading = false;
 	}
 
 	function handlePrint() {
@@ -42,11 +53,11 @@
 		<div class="date-controls">
 			<label>
 				Von
-				<input type="date" bind:value={start} />
+				<input type="date" bind:value={start} onchange={() => invalidateReport()} />
 			</label>
 			<label>
 				Bis
-				<input type="date" bind:value={end} />
+				<input type="date" bind:value={end} onchange={() => invalidateReport()} />
 			</label>
 			<button class="btn-primary" onclick={loadReport} disabled={loading}>
 				{loading ? 'Lade...' : 'Bericht erstellen'}
@@ -55,7 +66,7 @@
 	</div>
 
 	{#if error}
-		<div class="error">{error}</div>
+		<div class="error" role="alert">{error}</div>
 	{/if}
 </div>
 
@@ -158,6 +169,7 @@
 	}
 
 	@media print {
+		.no-print,
 		.report-page,
 		.report-print-controls {
 			display: none !important;

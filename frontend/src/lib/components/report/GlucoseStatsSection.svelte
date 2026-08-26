@@ -1,119 +1,318 @@
 <script lang="ts">
-	import type { GlucoseStats, ReportPeriod } from '$lib/api/report';
+	import type { GlucoseStats } from '$lib/api/report';
+	import { formatNumber } from './chart';
 
-	let { stats, period }: { stats: GlucoseStats; period: ReportPeriod } = $props();
+	let { stats }: { stats: GlucoseStats } = $props();
 
 	const bands = $derived([
-		{ label: 'Sehr niedrig', sub: '<54 mg/dL', percent: stats.time_below_54 ?? 0, color: '#dc2626' },
-		{ label: 'Niedrig', sub: '54–69 mg/dL', percent: stats.time_54_70 ?? 0, color: '#f97316' },
-		{ label: 'Zielbereich', sub: '70–180 mg/dL', percent: stats.time_70_180 ?? 0, color: '#22c55e' },
-		{ label: 'Hoch', sub: '181–250 mg/dL', percent: stats.time_180_250 ?? 0, color: '#eab308' },
-		{ label: 'Sehr hoch', sub: '>250 mg/dL', percent: stats.time_above_250 ?? 0, color: '#dc2626' }
+		{
+			label: 'Sehr hoch',
+			range: '> 250 mg/dL',
+			value: stats.time_above_250_percent,
+			goal: 'Ziel < 5 %',
+			color: '#b42318'
+		},
+		{
+			label: 'Hoch',
+			range: '181-250 mg/dL',
+			value: stats.time_180_250_percent,
+			goal: 'Ziel < 25 %',
+			color: '#d99a11'
+		},
+		{
+			label: 'Zielbereich',
+			range: '70-180 mg/dL',
+			value: stats.time_70_180_percent,
+			goal: 'Ziel > 70 %',
+			color: '#4f9d57'
+		},
+		{
+			label: 'Niedrig',
+			range: '54-69 mg/dL',
+			value: stats.time_54_70_percent,
+			goal: `Gesamt < 70: ${formatNumber(stats.tir_below)} % · Ziel < 4 %`,
+			color: '#e5484d'
+		},
+		{
+			label: 'Sehr niedrig',
+			range: '< 54 mg/dL',
+			value: stats.time_below_54_percent,
+			goal: 'Ziel < 1 %',
+			color: '#b42318'
+		}
 	]);
+
+	const shownBands = $derived(bands.map((band) => ({ ...band, displayedValue: band.value ?? 0 })));
 </script>
 
-<div class="stats-grid">
-	<div class="tir-section">
-		<h3>Zeit in Bereichen</h3>
-		<div class="tir-bar">
-			{#each bands as band}
-				{#if band.percent > 0}
+<div class="stats-layout">
+	<section class="stat-panel time-in-range" aria-labelledby="time-in-range-title">
+		<div class="panel-heading">
+			<h3 id="time-in-range-title">Zeit in Bereichen</h3>
+			<span>Ziele für Erwachsene mit Diabetes Typ 1 oder 2</span>
+		</div>
+		<div class="band-bar" aria-label="Zeit in Glukosebereichen">
+			{#each shownBands as band}
+				{#if band.displayedValue > 0}
 					<div
-						class="tir-segment"
-						style="width: {band.percent}%; background: {band.color}"
-						title="{band.label}: {band.percent}%"
+						class="band-fill"
+						style={`width: ${band.displayedValue}%; background: ${band.color}`}
+						title={`${band.label}: ${formatNumber(band.value)} %`}
 					></div>
 				{/if}
 			{/each}
 		</div>
-		<div class="tir-labels">
+		<div class="band-list">
 			{#each bands as band}
-				<div class="tir-label" style="color: {band.color}">
-					<span class="pct">{band.percent}%</span>
-					<span class="sub">{band.sub}</span>
+				<div class="band-row">
+					<span class="band-swatch" style={`background: ${band.color}`}></span>
+					<div>
+						<strong>{band.label}</strong>
+						<span>{band.range}</span>
+					</div>
+					<strong class="band-value">{formatNumber(band.value)} %</strong>
+					<span class="goal">{band.goal}</span>
 				</div>
 			{/each}
 		</div>
-	</div>
+	</section>
 
-	<div class="metrics-grid">
-		<div class="metric">
-			<span class="metric-value">{stats.mean ?? '–'}</span>
-			<span class="metric-label">Glukose-Durchschnitt (mg/dL)</span>
+	<section class="stat-panel metrics" aria-labelledby="metrics-title">
+		<div class="panel-heading">
+			<h3 id="metrics-title">Glukose-Metrik</h3>
+			<span>Aus dem ausgewählten Zeitraum</span>
 		</div>
-		<div class="metric">
-			<span class="metric-value">{stats.gmi ?? '–'}%</span>
-			<span class="metric-label">GMI (Glukose-Managementindikator)</span>
+		<div class="metric-list">
+			<div class="metric-row">
+				<div>
+					<strong>Glukose-Durchschnitt</strong>
+					<span>Ziel &lt; 154 mg/dL</span>
+				</div>
+				<b>{formatNumber(stats.mean)} <small>mg/dL</small></b>
+			</div>
+			<div class="metric-row gmi-row">
+				<div>
+					<strong>Glukose-Management-Indikator (GMI)</strong>
+					<span>Ziel &lt; 7 % beziehungsweise &lt; 53 mmol/mol</span>
+				</div>
+				<b
+					>{formatNumber(stats.gmi)} % <i>/</i>
+					{formatNumber(stats.gmi_mmol_mol, 0)} <small>mmol/mol</small></b
+				>
+			</div>
+			<div class="metric-row">
+				<div>
+					<strong>Glukosevariabilität</strong>
+					<span>Variationskoeffizient, Ziel &lt; 36 %</span>
+				</div>
+				<b>{formatNumber(stats.cv_percent)} %</b>
+			</div>
+			<div class="metric-row compact-row">
+				<div>
+					<strong>Datenabdeckung</strong>
+					<span>{stats.readings} auswertbare Glukosewerte</span>
+				</div>
+				<b>{formatNumber(stats.data_coverage_percent)} %</b>
+			</div>
 		</div>
-		<div class="metric">
-			<span class="metric-value">{stats.cv_percent ?? '–'}%</span>
-			<span class="metric-label">Variabilität (VK%)</span>
-		</div>
-		<div class="metric">
-			<span class="metric-value">{stats.sensor_active_percent ?? '–'}%</span>
-			<span class="metric-label">Sensor aktiv</span>
-		</div>
-	</div>
+	</section>
 </div>
 
 <style>
-	.stats-grid {
+	.stats-layout {
 		display: grid;
-		gap: 1.5rem;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 0.7rem;
 	}
-	.tir-section h3 {
-		font-size: 0.9rem;
-		margin: 0 0 0.5rem 0;
-	}
-	.tir-bar {
-		display: flex;
-		height: 24px;
-		border-radius: 4px;
+
+	.stat-panel {
+		border: 1px solid #b8c6ca;
+		border-radius: 0.5rem;
 		overflow: hidden;
-		margin-bottom: 0.5rem;
+		background: #fff;
 	}
-	.tir-segment {
-		transition: width 0.3s;
-	}
-	.tir-labels {
+
+	.panel-heading {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
+		justify-content: space-between;
+		gap: 0.5rem;
+		align-items: baseline;
+		padding: 0.55rem 0.7rem;
+		border-bottom: 1px solid #d6dfe2;
 	}
-	.tir-label {
+
+	.panel-heading h3 {
+		margin: 0;
+		font-size: 0.91rem;
+		color: #18313d;
+	}
+
+	.panel-heading span {
+		font-size: 0.65rem;
+		text-align: right;
+		color: #55707c;
+	}
+
+	.band-bar {
 		display: flex;
-		flex-direction: column;
-		font-size: 0.8rem;
+		height: 0.9rem;
+		margin: 0.7rem 0.7rem 0.5rem;
+		border-radius: 99px;
+		overflow: hidden;
+		background: #e8eef0;
 	}
-	.tir-label .pct {
-		font-weight: 700;
-		font-size: 1rem;
+
+	.band-fill {
+		min-width: 0;
 	}
-	.tir-label .sub {
-		font-size: 0.7rem;
-		opacity: 0.8;
+
+	.band-list {
+		padding: 0 0.7rem 0.55rem;
 	}
-	.metrics-grid {
+
+	.band-row {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-		gap: 1rem;
+		grid-template-columns: 0.55rem minmax(0, 1fr) auto minmax(5.2rem, auto);
+		gap: 0.38rem;
+		align-items: center;
+		padding: 0.22rem 0;
+		font-size: 0.67rem;
+		border-top: 1px solid #edf1f2;
 	}
-	.metric {
+
+	.band-row:first-child {
+		border-top: 0;
+	}
+
+	.band-swatch {
+		display: block;
+		width: 0.48rem;
+		height: 1.05rem;
+		border-radius: 0.12rem;
+	}
+
+	.band-row div {
+		display: grid;
+		gap: 0.02rem;
+	}
+
+	.band-row div span,
+	.metric-row span {
+		color: #58707a;
+	}
+
+	.band-value {
+		font-size: 0.76rem;
+		font-variant-numeric: tabular-nums;
+		color: #18313d;
+	}
+
+	.goal {
+		border-radius: 0.2rem;
+		padding: 0.12rem 0.22rem;
+		background: #edf2f3;
+		font-size: 0.61rem;
+		color: #405c67;
+	}
+
+	.metric-list {
+		display: grid;
+	}
+
+	.metric-row {
 		display: flex;
-		flex-direction: column;
-		text-align: center;
-		padding: 0.75rem;
-		background: var(--color-surface-secondary, #f8f9fa);
-		border-radius: 8px;
+		justify-content: space-between;
+		gap: 0.75rem;
+		align-items: center;
+		min-height: 2.7rem;
+		padding: 0.42rem 0.7rem;
+		border-top: 1px solid #dfe7e9;
 	}
-	.metric-value {
-		font-size: 1.5rem;
-		font-weight: 700;
-		color: var(--color-primary, #3b82f6);
+
+	.metric-row:first-child {
+		border-top: 0;
 	}
-	.metric-label {
-		font-size: 0.75rem;
-		color: var(--color-text-muted, #666);
-		margin-top: 0.25rem;
+
+	.metric-row div {
+		display: grid;
+		gap: 0.1rem;
+	}
+
+	.metric-row strong {
+		font-size: 0.72rem;
+	}
+
+	.metric-row span {
+		font-size: 0.64rem;
+	}
+
+	.metric-row b {
+		white-space: nowrap;
+		font-size: 1rem;
+		font-variant-numeric: tabular-nums;
+		color: #176b87;
+	}
+
+	.metric-row small {
+		font-size: 0.62em;
+		color: #405c67;
+	}
+
+	.metric-row i {
+		font-style: normal;
+		color: #9aacb2;
+	}
+
+	.gmi-row b {
+		font-size: 0.88rem;
+	}
+
+	.compact-row {
+		background: #f3f7f7;
+	}
+
+	@media (max-width: 720px) {
+		.stats-layout {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (max-width: 420px) {
+		.band-row {
+			grid-template-columns: 0.55rem minmax(0, 1fr) auto;
+		}
+
+		.goal {
+			grid-column: 2 / -1;
+			justify-self: start;
+		}
+
+		.metric-row {
+			align-items: flex-end;
+		}
+	}
+
+	@media print {
+		.stats-layout {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+			gap: 3mm;
+		}
+
+		.panel-heading {
+			padding: 2mm 2.5mm;
+		}
+
+		.band-bar {
+			margin: 2mm 2.5mm 1.5mm;
+		}
+
+		.band-list {
+			padding: 0 2.5mm 2mm;
+		}
+
+		.metric-row {
+			min-height: 11mm;
+			padding: 1.5mm 2.5mm;
+		}
 	}
 </style>

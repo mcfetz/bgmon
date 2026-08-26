@@ -1,6 +1,7 @@
 """Patient logging blueprint — carbs, insulin, basal + history."""
 import contextlib
 from http import HTTPStatus
+from math import isfinite
 
 from flask import Blueprint, jsonify, request
 from flask import Response as FlaskResponse
@@ -8,6 +9,8 @@ from flask import Response as FlaskResponse
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.extensions import db
 from bgmon_api.models import (
+    MAX_LOG_ENTRY_NOTE_CHARS,
+    MAX_LOG_ENTRY_VALUE,
     BasalRateHistory,
     CarbFactorHistory,
     LogEntry,
@@ -78,6 +81,19 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     except ValueError:
         return jsonify({"error": "invalid entry_type"}), HTTPStatus.BAD_REQUEST
 
+    try:
+        value = float(data.get("value", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid value"}), HTTPStatus.BAD_REQUEST
+    if not isfinite(value) or abs(value) > MAX_LOG_ENTRY_VALUE:
+        return jsonify({"error": "invalid value"}), HTTPStatus.BAD_REQUEST
+
+    notes = data.get("notes")
+    if notes is not None and (
+        not isinstance(notes, str) or len(notes) > MAX_LOG_ENTRY_NOTE_CHARS
+    ):
+        return jsonify({"error": "invalid notes"}), HTTPStatus.BAD_REQUEST
+
     from datetime import UTC, datetime, timedelta
     from zoneinfo import ZoneInfo
 
@@ -105,12 +121,12 @@ def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     entry = LogEntry(
         user_id=patient.id,
         entry_type=entry_type,
-        value=float(data.get("value", 0)),
+        value=value,
         unit=data.get("unit", "g" if entry_type == LogEntryType.CARBS else "U"),
-        notes=data.get("notes"),
+        notes=notes,
         created_by_id=user.id,
+        created_at=entry_ts,
     )
-    entry.created_at = entry_ts  # type: ignore[assignment]
     db.session.add(entry)
     with transactional_session():
         pass  # commit handled by context manager

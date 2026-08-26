@@ -4,16 +4,21 @@ import logging
 import signal
 import sys
 import time as _time
+from http import HTTPStatus
+from pathlib import Path
 from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
+from flask_limiter import RateLimitExceeded
+from werkzeug.exceptions import NotFound
 
 from bgmon_api.config import Config
 from bgmon_api.extensions import db, limiter, migrate
 
 logger = logging.getLogger(__name__)
+_REQUEST_START_TIME_KEY = "bgmon.request_start_time"
 
 leader = None
 scheduler = None
@@ -246,12 +251,12 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     @app.before_request
     def _start_timer() -> None:
-        request._start_time = _time.time()  # type: ignore[attr-defined]
+        request.environ[_REQUEST_START_TIME_KEY] = _time.time()
 
     @app.after_request
     def _log_request_time(response: Response) -> Response:
-        start = getattr(request, "_start_time", None)
-        if start is not None:
+        start = request.environ.get(_REQUEST_START_TIME_KEY)
+        if isinstance(start, (int, float)):
             elapsed = (_time.time() - start) * 1000
             if elapsed > 500:
                 logger.warning(
@@ -264,6 +269,11 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                     request.method, request.path, elapsed,
                 )
         return response
+
+    @app.errorhandler(RateLimitExceeded)
+    def _rate_limit_exceeded(_error: RateLimitExceeded) -> tuple[Response, HTTPStatus]:
+        """Return API-safe JSON instead of Flask-Limiter's default HTML page."""
+        return jsonify({"error": "rate_limit_exceeded"}), HTTPStatus.TOO_MANY_REQUESTS
 
     @app.get("/health")
     def health() -> Response:
@@ -310,7 +320,14 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     @app.get("/<path:filename>")
     def static_files(filename: str) -> Response:
-        return send_from_directory(app.static_folder or "static/dist", filename)
+        """Serve built assets, then let extensionless paths enter the SPA."""
+        static_folder = app.static_folder or "static/dist"
+        try:
+            return send_from_directory(static_folder, filename)
+        except NotFound:
+            if filename == "api" or filename.startswith("api/") or "." in Path(filename).name:
+                raise
+            return send_from_directory(static_folder, "index.html")
 
     @app.get("/api/version")
     def version_info() -> Response:

@@ -1,7 +1,14 @@
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
-from bgmon_api.models import BasalRateHistory, CarbFactorHistory, LogEntry, LogEntryType
+from bgmon_api.models import (
+    MAX_LOG_ENTRY_NOTE_CHARS,
+    MAX_LOG_ENTRY_VALUE,
+    BasalRateHistory,
+    CarbFactorHistory,
+    LogEntry,
+    LogEntryType,
+)
 
 
 def test_create_carbs_log_entry_success(client, patient_user, auth_headers):
@@ -31,6 +38,35 @@ def test_create_insulin_log_entry_success(client, patient_user, auth_headers):
     assert data["entry_type"] == LogEntryType.INSULIN.value
     assert data["value"] == 2.5
     assert data["unit"] == "U"
+
+
+def test_create_log_rejects_non_finite_value(client, patient_user, auth_headers):
+    response = client.post(
+        "/api/log/",
+        json={"entry_type": "insulin", "value": "NaN"},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.get_json() == {"error": "invalid value"}
+
+
+def test_create_log_rejects_oversized_value_and_note(client, patient_user, auth_headers):
+    oversized_value = client.post(
+        "/api/log/",
+        json={"entry_type": "carbs", "value": MAX_LOG_ENTRY_VALUE + 1},
+        headers=auth_headers(patient_user),
+    )
+    oversized_note = client.post(
+        "/api/log/",
+        json={"entry_type": "note", "value": 0, "notes": "x" * (MAX_LOG_ENTRY_NOTE_CHARS + 1)},
+        headers=auth_headers(patient_user),
+    )
+
+    assert oversized_value.status_code == HTTPStatus.BAD_REQUEST
+    assert oversized_value.get_json() == {"error": "invalid value"}
+    assert oversized_note.status_code == HTTPStatus.BAD_REQUEST
+    assert oversized_note.get_json() == {"error": "invalid notes"}
 
 
 def test_create_basal_log_entry_success(client, patient_user, auth_headers):

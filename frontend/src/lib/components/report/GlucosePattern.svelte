@@ -1,145 +1,265 @@
 <script lang="ts">
-	import type { DailyProfile } from '$lib/api/report';
+	import type { DailyProfile, GlucosePoint } from '$lib/api/report';
+	import { clampGlucose, glucoseTrace, type GlucoseTrace } from './chart';
 
 	let { profiles }: { profiles: DailyProfile[] } = $props();
 
-	const width = 800;
-	const height = 300;
-	const pad = { top: 20, right: 20, bottom: 40, left: 50 };
-	const chartW = width - pad.left - pad.right;
-	const chartH = height - pad.top - pad.bottom;
-
-	const Y_MIN = 0;
-	const Y_MAX = 350;
-
-	const LOW = 70;
-	const CRITICAL_LOW = 54;
-	const HIGH = 180;
-	const CRITICAL_HIGH = 250;
+	const width = 860;
+	const height = 346;
+	const pad = { top: 18, right: 24, bottom: 66, left: 52 };
+	const chartWidth = width - pad.left - pad.right;
+	const chartHeight = height - pad.top - pad.bottom;
+	const periods = [
+		{ label: 'Über Nacht', start: 0, end: 6 },
+		{ label: 'Morgens', start: 6, end: 12 },
+		{ label: 'Nachmittags', start: 12, end: 18 },
+		{ label: 'Abends', start: 18, end: 24 }
+	];
 
 	function xScale(minutes: number): number {
-		return pad.left + (minutes / (24 * 60)) * chartW;
-	}
-	function yScale(v: number): number {
-		return pad.top + chartH - ((v - Y_MIN) / (Y_MAX - Y_MIN)) * chartH;
+		return pad.left + (minutes / 1440) * chartWidth;
 	}
 
-	function sgvColor(v: number): string {
-		if (v < CRITICAL_LOW) return '#dc2626';
-		if (v < LOW) return '#ef4444';
-		if (v <= HIGH) return '#22c55e';
-		if (v <= CRITICAL_HIGH) return '#eab308';
-		return '#ef4444';
+	function yScale(value: number): number {
+		return pad.top + chartHeight - (clampGlucose(value) / 350) * chartHeight;
 	}
 
-	interface Segment {
-		d: string;
-		color: string;
+	function trace(readings: GlucosePoint[]): GlucoseTrace {
+		return glucoseTrace(readings, xScale, yScale);
 	}
 
-	function segments(readings: [string, number][]): Segment[] {
-		const result: Segment[] = [];
-		if (readings.length < 2) return result;
-
-		for (let i = 0; i < readings.length - 1; i++) {
-			const [h1, m1] = readings[i][0].split(':').map(Number);
-			const [h2, m2] = readings[i + 1][0].split(':').map(Number);
-			const x1 = xScale(h1 * 60 + m1);
-			const y1 = yScale(readings[i][1]);
-			const x2 = xScale(h2 * 60 + m2);
-			const y2 = yScale(readings[i + 1][1]);
-
-			// Use the higher of the two values for the segment color
-			const color = sgvColor(Math.max(readings[i][1], readings[i + 1][1]));
-			result.push({ d: `M${x1},${y1}L${x2},${y2}`, color });
-		}
-		return result;
-	}
-
-	const tickLabels = $derived(
-		[0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => ({
-			x: xScale(h * 60),
-			label: `${String(h).padStart(2, '0')}:00`
-		}))
-	);
+	const hasReadings = $derived(profiles.some((profile) => profile.readings.length > 0));
 </script>
 
 <div class="pattern-container">
-	<svg viewBox="0 0 {width} {height}" class="pattern-svg">
-		<!-- Target range band -->
+	<svg
+		viewBox={`0 0 ${width} ${height}`}
+		class="pattern-svg"
+		role="img"
+		aria-label="Überlagerte Glukosekurven aller Tage"
+	>
 		<rect
 			x={pad.left}
-			y={yScale(HIGH)}
-			width={chartW}
-			height={yScale(LOW) - yScale(HIGH)}
-			fill="#dcfce7"
-			opacity="0.4"
+			y={yScale(180)}
+			width={chartWidth}
+			height={yScale(70) - yScale(180)}
+			fill="#dcefdc"
 		/>
-		<!-- Grid lines -->
-		{#each [0, 54, 70, 180, 250, 350] as y}
+		{#each [0, 54, 70, 180, 250, 350] as value}
 			<line
-				x1={pad.left} y1={yScale(y)}
-				x2={pad.left + chartW} y2={yScale(y)}
-				stroke="#e5e7eb" stroke-width="0.5"
+				x1={pad.left}
+				y1={yScale(value)}
+				x2={pad.left + chartWidth}
+				y2={yScale(value)}
+				class:threshold={value === 70 || value === 180}
+				class="grid"
 			/>
-			<text x={pad.left - 5} y={yScale(y) + 4} text-anchor="end" class="axis-label">
-				{y}
-			</text>
+			<text x={pad.left - 7} y={yScale(value) + 3.5} text-anchor="end" class="axis">{value}</text>
 		{/each}
+		{#each periods as period}
+			<line
+				x1={xScale(period.start * 60)}
+				y1={pad.top}
+				x2={xScale(period.start * 60)}
+				y2={pad.top + chartHeight}
+				class="vertical"
+			/>
+			<text x={xScale(period.start * 60)} y={height - 32} text-anchor="middle" class="axis"
+				>{String(period.start).padStart(2, '0')}:00</text
+			>
+			<text
+				x={xScale(((period.start + period.end) / 2) * 60)}
+				y={height - 10}
+				text-anchor="middle"
+				class="period-label">{period.label}</text
+			>
+		{/each}
+		<line
+			x1={xScale(1440)}
+			y1={pad.top}
+			x2={xScale(1440)}
+			y2={pad.top + chartHeight}
+			class="vertical"
+		/>
+		<text x={xScale(1440)} y={height - 32} text-anchor="middle" class="axis">24:00</text>
+		<text x={pad.left} y={12} class="unit">mg/dL</text>
+		<text x={pad.left + 5} y={yScale(126)} class="target-label">Zielbereich</text>
 
-		<!-- Day lines — segments colored by glucose band -->
 		{#each profiles as profile}
-			{#each segments(profile.readings) as seg}
-				<path d={seg.d} fill="none" stroke={seg.color} stroke-width="1.2" opacity="0.7" />
+			{@const chart = trace(profile.readings)}
+			{#each chart.segments as segment}
+				<path
+					d={segment.d}
+					fill="none"
+					stroke={segment.color}
+					stroke-width="1.05"
+					stroke-linecap="round"
+					opacity="0.5"
+				/>
+			{/each}
+			{#each chart.points as point}
+				<circle
+					cx={point.cx}
+					cy={point.cy}
+					r="2.8"
+					fill={point.color}
+					stroke="#fff"
+					stroke-width="0.8"
+				>
+					<title>{point.label}</title>
+				</circle>
+			{/each}
+			{#each chart.compressionPoints as point}
+				<circle cx={point.cx} cy={point.cy} r="3" class="compression-point">
+					<title>{point.label}</title>
+				</circle>
+			{/each}
+			{#each chart.caps as cap}
+				<path d={cap.d} fill={cap.color} stroke="#fff" stroke-width="0.65" opacity="0.8">
+					<title>{cap.label}</title>
+				</path>
 			{/each}
 		{/each}
-
-		<!-- X axis labels -->
-		{#each tickLabels as tick}
-			<text x={tick.x} y={height - 8} text-anchor="middle" class="axis-label">
-				{tick.label}
-			</text>
-		{/each}
 	</svg>
-
-	<div class="legend">
-		<span class="legend-item"><span class="swatch" style="background: #22c55e"></span> Zielbereich (70–180)</span>
-		<span class="legend-item"><span class="swatch" style="background: #eab308"></span> Hoch (180–250)</span>
-		<span class="legend-item"><span class="swatch" style="background: #ef4444"></span> Niedrig (&lt;70) / Sehr hoch (&gt;250)</span>
+	{#if !hasReadings}
+		<p class="no-data">Keine Glukosewerte im ausgewählten Zeitraum.</p>
+	{/if}
+	<div class="legend" aria-label="Legende">
+		<span><i class="in-range"></i>70-180 mg/dL</span>
+		<span><i class="high"></i>180-250 mg/dL</span>
+		<span><i class="low"></i>&lt; 70 mg/dL oder &gt; 250 mg/dL</span>
+		<span><i class="compression"></i>Möglicher Kompressionswert</span>
+		<span><i class="target"></i>Hintergrund: Zielbereich</span>
 	</div>
 </div>
 
 <style>
 	.pattern-container {
 		width: 100%;
-		overflow-x: auto;
+		min-width: 0;
 	}
+
 	.pattern-svg {
+		display: block;
 		width: 100%;
 		height: auto;
-		max-height: 320px;
+		min-width: 540px;
 	}
-	.axis-label {
+
+	.grid,
+	.vertical {
+		stroke: #d7e0e2;
+		stroke-width: 0.8;
+		stroke-dasharray: 3 3;
+	}
+
+	.threshold {
+		stroke: #6d9e70;
+		stroke-width: 1.2;
+		stroke-dasharray: none;
+	}
+
+	.axis,
+	.unit,
+	.target-label {
 		font-size: 10px;
-		fill: #666;
+		fill: #506a74;
 	}
+
+	.unit {
+		font-weight: 700;
+	}
+
+	.target-label {
+		font-size: 9px;
+		fill: #3e7748;
+	}
+
+	.period-label {
+		font-size: 10px;
+		fill: #385661;
+		font-weight: 700;
+	}
+
 	.legend {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem 1rem;
 		justify-content: center;
-		margin-top: 0.5rem;
-		font-size: 0.75rem;
+		gap: 0.3rem 0.9rem;
+		margin-top: 0.2rem;
+		font-size: 0.7rem;
+		color: #405c67;
 	}
-	.legend-item {
-		display: flex;
+
+	.legend span {
+		display: inline-flex;
 		align-items: center;
 		gap: 0.25rem;
 	}
-	.swatch {
+
+	.legend i {
 		display: inline-block;
-		width: 12px;
-		height: 3px;
-		border-radius: 1px;
+		width: 0.78rem;
+		height: 0.18rem;
+		border-radius: 99px;
+	}
+
+	.in-range {
+		background: #4f9d57;
+	}
+
+	.high {
+		background: #d99a11;
+	}
+
+	.low {
+		background: #b42318;
+	}
+
+	.compression {
+		box-sizing: border-box;
+		width: 0.58rem !important;
+		height: 0.58rem !important;
+		background: #fff;
+		border: 1.4px solid #66767c;
+	}
+
+	.compression-point {
+		fill: #fff;
+		stroke: #66767c;
+		stroke-width: 1.5;
+	}
+
+	.target {
+		height: 0.58rem !important;
+		background: #dcefdc;
+		border: 1px solid #8db18e;
+	}
+
+	.no-data {
+		margin: 0.35rem 0 0;
+		text-align: center;
+		font-size: 0.78rem;
+		color: #6b7e85;
+	}
+
+	@media (max-width: 600px) {
+		.pattern-container {
+			overflow-x: auto;
+		}
+	}
+
+	@media print {
+		.pattern-container {
+			overflow: visible !important;
+		}
+
+		.pattern-svg {
+			min-width: 0;
+		}
+
+		.legend {
+			font-size: 7pt;
+		}
 	}
 </style>

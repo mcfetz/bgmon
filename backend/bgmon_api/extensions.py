@@ -12,5 +12,4 @@ migrate: Migrate = Migrate()
 limiter: Limiter = Limiter(
     get_remote_address,
     default_limits=["1000 per hour", "100 per minute"],
-    storage_uri="memory://",
 )

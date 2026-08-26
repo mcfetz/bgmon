@@ -84,6 +84,11 @@ class Config:
     SQLALCHEMY_POOL_RECYCLE = 300
     SQLALCHEMY_POOL_PRE_PING = True
 
+    # Swarm deployments configure a Redis URI so all app replicas share limits.
+    # The in-memory default keeps local development and isolated tests self-contained.
+    RATELIMIT_STORAGE_URI = os.getenv("BGMON_RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_HEADERS_ENABLED = True
+
     PUBLIC_BASE_URL = os.getenv("BGMON_PUBLIC_BASE_URL", "http://localhost:5000")
 
     LIBRE_EMAIL = os.getenv("BGMON_LIBRE_EMAIL", "")
