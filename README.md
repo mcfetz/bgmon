@@ -13,16 +13,29 @@
 - **Live-Dashboard** mit Verlaufsgraph (mg/dL / mmol/L), TIR-Stats und aktueller Glukosewert
 - **Now-Mode**: Das Dashboard folgt automatisch der aktuellen Zeit — der "Jetzt"-Button leuchtet farbig, Navigation beendet den Live-Modus
 - **CGM-Integration** via [LibreLinkUp](https://www.librelinkup.com/) — automatischer Polling im 30-Sekunden-Takt
-- **Persistenz** in PostgreSQL (Schwellwerte, Logs, Alarme, Konfiguration)
-- **InfluxDB** als optionaler sekundärer Storage für historische Auswertungen
+- **Persistenz** in PostgreSQL (Schwellwerte, Logs, Alarme, Konfiguration, Glukosewerte)
 - **Authentifizierung** mit Session-Cookies, bcrypt-gehashte Passwörter, Admin-Rollen
 
 ### Alarme
 - **Vierstufige Schwellwerte** pro User: `critical_low` / `low` / `high` / `critical_high`
+- **Keine-Daten-Alarm**: Sensor-Timeout-Warnung bei konfigurierbarer Minutenzahl (Default: 15)
 - **Twilio-Telefonanrufe** mit deutschem Sprachtext, automatischer Retry (konfigurierbar)
 - **Web-Push** via VAPID — funktioniert auch wenn das PWA geschlossen ist
 - **Snooze-System** (15 min) verhindert Alarm-Spam
 - **Notification-Profile** mit eigenem Routing pro Schwellwert (Push vs. Anruf)
+
+### AGP-Bericht (Druck/PDF)
+- **Ambulantes Glukoseprofil** nach FreeStyle-Libre-3-Format — klinischer Standard für Diabetologen
+- **Neun Abschnitte**: Glukosestatistik, AGP-Kurve (Perzentil-Bänder), tägliche Profile, überlagerte Tagesverläufe, Monatskalender, Tagesprotokoll, Momentaufnahme, Mahlzeitenprofil, Wochenübersicht, Tagesmuster
+- **Drucken / PDF** mit einem Klick — A4-Seitenaufteilung mit automatischen Seitenumbrüchen
+- **Max. 90 Tage** Zeitraum, default letzte 14 Tage, Europe/Berlin-Zeitzone
+- Zugriff über `/report` (Navigation: "Bericht")
+
+### Keine-Daten-Alarm
+- **Sensor-Timeout-Alarm**: Warnung wenn der CGM-Sensor keine neuen Werte liefert
+- **Konfigurierbar** in den Einstellungen (1–600 Minuten, Default: 15)
+- **Automatisches Auflösen** sobald frische Daten eingehen
+- **Push oder Anruf** je nach Notification-Profil — als eigener Schwellwert "Keine Daten" konfigurierbar
 
 ### Pflege & Übergabe
 - **Schicht-Management** für Nachtdienste
@@ -99,9 +112,8 @@ zur Qualitätskontrolle („wie gut war die Vorhersage von vor 2 Stunden?").
 | Komponente  | Technologie                              |
 |-------------|------------------------------------------|
 | Backend     | Python 3.14, Flask 3, SQLAlchemy 2       |
-| Frontend    | Svelte 5, Vite 5, TypeScript             |
+| Frontend    | Svelte 5, Vite 6, TypeScript             |
 | Datenbank   | PostgreSQL 16                            |
-| Time-Series | InfluxDB 2 (optional)                    |
 | Telefonie   | Twilio Voice API                         |
 | Push        | VAPID / Web-Push (`pywebpush`)           |
 | Scheduler   | APScheduler mit Leader-Election          |
@@ -116,7 +128,7 @@ zur Qualitätskontrolle („wie gut war die Vorhersage von vor 2 Stunden?").
 - Python ≥ 3.11 (3.14 empfohlen)
 - Node.js ≥ 20
 - PostgreSQL ≥ 14
-- Optional: InfluxDB 2, Twilio-Account
+- Optional: Twilio-Account
 
 ---
 
@@ -128,9 +140,9 @@ git clone https://github.com/mcfetz/bgmon.git
 cd bgmon
 ```
 
-#### 2. PostgreSQL & InfluxDB starten (am einfachsten via Docker)
+#### 2. PostgreSQL starten (am einfachsten via Docker)
 ```bash
-docker compose up -d db influxdb
+docker compose up -d db
 ```
 
 #### 3. Backend einrichten
@@ -141,7 +153,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 cp ../.env.example ../.env
-# .env bearbeiten — mindestens SECRET_KEY, DATABASE_URL, ggf. InfluxDB-Credentials
+# .env bearbeiten — mindestens SECRET_KEY, DATABASE_URL
 
 # Datenbank-Migrationen anwenden
 flask --app bgmon_api.app db upgrade
@@ -219,14 +231,6 @@ Alle Einstellungen werden über Umgebungsvariablen konfiguriert (siehe `.env.exa
 | `BGMON_SECRET_KEY`          | Flask-Session-Key. **In Produktion kryptisch generieren!** |
 | `BGMON_DATABASE_URL`        | PostgreSQL-URL, z. B. `postgresql://user:pw@host/db` |
 | `BGMON_PUBLIC_BASE_URL`     | Externe URL der App, z. B. `https://bgmon.example.com` |
-
-### Optional — InfluxDB
-| Variable                    | Beschreibung                                       |
-|-----------------------------|----------------------------------------------------|
-| `BGMON_INFLUXDB_URL`        | z. B. `https://influx.example.com`                 |
-| `BGMON_INFLUXDB_TOKEN`      | API-Token mit Lese-Rechten auf den Bucket          |
-| `BGMON_INFLUXDB_ORG`        | Organisation                                       |
-| `BGMON_INFLUXDB_BUCKET`     | Bucket-Name (Standard: `gluroo`)                   |
 
 ### Optional — LibreLinkUp (CGM-Quelle)
 | Variable                    | Beschreibung                                       |
@@ -338,7 +342,7 @@ Alle Endpoints sind unter `/api/*` gemountet. Session-Cookie erforderlich, auße
 | Method | Endpoint                          | Beschreibung                       |
 |--------|-----------------------------------|------------------------------------|
 | GET    | `/api/settings/global`            | Globale Einstellungen              |
-| POST   | `/api/settings/thresholds`        | Schwellwerte aktualisieren         |
+| POST   | `/api/settings/thresholds`        | Schwellwerte inkl. Keine-Daten-Timeout aktualisieren |
 | POST   | `/api/settings/email`             | E-Mail ändern                      |
 | POST   | `/api/settings/password`          | Passwort ändern                    |
 | POST   | `/api/settings/twilio/test`       | Testanruf auslösen                 |
@@ -352,6 +356,11 @@ Alle Endpoints sind unter `/api/*` gemountet. Session-Cookie erforderlich, auße
 | DELETE | `/api/notifications/profiles/<id>`  | Profil löschen                   |
 | GET    | `/api/notifications/active`         | Aktives Profil                   |
 | PUT    | `/api/notifications/active`         | Profil aktivieren                |
+
+### Report (AGP-Bericht)
+| Method | Endpoint                                      | Beschreibung                              |
+|--------|-----------------------------------------------|-------------------------------------------|
+| GET    | `/api/report?start=...&end=...`               | AGP-Bericht (max. 90 Tage, 10 Req/min)   |
 
 ### User-Verwaltung (Admin)
 | Method | Endpoint                | Beschreibung                          |
@@ -413,7 +422,7 @@ Siehe `AGENTS.md` für tieferes Architektur-Onboarding.
 - **Secrets**: ausschließlich via `.env` (siehe `.env.example`)
 - **DB-Migrations**: Alembic, idempotent
 
-> **Wichtig**: `BGMON_SECRET_KEY` und alle Twilio-/InfluxDB-Credentials MÜSSEN in Produktion rotiert und über einen Secrets-Manager (z. B. Docker Swarm Secrets, HashiCorp Vault) bereitgestellt werden.
+> **Wichtig**: `BGMON_SECRET_KEY` und alle Twilio-Credentials MÜSSEN in Produktion rotiert und über einen Secrets-Manager (z. B. Docker Swarm Secrets, HashiCorp Vault) bereitgestellt werden.
 
 ---
 
