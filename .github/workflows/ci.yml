@@ -128,11 +128,23 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - name: Deploy app via Portainer webhook
+        env:
+          PORTAINER_APP_WEBHOOK_URL: ${{ secrets.PORTAINER_APP_WEBHOOK_URL }}
         run: |
-          curl -fsS -X POST "${{ secrets.PORTAINER_APP_WEBHOOK_URL }}"
+          if [[ ! "$PORTAINER_APP_WEBHOOK_URL" =~ ^https?://[^[:space:]]+$ ]]; then
+            echo "::notice::Skipping app deployment: Portainer webhook is not configured."
+            exit 0
+          fi
+          curl -fsS -X POST "$PORTAINER_APP_WEBHOOK_URL"
           echo "Portainer app redeploy triggered."
 
       - name: Deploy scheduler via Portainer webhook
+        env:
+          PORTAINER_SCHEDULER_WEBHOOK_URL: ${{ secrets.PORTAINER_SCHEDULER_WEBHOOK_URL }}
         run: |
-          curl -fsS -X POST "${{ secrets.PORTAINER_SCHEDULER_WEBHOOK_URL }}"
+          if [[ ! "$PORTAINER_SCHEDULER_WEBHOOK_URL" =~ ^https?://[^[:space:]]+$ ]]; then
+            echo "::notice::Skipping scheduler deployment: Portainer webhook is not configured."
+            exit 0
+          fi
+          curl -fsS -X POST "$PORTAINER_SCHEDULER_WEBHOOK_URL"
           echo "Portainer scheduler redeploy triggered."

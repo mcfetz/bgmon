@@ -29,6 +29,11 @@ describe('whats new helpers', () => {
 		expect(entries[0]?.id).toBe('2026-07-16-offline-logbook');
 	});
 
+	it('matches the AGP report release by version prefix', () => {
+		const entries = getVisibleWhatsNewEntries('15954c35814350b63c69538b3ba04aeb60eae5b0');
+		expect(entries[0]?.id).toBe('2026-08-26-agp-report');
+	});
+
 	it('returns all entries when the current version is unknown', () => {
 		const entries = getVisibleWhatsNewEntries('unknown-build');
 		expect(entries).toEqual(WHATS_NEW_ENTRIES);

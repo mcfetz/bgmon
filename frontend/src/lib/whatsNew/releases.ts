@@ -8,6 +8,19 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-08-26-agp-report',
+		versionPrefixes: ['15954c3'],
+		publishedAt: '2026-08-26',
+		title: 'AGP-Bericht: Glukosemuster übersichtlich zusammengefasst',
+		highlights: [
+			'📄 Neuer AGP-Bericht: In den Diabetes-Einstellungen kannst du jetzt einen Bericht für einen frei wählbaren Zeitraum erstellen.',
+			'📊 Durchschnitt, Zeit im Zielbereich, GMI, Variabilität und Datenabdeckung werden kompakt dargestellt.',
+			'🕒 AGP-Kurve, tägliche Profile, Monats- und Wochenübersichten zeigen den Verlauf nach Tageszeit und Datum.',
+			'📝 Protokollierte Kohlenhydrate, Schnellinsulin, Basalinsulin und niedrige Ereignisse erscheinen direkt im Bericht.',
+			'🖨️ Mit „Drucken / PDF“ erhältst du eine A4-Druckansicht; auf dem Handy bleiben breite Diagramme separat scrollbar.'
+		]
+	},
+	{
 		id: '2026-08-24-no-data-alarm',
 		versionPrefixes: ['4733a82'],
 		publishedAt: '2026-08-24',
@@ -117,6 +130,8 @@ export function matchesWhatsNewVersion(entry: WhatsNewEntry, appVersion: string)
 export function getVisibleWhatsNewEntries(appVersion: string): readonly WhatsNewEntry[] {
 	if (!appVersion) return WHATS_NEW_ENTRIES;
 
-	const currentIndex = WHATS_NEW_ENTRIES.findIndex((entry) => matchesWhatsNewVersion(entry, appVersion));
+	const currentIndex = WHATS_NEW_ENTRIES.findIndex((entry) =>
+		matchesWhatsNewVersion(entry, appVersion)
+	);
 	return currentIndex === -1 ? WHATS_NEW_ENTRIES : WHATS_NEW_ENTRIES.slice(currentIndex);
 }
