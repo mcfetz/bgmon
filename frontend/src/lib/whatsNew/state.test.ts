@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getVisibleWhatsNewEntries } from './releases';
+import { getVisibleWhatsNewEntries, WHATS_NEW_ENTRIES } from './releases';
 import { getSeenWhatsNewIds, getUnseenWhatsNewCount, markVisibleWhatsNewSeen } from './state';
 
 type MemoryStorage = {
@@ -31,7 +31,7 @@ describe('whats new helpers', () => {
 
 	it('returns all entries when the current version is unknown', () => {
 		const entries = getVisibleWhatsNewEntries('unknown-build');
-		expect(entries).toHaveLength(6);
+		expect(entries).toEqual(WHATS_NEW_ENTRIES);
 	});
 
 	it('tracks unseen entries until they are marked as seen', () => {
