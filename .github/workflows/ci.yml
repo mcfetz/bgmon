@@ -131,20 +131,30 @@ jobs:
         env:
           PORTAINER_APP_WEBHOOK_URL: ${{ secrets.PORTAINER_APP_WEBHOOK_URL }}
         run: |
-          if [[ ! "$PORTAINER_APP_WEBHOOK_URL" =~ ^https?://[^[:space:]]+$ ]]; then
+          _url="$(printf '%s' "$PORTAINER_APP_WEBHOOK_URL" | tr -d '[:space:]')"
+          if [[ -z "$_url" ]]; then
             echo "::notice::Skipping app deployment: Portainer webhook is not configured."
             exit 0
           fi
-          curl -fsS -X POST "$PORTAINER_APP_WEBHOOK_URL"
+          if [[ ! "$_url" =~ ^https?:// ]]; then
+            echo "::warning::PORTAINER_APP_WEBHOOK_URL does not look like https:// — skipping deploy (length ${#_url})."
+            exit 0
+          fi
+          curl -fsS -X POST "$_url"
           echo "Portainer app redeploy triggered."
 
       - name: Deploy scheduler via Portainer webhook
         env:
           PORTAINER_SCHEDULER_WEBHOOK_URL: ${{ secrets.PORTAINER_SCHEDULER_WEBHOOK_URL }}
         run: |
-          if [[ ! "$PORTAINER_SCHEDULER_WEBHOOK_URL" =~ ^https?://[^[:space:]]+$ ]]; then
+          _url="$(printf '%s' "$PORTAINER_SCHEDULER_WEBHOOK_URL" | tr -d '[:space:]')"
+          if [[ -z "$_url" ]]; then
             echo "::notice::Skipping scheduler deployment: Portainer webhook is not configured."
             exit 0
           fi
-          curl -fsS -X POST "$PORTAINER_SCHEDULER_WEBHOOK_URL"
+          if [[ ! "$_url" =~ ^https?:// ]]; then
+            echo "::warning::PORTAINER_SCHEDULER_WEBHOOK_URL does not look like https:// — skipping deploy (length ${#_url})."
+            exit 0
+          fi
+          curl -fsS -X POST "$_url"
           echo "Portainer scheduler redeploy triggered."
