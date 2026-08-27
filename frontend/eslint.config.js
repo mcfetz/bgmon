@@ -30,6 +30,9 @@ export default [
 		},
 		rules: {
 			'svelte/valid-compile': 'off',
+			'svelte/require-each-key': 'off',
+			'svelte/no-navigation-without-resolve': 'off',
+			'svelte/prefer-svelte-reactivity': 'off',
 			'jsx-a11y/label-has-associated-control': 'off',
 			'no-empty': 'off',
 			'@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }]
