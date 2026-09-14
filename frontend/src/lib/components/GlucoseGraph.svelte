@@ -365,12 +365,15 @@
 
 	function showLogTooltip(marker: ReturnType<typeof logMarkers>[number], event: MouseEvent) {
 		const typeLabels: Record<string, string> = { carbs: 'KE', insulin: 'Insulin', basal: 'Basal' };
+		const isNote = marker.type === 'note';
 		tooltip = {
 			clientX: event.clientX,
 			clientY: event.clientY,
 			value: marker.value,
 			timestamp: marker.timestamp,
-			label: `${typeLabels[marker.type] ?? marker.type}: ${marker.value} ${marker.unit}`
+			label: isNote
+				? `Notiz: ${marker.notes?.trim() || 'ohne Text'}`
+				: `${typeLabels[marker.type] ?? marker.type}: ${marker.value} ${marker.unit}`
 		};
 	}
 
