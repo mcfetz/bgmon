@@ -1010,7 +1010,7 @@ def predict_simulate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         return jsonify(user[0]), user[1]
 
     data = request.get_json(silent=True) or {}
-    carbs_grams = data.get("carbs_grams", 0)
+    carbs_ke = data.get("carbs_ke", 0)
     insulin_units = data.get("insulin_units", 0)
 
     patient = User.query.filter_by(role=UserRole.PATIENT).first()
@@ -1036,12 +1036,12 @@ def predict_simulate() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     from bgmon_api.models import LogEntryType  # noqa: PLC0415
 
-    if carbs_grams > 0:
+    if carbs_ke > 0:
         fake_carbs = LogEntry()
         fake_carbs.user_id = patient.id
         fake_carbs.entry_type = LogEntryType.CARBS
-        fake_carbs.value = float(carbs_grams)
-        fake_carbs.unit = "g"
+        fake_carbs.value = float(carbs_ke)
+        fake_carbs.unit = "KE"
         fake_carbs.created_at = now
         log_entries.append(fake_carbs)
 

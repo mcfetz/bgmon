@@ -78,7 +78,7 @@
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					carbs_grams: carbs === '' ? 0 : Number(carbs) * 10,
+					carbs_ke: carbs === '' ? 0 : Number(carbs),
 					insulin_units: insulin === '' ? 0 : Number(insulin)
 				})
 			});
@@ -348,12 +348,14 @@
 	function applyCorrection() {
 		if (correctionSuggestion) {
 			correctionValue = correctionSuggestion.remaining;
+			syncToTabValues();
 		}
 	}
 
 	function applyCalculatedInsulin() {
 		if (insulinHint) {
 			value = insulinHint.insulin;
+			syncToTabValues();
 		}
 	}
 
