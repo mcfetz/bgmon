@@ -268,6 +268,7 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     compression_low_enabled = data.get("compression_low_enabled")
     compression_low_confidence_threshold = data.get("compression_low_confidence_threshold")
     insulin_stock = data.get("insulin_stock")
+    basal_stock = data.get("basal_stock")
     smart_alert_int_fields = {
         "compression_cooldown_minutes": (1, 1440),
         "postprandial_spike_cooldown_minutes": (1, 1440),
@@ -279,6 +280,7 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
         "combined_overdose_crash_threshold_mgdl": (40, 150),
         "combined_overdose_fall_rate_mgdl_per_5min": (1, 100),
         "insulin_low_stock_cooldown_minutes": (1, 10080),
+        "basal_low_stock_cooldown_minutes": (1, 10080),
         "low_stock_days": (1, 365),
     }
     smart_alert_float_fields = {
@@ -311,6 +313,16 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     ):
         return (
             jsonify({"error": "insulin_stock must be positive number or null"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    if basal_stock is not None and (
+        isinstance(basal_stock, bool)
+        or not isinstance(basal_stock, (int, float))
+        or basal_stock < 0
+    ):
+        return (
+            jsonify({"error": "basal_stock must be positive number or null"}),
             HTTPStatus.BAD_REQUEST,
         )
 
@@ -374,6 +386,10 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     if "insulin_stock" in data:
         value = data["insulin_stock"]
         settings.insulin_stock = float(value) if value is not None else None
+
+    if "basal_stock" in data:
+        value = data["basal_stock"]
+        settings.basal_stock = float(value) if value is not None else None
 
     for field in smart_alert_int_fields | smart_alert_float_fields:
         if data.get(field) is not None:

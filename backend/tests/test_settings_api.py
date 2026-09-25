@@ -140,6 +140,56 @@ def test_post_global_settings_rejects_negative_insulin_stock(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
+def test_post_global_settings_updates_basal_stock(client, observer_user, auth_headers):
+    response = client.post(
+        "/api/settings/global",
+        json={"basal_stock": 1500, "basal_low_stock_cooldown_minutes": 720},
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.get_json()
+    assert data["basal_stock"] == 1500.0
+    assert data["basal_low_stock_cooldown_minutes"] == 720
+
+
+def test_post_global_settings_clears_basal_stock(client, observer_user, auth_headers):
+    client.post(
+        "/api/settings/global",
+        json={"basal_stock": 1500},
+        headers=auth_headers(observer_user),
+    )
+    response = client.post(
+        "/api/settings/global",
+        json={"basal_stock": None},
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json()["basal_stock"] is None
+
+
+def test_post_global_settings_rejects_negative_basal_stock(
+    client, observer_user, auth_headers
+):
+    response = client.post(
+        "/api/settings/global",
+        json={"basal_stock": -5},
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
+def test_get_global_settings_defaults_include_basal(client, observer_user, auth_headers):
+    response = client.get("/api/settings/global", headers=auth_headers(observer_user))
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.get_json()
+    assert data["basal_stock"] is None
+    assert data["basal_low_stock_cooldown_minutes"] == 1440
+
+
 def test_get_thresholds_returns_defaults(client, patient_user, auth_headers):
     response = client.get("/api/settings/thresholds", headers=auth_headers(patient_user))
 

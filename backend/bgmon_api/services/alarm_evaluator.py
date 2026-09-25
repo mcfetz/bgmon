@@ -200,8 +200,8 @@ def _run_smart_alerts() -> None:
         logger.exception("Smart alerts detection failed")
 
 
-def _run_insulin_stock_check() -> None:
-    """Run periodic low-stock evaluation."""
+def _run_stock_check() -> None:
+    """Run periodic low-stock evaluation for bolus and basal insulin."""
     try:
         from bgmon_api.services.insulin_stock import evaluate_low_stock
         evaluate_low_stock()
@@ -221,7 +221,7 @@ def evaluate_alarms() -> None:
     _run_smart_alerts()
 
     # Run insulin stock check
-    _run_insulin_stock_check()
+    _run_stock_check()
 
     current = _query_current_glucose()
     now = datetime.now(UTC)

@@ -227,16 +227,24 @@
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('insulin-stock')}>
 	<div class="stat-card">
 		<span class="label">Insulin-Vorrat 📦</span>
-		{#if stats?.insulin_stock?.configured}
-			<span class="value" style="color: {stats.insulin_stock.low_stock ? '#ef4444' : 'inherit'}">
-				{stats.insulin_stock.days_left ?? '—'}<span class="unit">Tage</span>
-			</span>
-			{#if stats.insulin_stock.low_stock}
-				<span class="unit">Niedriger Bestand — Nachschub besorgen</span>
-			{:else}
-				<span class="unit">
-					{stats.insulin_stock.stock_units ?? '—'} U · ~{stats.insulin_stock.usage_per_day} U/Tag
+		{#if stats?.insulin_stock?.bolus?.configured || stats?.insulin_stock?.basal?.configured}
+			{#if stats.insulin_stock.bolus.configured}
+				<span class="value" style="color: {stats.insulin_stock.bolus.low_stock ? '#ef4444' : 'inherit'}">
+					{stats.insulin_stock.bolus.days_left ?? '—'}<span class="unit">Tage</span>
 				</span>
+				<span class="unit">Schnell · {stats.insulin_stock.bolus.stock_units ?? '—'} U · ~{stats.insulin_stock.bolus.usage_per_day} U/Tag</span>
+				{#if stats.insulin_stock.bolus.low_stock}
+					<span class="unit" style="color: #ef4444">Schnell: Nachschub besorgen</span>
+				{/if}
+			{/if}
+			{#if stats.insulin_stock.basal.configured}
+				<span class="value" style="color: {stats.insulin_stock.basal.low_stock ? '#ef4444' : 'inherit'}">
+					{stats.insulin_stock.basal.days_left ?? '—'}<span class="unit">Tage</span>
+				</span>
+				<span class="unit">Basal · {stats.insulin_stock.basal.stock_units ?? '—'} U · ~{stats.insulin_stock.basal.usage_per_day} U/Tag</span>
+				{#if stats.insulin_stock.basal.low_stock}
+					<span class="unit" style="color: #ef4444">Basal: Nachschub besorgen</span>
+				{/if}
 			{/if}
 		{:else}
 			<span class="value">—</span>

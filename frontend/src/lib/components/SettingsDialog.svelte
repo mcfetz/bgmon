@@ -131,6 +131,7 @@
 	let carbFactor: number | string = $state(1);
 	let compressionLowEnabled: boolean = $state(true);
 	let insulinStock: number | string = $state('');
+	let basalStock: number | string = $state('');
 	let lowStockDays: number | string = $state(14);
 
 	type NotificationArea = 'push' | 'call';
@@ -591,6 +592,7 @@
 				correctionFactor = data.correction_factor ?? 50;
 				compressionLowEnabled = data.compression_low_enabled ?? true;
 				insulinStock = data.insulin_stock ?? '';
+				basalStock = data.basal_stock ?? '';
 				lowStockDays = data.low_stock_days ?? 14;
 			}
 
@@ -775,6 +777,7 @@
 					correction_factor: Number(correctionFactor),
 					compression_low_enabled: compressionLowEnabled,
 					insulin_stock: insulinStock === '' ? null : Number(insulinStock),
+					basal_stock: basalStock === '' ? null : Number(basalStock),
 					low_stock_days: Number(lowStockDays)
 				})
 			}),
@@ -1156,6 +1159,22 @@
 						<p class="hint">
 							Aktueller Insulinvorrat in Einheiten. Das Dashboard zeigt dann, wie viele Tage der
 							Vorrat bei aktuellem Verbrauch noch reicht.
+						</p>
+					</div>
+
+					<div class="field">
+						<label>Basal-Insulinbestand (U)</label>
+						<input
+							type="text"
+							inputmode="decimal"
+							bind:value={basalStock}
+							oninput={normalizeDecimal}
+							pattern="[0-9]*"
+							placeholder="1500"
+						/>
+						<p class="hint">
+							Aktueller Vorrat an langwirksamem Insulin in Einheiten. Das Dashboard zeigt dann,
+							wie viele Tage er bei aktuellem Verbrauch noch reicht.
 						</p>
 					</div>
 

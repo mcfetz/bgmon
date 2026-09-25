@@ -33,6 +33,7 @@ COOLDOWN_FIELDS = {
     "bouncing": "bounce_cycle_cooldown_minutes",
     "combined_overdose": "combined_overdose_cooldown_minutes",
     "insulin_low_stock": "insulin_low_stock_cooldown_minutes",
+    "basal_low_stock": "basal_low_stock_cooldown_minutes",
 }
 
 
