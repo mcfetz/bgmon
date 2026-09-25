@@ -344,7 +344,7 @@ requires-dist = [
     { name = "redis", specifier = ">=5.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "scikit-learn", specifier = ">=1.5.0" },
-    { name = "sqlalchemy", specifier = ">=2.0.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.0,<2.1" },
     { name = "twilio", specifier = ">=8.0.0" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.1a5" },
     { name = "types-flask", marker = "extra == 'dev'", specifier = ">=1.1.0" },
