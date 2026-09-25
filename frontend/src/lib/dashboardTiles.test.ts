@@ -3,6 +3,7 @@ import {
 	dashboardTilesFromPreferences,
 	dashboardTilesStorageKey,
 	defaultDashboardTiles,
+	DASHBOARD_STAT_TILES,
 	expandLegacyStats,
 	hasDashboardTile,
 	isDashboardStatTile,
@@ -73,10 +74,11 @@ describe('dashboard tile preferences', () => {
 	it('expands the legacy statistics tile to every individual statistics card', () => {
 		const expanded = expandLegacyStats(['graph', 'stats']);
 
-		expect(expanded).toHaveLength(9);
-		expect(visibleDashboardStatTiles(expanded)).toHaveLength(8);
+		expect(expanded).toHaveLength(DASHBOARD_STAT_TILES.length + 1);
+		expect(visibleDashboardStatTiles(expanded)).toHaveLength(DASHBOARD_STAT_TILES.length);
 		expect(isDashboardStatTile('daily-score')).toBe(true);
 		expect(isDashboardStatTile('stats')).toBe(false);
+		expect(isDashboardStatTile('insulin-stock')).toBe(true);
 	});
 
 	it('accepts an explicit server preference and ignores malformed payloads', () => {

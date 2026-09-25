@@ -130,6 +130,8 @@
 	let correctionFactor: number | string = $state(50);
 	let carbFactor: number | string = $state(1);
 	let compressionLowEnabled: boolean = $state(true);
+	let insulinStock: number | string = $state('');
+	let lowStockDays: number | string = $state(14);
 
 	type NotificationArea = 'push' | 'call';
 	type NotificationThreshold = 'critical_low' | 'low' | 'high' | 'critical_high' | 'no_data';
@@ -588,6 +590,8 @@
 				insulinActionHours = data.insulin_action_hours ?? 4;
 				correctionFactor = data.correction_factor ?? 50;
 				compressionLowEnabled = data.compression_low_enabled ?? true;
+				insulinStock = data.insulin_stock ?? '';
+				lowStockDays = data.low_stock_days ?? 14;
 			}
 
 			if (thresholdsRes.ok) {
@@ -770,6 +774,8 @@
 					insulin_action_hours: Number(insulinActionHours),
 					correction_factor: Number(correctionFactor),
 					compression_low_enabled: compressionLowEnabled,
+					insulin_stock: insulinStock === '' ? null : Number(insulinStock),
+					low_stock_days: Number(lowStockDays)
 				})
 			}),
 			apiFetch('/api/log/carb-factor', {
@@ -1134,6 +1140,36 @@
 						</label>
 						<p class="hint">
 							Warnt vor falsch-niedrigen Werten durch Sensor-Kompression (z.B. beim Liegen auf dem Sensor).
+						</p>
+					</div>
+
+					<div class="field">
+						<label>Insulinbestand (U)</label>
+						<input
+							type="text"
+							inputmode="decimal"
+							bind:value={insulinStock}
+							oninput={normalizeDecimal}
+							pattern="[0-9]*"
+							placeholder="3000"
+						/>
+						<p class="hint">
+							Aktueller Insulinvorrat in Einheiten. Das Dashboard zeigt dann, wie viele Tage der
+							Vorrat bei aktuellem Verbrauch noch reicht.
+						</p>
+					</div>
+
+					<div class="field">
+						<label>Vorratswarnung nach verbleibenden Tagen</label>
+						<input
+							type="text"
+							inputmode="numeric"
+							bind:value={lowStockDays}
+							pattern="[0-9]*"
+							placeholder="14"
+						/>
+						<p class="hint">
+							Meldet als Smart-Alert, wenn der Vorrat weniger als diese Anzahl Tage reicht.
 						</p>
 					</div>
 

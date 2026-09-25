@@ -99,6 +99,47 @@ def test_post_global_settings_rejects_invalid_smart_alert_config(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
+def test_post_global_settings_updates_insulin_stock(client, observer_user, auth_headers):
+    response = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 3000, "low_stock_days": 21},
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.get_json()
+    assert data["insulin_stock"] == 3000.0
+    assert data["low_stock_days"] == 21
+
+
+def test_post_global_settings_clears_insulin_stock(client, observer_user, auth_headers):
+    client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 3000},
+        headers=auth_headers(observer_user),
+    )
+    response = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": None},
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json()["insulin_stock"] is None
+
+
+def test_post_global_settings_rejects_negative_insulin_stock(
+    client, observer_user, auth_headers
+):
+    response = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": -5},
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
 def test_get_thresholds_returns_defaults(client, patient_user, auth_headers):
     response = client.get("/api/settings/thresholds", headers=auth_headers(patient_user))
 

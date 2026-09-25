@@ -810,6 +810,10 @@ def stats() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         data["weekly_scores"] = _calculate_weekly_scores(patient.id, t_low, t_high)
         data["achievements"] = _calculate_achievements(patient.id, t_low, t_high)
 
+    from bgmon_api.services.insulin_stock import compute_status
+
+    data["insulin_stock"] = compute_status()
+
     return jsonify(data)
 
 
@@ -1238,6 +1242,7 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             "dawn_phenomenon": "🌅",
             "bouncing": "🎢",
             "combined_overdose": "💉",
+            "insulin_low_stock": "📦",
         }
         alerts.append({
             "id": alert_id,

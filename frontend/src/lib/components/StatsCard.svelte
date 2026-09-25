@@ -222,6 +222,34 @@
 				{/if}
 			</div>
 		{/if}
+
+		{#if shouldRenderStatTile('insulin-stock')}
+			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('insulin-stock')}>
+	<div class="stat-card">
+		<span class="label">Insulin-Vorrat 📦</span>
+		{#if stats?.insulin_stock?.configured}
+			<span class="value" style="color: {stats.insulin_stock.low_stock ? '#ef4444' : 'inherit'}">
+				{stats.insulin_stock.days_left ?? '—'}<span class="unit">Tage</span>
+			</span>
+			{#if stats.insulin_stock.low_stock}
+				<span class="unit">Niedriger Bestand — Nachschub besorgen</span>
+			{:else}
+				<span class="unit">
+					{stats.insulin_stock.stock_units ?? '—'} U · ~{stats.insulin_stock.usage_per_day} U/Tag
+				</span>
+			{/if}
+		{:else}
+			<span class="value">—</span>
+			<span class="unit">Bestand nicht konfiguriert</span>
+		{/if}
+	</div>
+				{#if editMode}
+					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('insulin-stock')} aria-label={visibleTiles.includes('insulin-stock') ? 'Insulin-Vorrat ausblenden' : 'Insulin-Vorrat einblenden'} onclick={() => onToggleTile('insulin-stock')}>
+						<span>{visibleTiles.includes('insulin-stock') ? 'Aktiv' : 'Ausgeblendet'}</span>
+					</button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 <TirModal bind:open={tirModalOpen} {stats} />

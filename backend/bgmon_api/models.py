@@ -525,6 +525,11 @@ class GlobalSettings(db.Model):
         Integer, default=5, nullable=False
     )
     rebound_require_no_carbs: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    insulin_stock: Mapped[float | None] = mapped_column(Float, nullable=True)
+    low_stock_days: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
+    insulin_low_stock_cooldown_minutes: Mapped[int] = mapped_column(
+        Integer, default=1440, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -564,6 +569,9 @@ class GlobalSettings(db.Model):
                 self.combined_overdose_fall_rate_mgdl_per_5min
             ),
             "rebound_require_no_carbs": self.rebound_require_no_carbs,
+            "insulin_stock": self.insulin_stock,
+            "low_stock_days": self.low_stock_days,
+            "insulin_low_stock_cooldown_minutes": self.insulin_low_stock_cooldown_minutes,
         }
 
 

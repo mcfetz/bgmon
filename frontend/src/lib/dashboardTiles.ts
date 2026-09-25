@@ -7,7 +7,8 @@ export const DASHBOARD_STAT_TILES = [
 	'min-mean-max',
 	'badges',
 	'gmi',
-	'readings'
+	'readings',
+	'insulin-stock'
 ] as const;
 export const DASHBOARD_TILES = [...DASHBOARD_SECTION_TILES, ...DASHBOARD_STAT_TILES] as const;
 

@@ -47,6 +47,18 @@ export interface StatsData {
 		description: string;
 		unlocked: boolean;
 	}[];
+	insulin_stock?: {
+		configured: boolean;
+		stock_units: number | null;
+		low_stock_days: number;
+		days_left: number | null;
+		low_stock: boolean;
+		usage_per_day: number;
+		avg_daily_units: number;
+		avg_daily_injections: number;
+		active_days: number;
+		lookback_days: number;
+	} | null;
 }
 
 export type TimeRange = 'today' | 'yesterday' | 'this_week' | 'last_week';

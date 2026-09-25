@@ -30,6 +30,7 @@ VALID_DASHBOARD_STAT_TILES = frozenset(
         "badges",
         "gmi",
         "readings",
+        "insulin-stock",
     }
 )
 VALID_DASHBOARD_TILES = VALID_DASHBOARD_SECTION_TILES | VALID_DASHBOARD_STAT_TILES
@@ -266,6 +267,7 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     correction_factor = data.get("correction_factor")
     compression_low_enabled = data.get("compression_low_enabled")
     compression_low_confidence_threshold = data.get("compression_low_confidence_threshold")
+    insulin_stock = data.get("insulin_stock")
     smart_alert_int_fields = {
         "compression_cooldown_minutes": (1, 1440),
         "postprandial_spike_cooldown_minutes": (1, 1440),
@@ -276,6 +278,8 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
         "combined_overdose_cooldown_minutes": (1, 1440),
         "combined_overdose_crash_threshold_mgdl": (40, 150),
         "combined_overdose_fall_rate_mgdl_per_5min": (1, 100),
+        "insulin_low_stock_cooldown_minutes": (1, 10080),
+        "low_stock_days": (1, 365),
     }
     smart_alert_float_fields = {
         "combined_overdose_crash_window_hours": (1.0, 12.0),
@@ -297,6 +301,16 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     ):
         return (
             jsonify({"error": "correction_factor must be positive number"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    if insulin_stock is not None and (
+        isinstance(insulin_stock, bool)
+        or not isinstance(insulin_stock, (int, float))
+        or insulin_stock < 0
+    ):
+        return (
+            jsonify({"error": "insulin_stock must be positive number or null"}),
             HTTPStatus.BAD_REQUEST,
         )
 
@@ -356,6 +370,10 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
 
     if compression_low_confidence_threshold is not None:
         settings.compression_low_confidence_threshold = int(compression_low_confidence_threshold)
+
+    if "insulin_stock" in data:
+        value = data["insulin_stock"]
+        settings.insulin_stock = float(value) if value is not None else None
 
     for field in smart_alert_int_fields | smart_alert_float_fields:
         if data.get(field) is not None:
