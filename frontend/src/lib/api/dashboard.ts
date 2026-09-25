@@ -54,7 +54,7 @@ export interface StatsData {
 	} | null;
 }
 
-interface InsulinStockInfo {
+export interface InsulinStockInfo {
 	configured: boolean;
 	stock_units: number | null;
 	stock_set_at: string | null;

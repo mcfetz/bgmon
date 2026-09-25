@@ -6,6 +6,7 @@
 	import BadgeModal from './BadgeModal.svelte';
 	import StreakModal from './StreakModal.svelte';
 	import PredictionModal from './PredictionModal.svelte';
+	import InsulinStockModal from './InsulinStockModal.svelte';
 
 	const DEFAULT_VISIBLE_TILES: readonly DashboardStatTile[] = DASHBOARD_STAT_TILES;
 
@@ -35,6 +36,7 @@
 	let streakModalOpen = $state(false);
 	let predictionModalOpen = $state(false);
 	let gmiModalOpen = $state(false);
+	let insulinStockModalOpen = $state(false);
 
 	function formatStreakHM(intervals: number | null | undefined): string {
 		const v = intervals ?? 0;
@@ -42,17 +44,6 @@
 		const h = Math.floor(totalMin / 60);
 		const m = totalMin % 60;
 		return `${h}:${String(m).padStart(2, '0')}`;
-	}
-
-	function formatCountDate(iso: string | null | undefined): string {
-		if (!iso) return '';
-		const d = new Date(iso);
-		if (Number.isNaN(d.getTime())) return '';
-		return d.toLocaleDateString('de-DE', {
-			day: '2-digit',
-			month: '2-digit',
-			year: 'numeric',
-		});
 	}
 
 	function gmiColor(gmi: number | null | undefined): string {
@@ -236,38 +227,31 @@
 
 		{#if shouldRenderStatTile('insulin-stock')}
 			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('insulin-stock')}>
-	<div class="stat-card">
+	<button class="stat-card clickable" type="button" onclick={() => (insulinStockModalOpen = true)}>
 		<span class="label">Insulin-Vorrat 📦</span>
-		{#if stats?.insulin_stock?.bolus?.configured || stats?.insulin_stock?.basal?.configured}
-			{#if stats.insulin_stock.bolus.configured}
-				<span class="value" style="color: {stats.insulin_stock.bolus.low_stock ? '#ef4444' : 'inherit'}">
-					{stats.insulin_stock.bolus.days_left ?? '—'}<span class="unit">Tage</span>
+		{#if stats?.insulin_stock}
+			{@const bolusDays = stats.insulin_stock.bolus?.configured ? stats.insulin_stock.bolus.days_left : null}
+			{@const basalDays = stats.insulin_stock.basal?.configured ? stats.insulin_stock.basal.days_left : null}
+			{@const anyLow = (stats.insulin_stock.bolus?.low_stock ?? false) || (stats.insulin_stock.basal?.low_stock ?? false)}
+			{#if bolusDays != null || basalDays != null}
+				{@const minDays = Math.min(...[bolusDays, basalDays].filter((d): d is number => d != null))}
+				<span class="value" style="color: {anyLow ? '#ef4444' : 'inherit'}">
+					{minDays}<span class="unit">Tage</span>
 				</span>
-				<span class="unit">Schnell · rechnerisch noch {stats.insulin_stock.bolus.effective_stock ?? '—'} U · ~{stats.insulin_stock.bolus.usage_per_day} U/Tag</span>
-				{#if stats.insulin_stock.bolus.stock_set_at}
-					<span class="unit">gezählt am {formatCountDate(stats.insulin_stock.bolus.stock_set_at)}</span>
-				{/if}
-				{#if stats.insulin_stock.bolus.low_stock}
-					<span class="unit" style="color: #ef4444">Schnell: Nachschub besorgen</span>
-				{/if}
-			{/if}
-			{#if stats.insulin_stock.basal.configured}
-				<span class="value" style="color: {stats.insulin_stock.basal.low_stock ? '#ef4444' : 'inherit'}">
-					{stats.insulin_stock.basal.days_left ?? '—'}<span class="unit">Tage</span>
+				<span class="unit">
+					{#if bolusDays != null}Schnell {bolusDays} Tage{:else}Schnell —{/if}
+					&nbsp;·&nbsp;
+					{#if basalDays != null}Basal {basalDays} Tage{:else}Basal —{/if}
 				</span>
-				<span class="unit">Basal · rechnerisch noch {stats.insulin_stock.basal.effective_stock ?? '—'} U · ~{stats.insulin_stock.basal.usage_per_day} U/Tag</span>
-				{#if stats.insulin_stock.basal.stock_set_at}
-					<span class="unit">gezählt am {formatCountDate(stats.insulin_stock.basal.stock_set_at)}</span>
-				{/if}
-				{#if stats.insulin_stock.basal.low_stock}
-					<span class="unit" style="color: #ef4444">Basal: Nachschub besorgen</span>
-				{/if}
+			{:else}
+				<span class="value">—</span>
+				<span class="unit">Bestand nicht konfiguriert</span>
 			{/if}
 		{:else}
 			<span class="value">—</span>
 			<span class="unit">Bestand nicht konfiguriert</span>
 		{/if}
-	</div>
+	</button>
 				{#if editMode}
 					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('insulin-stock')} aria-label={visibleTiles.includes('insulin-stock') ? 'Insulin-Vorrat ausblenden' : 'Insulin-Vorrat einblenden'} onclick={() => onToggleTile('insulin-stock')}>
 						<span>{visibleTiles.includes('insulin-stock') ? 'Aktiv' : 'Ausgeblendet'}</span>
@@ -291,6 +275,7 @@
 	currentStreakHours={stats?.streak_hours ?? 0}
 	streakStartedAt={stats?.streak_started_at ?? null}
 />
+<InsulinStockModal bind:open={insulinStockModalOpen} info={stats?.insulin_stock ?? null} />
 <PredictionModal
 	bind:open={predictionModalOpen}
 	{predictions30}
