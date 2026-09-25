@@ -30,6 +30,10 @@ STOCK_FIELD = {
     LogEntryType.INSULIN: "insulin_stock",
     LogEntryType.BASAL: "basal_stock",
 }
+SET_AT_FIELD = {
+    LogEntryType.INSULIN: "insulin_stock_set_at",
+    LogEntryType.BASAL: "basal_stock_set_at",
+}
 TYPE_LABELS = {
     LogEntryType.INSULIN: "Schnellinsulin",
     LogEntryType.BASAL: "Basalinsulin",
@@ -48,6 +52,34 @@ def _settings() -> GlobalSettings:
 def _get_patient_id() -> int | None:
     patient = User.query.filter_by(role=UserRole.PATIENT).first()
     return patient.id if patient else None
+
+
+def _utc(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=UTC)
+    return ts.astimezone(UTC)
+
+
+def consumed_since(entry_type: LogEntryType, since: datetime | None) -> float:
+    """Total units consumed since ``since``, incl. priming per injection."""
+    if since is None:
+        return 0.0
+    patient_id = _get_patient_id()
+    if patient_id is None:
+        return 0.0
+    start = _utc(since)
+    entries = (
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient_id,
+            LogEntry.entry_type == entry_type,
+            LogEntry.created_at >= start,
+        )
+        .all()
+    )
+    units = sum(float(e.value) for e in entries)
+    injections = len(entries)
+    return round(units + injections * PRIMING_UNITS_PER_INJECTION, 1)
 
 
 def estimate_daily_usage(
@@ -102,13 +134,23 @@ def days_left(stock: float | None, usage_per_day: float) -> float | None:
 def _build_status(
     entry_type: LogEntryType,
     stock: float | None,
+    set_at: datetime | None,
     low_stock_days: int,
 ) -> dict:
     usage = estimate_daily_usage(entry_type=entry_type)
-    remaining = days_left(stock, usage["usage_per_day"])
+    consumed = consumed_since(entry_type, set_at)
+    effective_stock = max(stock - consumed, 0.0) if stock is not None else None
+    if effective_stock is not None and effective_stock <= 0:
+        remaining = 0.0
+    else:
+        remaining = days_left(effective_stock, usage["usage_per_day"])
+
     return {
         **usage,
         "stock_units": stock,
+        "stock_set_at": set_at.isoformat() if set_at else None,
+        "consumed_since_set_at": consumed,
+        "effective_stock": effective_stock,
         "configured": stock is not None,
         "low_stock_days": low_stock_days,
         "days_left": remaining,
@@ -125,22 +167,35 @@ def compute_status() -> dict:
         value = getattr(settings, field)
         return float(value) if value is not None else None
 
+    def _set_at(field: str) -> datetime | None:
+        return getattr(settings, field)
+
     return {
         "low_stock_days": low_stock_days,
         "bolus": _build_status(
-            LogEntryType.INSULIN, _stock(STOCK_FIELD[LogEntryType.INSULIN]), low_stock_days
+            LogEntryType.INSULIN,
+            _stock(STOCK_FIELD[LogEntryType.INSULIN]),
+            _set_at(SET_AT_FIELD[LogEntryType.INSULIN]),
+            low_stock_days,
         ),
         "basal": _build_status(
-            LogEntryType.BASAL, _stock(STOCK_FIELD[LogEntryType.BASAL]), low_stock_days
+            LogEntryType.BASAL,
+            _stock(STOCK_FIELD[LogEntryType.BASAL]),
+            _set_at(SET_AT_FIELD[LogEntryType.BASAL]),
+            low_stock_days,
         ),
     }
 
 
-def _evaluate_type(entry_type: LogEntryType, stock: float | None) -> dict | None:
+def _evaluate_type(
+    entry_type: LogEntryType,
+    stock: float | None,
+    set_at: datetime | None,
+) -> dict | None:
     """Log a SmartAlert NOTE for one insulin type when stock is low."""
     settings = _settings()
     low_stock_days = settings.low_stock_days or DEFAULT_LOW_STOCK_DAYS
-    status = _build_status(entry_type, stock, low_stock_days)
+    status = _build_status(entry_type, stock, set_at, low_stock_days)
     if not status["configured"] or not status["low_stock"]:
         return None
 
@@ -173,8 +228,19 @@ def evaluate_low_stock() -> dict | None:
         value = getattr(settings, field)
         return float(value) if value is not None else None
 
-    bolus = _evaluate_type(LogEntryType.INSULIN, _stock(STOCK_FIELD[LogEntryType.INSULIN]))
-    basal = _evaluate_type(LogEntryType.BASAL, _stock(STOCK_FIELD[LogEntryType.BASAL]))
+    def _set_at(field: str) -> datetime | None:
+        return getattr(settings, field)
+
+    bolus = _evaluate_type(
+        LogEntryType.INSULIN,
+        _stock(STOCK_FIELD[LogEntryType.INSULIN]),
+        _set_at(SET_AT_FIELD[LogEntryType.INSULIN]),
+    )
+    basal = _evaluate_type(
+        LogEntryType.BASAL,
+        _stock(STOCK_FIELD[LogEntryType.BASAL]),
+        _set_at(SET_AT_FIELD[LogEntryType.BASAL]),
+    )
     if bolus is None and basal is None:
         return None
     return {"bolus": bolus, "basal": basal}

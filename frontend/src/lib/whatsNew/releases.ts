@@ -15,6 +15,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 		highlights: [
 			'📦 Neue Statistik-Kachel „Insulin-Vorrat“: Sie zeigt auf einen Blick, wie viele Tage der Bestand bei aktuellem Verbrauch noch reicht — getrennt für Schnellinsulin und Basalinsulin.',
 			'💉 Der Verbrauch wird automatisch geschätzt — auf Basis des 14-Tage-Durchschnitts des Insulins aus dem Logbuch, inklusive 1 Einheit pro Injektion.',
+			'📅 Seit dem Eintragen des Bestands wird jede geloggte Injektion (inkl. Spritzeinheit) automatisch vom Vorrat abgezogen — die Kachel zeigt den rechnerisch noch verfügbaren Bestand.',
 			'⚙️ Unter Einstellungen → Faktoren legst du den aktuellen Bestand getrennt für Schnell- und Basalinsulin in Einheiten fest und ab wie vielen verbleibenden Tagen gewarnt werden soll (Standard: 14 Tage).',
 			'🔔 Smart-Alert bei niedrigem Bestand: Reicht der Vorrat die Schwelle nicht mehr (standardmäßig 24 Stunden Cooldown), erscheint ein Warnhinweis im Dashboard — unabhängig pro Insulinart.'
 		]

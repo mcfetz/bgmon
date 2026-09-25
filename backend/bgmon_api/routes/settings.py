@@ -386,10 +386,12 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     if "insulin_stock" in data:
         value = data["insulin_stock"]
         settings.insulin_stock = float(value) if value is not None else None
+        settings.insulin_stock_set_at = datetime.now(UTC) if value is not None else None
 
     if "basal_stock" in data:
         value = data["basal_stock"]
         settings.basal_stock = float(value) if value is not None else None
+        settings.basal_stock_set_at = datetime.now(UTC) if value is not None else None
 
     for field in smart_alert_int_fields | smart_alert_float_fields:
         if data.get(field) is not None:

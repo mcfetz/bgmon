@@ -526,7 +526,13 @@ class GlobalSettings(db.Model):
     )
     rebound_require_no_carbs: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     insulin_stock: Mapped[float | None] = mapped_column(Float, nullable=True)
+    insulin_stock_set_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     basal_stock: Mapped[float | None] = mapped_column(Float, nullable=True)
+    basal_stock_set_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     low_stock_days: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     insulin_low_stock_cooldown_minutes: Mapped[int] = mapped_column(
         Integer, default=1440, nullable=False
@@ -574,7 +580,13 @@ class GlobalSettings(db.Model):
             ),
             "rebound_require_no_carbs": self.rebound_require_no_carbs,
             "insulin_stock": self.insulin_stock,
+            "insulin_stock_set_at": (
+                self.insulin_stock_set_at.isoformat() if self.insulin_stock_set_at else None
+            ),
             "basal_stock": self.basal_stock,
+            "basal_stock_set_at": (
+                self.basal_stock_set_at.isoformat() if self.basal_stock_set_at else None
+            ),
             "low_stock_days": self.low_stock_days,
             "insulin_low_stock_cooldown_minutes": self.insulin_low_stock_cooldown_minutes,
             "basal_low_stock_cooldown_minutes": self.basal_low_stock_cooldown_minutes,

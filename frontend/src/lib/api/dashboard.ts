@@ -57,6 +57,9 @@ export interface StatsData {
 interface InsulinStockInfo {
 	configured: boolean;
 	stock_units: number | null;
+	stock_set_at: string | null;
+	consumed_since_set_at: number;
+	effective_stock: number | null;
 	low_stock_days: number;
 	days_left: number | null;
 	low_stock: boolean;

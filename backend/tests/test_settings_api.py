@@ -110,6 +110,7 @@ def test_post_global_settings_updates_insulin_stock(client, observer_user, auth_
     data = response.get_json()
     assert data["insulin_stock"] == 3000.0
     assert data["low_stock_days"] == 21
+    assert data["insulin_stock_set_at"] is not None
 
 
 def test_post_global_settings_clears_insulin_stock(client, observer_user, auth_headers):
@@ -125,7 +126,9 @@ def test_post_global_settings_clears_insulin_stock(client, observer_user, auth_h
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.get_json()["insulin_stock"] is None
+    data = response.get_json()
+    assert data["insulin_stock"] is None
+    assert data["insulin_stock_set_at"] is None
 
 
 def test_post_global_settings_rejects_negative_insulin_stock(
@@ -151,6 +154,7 @@ def test_post_global_settings_updates_basal_stock(client, observer_user, auth_he
     data = response.get_json()
     assert data["basal_stock"] == 1500.0
     assert data["basal_low_stock_cooldown_minutes"] == 720
+    assert data["basal_stock_set_at"] is not None
 
 
 def test_post_global_settings_clears_basal_stock(client, observer_user, auth_headers):
@@ -166,7 +170,9 @@ def test_post_global_settings_clears_basal_stock(client, observer_user, auth_hea
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.get_json()["basal_stock"] is None
+    data = response.get_json()
+    assert data["basal_stock"] is None
+    assert data["basal_stock_set_at"] is None
 
 
 def test_post_global_settings_rejects_negative_basal_stock(

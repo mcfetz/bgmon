@@ -1,10 +1,13 @@
 """Tests for insulin stock tracking — usage estimate and low-stock alert."""
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from bgmon_api.models import LogEntry, LogEntryType
 from bgmon_api.services.insulin_stock import (
     compute_status,
+    consumed_since,
     days_left,
     estimate_daily_usage,
     evaluate_low_stock,
@@ -12,8 +15,6 @@ from bgmon_api.services.insulin_stock import (
 
 
 def _log(db_session, user_id, minutes_ago, value, entry_type=LogEntryType.INSULIN):
-    from datetime import UTC, datetime, timedelta
-
     db_session.add(
         LogEntry(
             user_id=user_id,
@@ -145,6 +146,110 @@ def test_to_dict_includes_insulin_stock_fields(global_settings):
     data = global_settings.to_dict()
     assert "insulin_stock" in data
     assert "basal_stock" in data
+    assert data["insulin_stock_set_at"] is None
+    assert data["basal_stock_set_at"] is None
     assert data["low_stock_days"] == 14
     assert data["insulin_low_stock_cooldown_minutes"] == 1440
     assert data["basal_low_stock_cooldown_minutes"] == 1440
+
+
+def _set_stock(db_session, global_settings, value, set_at, entry_type=LogEntryType.INSULIN):
+    field = (
+        "insulin_stock" if entry_type == LogEntryType.INSULIN else "basal_stock"
+    )
+    set_at_field = field + "_set_at"
+    setattr(global_settings, field, value)
+    setattr(global_settings, set_at_field, set_at)
+    db_session.commit()
+
+
+def test_consumed_since_counts_only_entries_after_set_at(
+    db_session, patient_user
+):
+    set_at = datetime.now(UTC) - timedelta(days=5)
+    _log_at(db_session, patient_user.id, set_at - timedelta(minutes=1), 30)
+    _log_at(db_session, patient_user.id, set_at + timedelta(minutes=1), 5)
+    _log_at(db_session, patient_user.id, set_at + timedelta(minutes=5), 7)
+    db_session.commit()
+
+    assert consumed_since(LogEntryType.INSULIN, set_at) == 14.0
+
+
+def _log_at(db_session, user_id, created_at, value, entry_type=LogEntryType.INSULIN):
+    db_session.add(
+        LogEntry(
+            user_id=user_id,
+            entry_type=entry_type,
+            value=value,
+            unit="U",
+            created_at=created_at,
+        )
+    )
+
+
+def test_compute_status_deducts_consumption_since_set_at(
+    db_session, patient_user, global_settings
+):
+    set_at = datetime.now(UTC) - timedelta(days=2)
+    _set_stock(db_session, global_settings, 100.0, set_at)
+    _log_at(db_session, patient_user.id, set_at + timedelta(minutes=1), 20)
+    _log_at(db_session, patient_user.id, set_at + timedelta(hours=6), 30)
+    db_session.commit()
+
+    bolus = compute_status()["bolus"]
+    assert bolus["stock_units"] == 100.0
+    assert bolus["consumed_since_set_at"] == 52.0
+    assert bolus["effective_stock"] == 48.0
+    assert bolus["stock_set_at"] is not None
+    assert bolus["days_left"] == pytest.approx(13.0)
+    assert bolus["low_stock"] is True
+
+
+def test_compute_status_floors_effective_stock_at_zero(
+    db_session, patient_user, global_settings
+):
+    set_at = datetime.now(UTC) - timedelta(days=1)
+    _set_stock(db_session, global_settings, 10.0, set_at)
+    _log_at(db_session, patient_user.id, set_at + timedelta(minutes=1), 50)
+    db_session.commit()
+
+    bolus = compute_status()["bolus"]
+    assert bolus["effective_stock"] == 0.0
+    assert bolus["days_left"] == 0.0
+    assert bolus["low_stock"] is True
+
+
+def test_compute_status_without_set_at_keeps_stock_unchanged(
+    db_session, patient_user, global_settings
+):
+    global_settings.insulin_stock = 100.0
+    db_session.commit()
+    _log(db_session, patient_user.id, minutes_ago=5, value=20)
+    db_session.commit()
+
+    bolus = compute_status()["bolus"]
+    assert bolus["consumed_since_set_at"] == 0.0
+    assert bolus["effective_stock"] == 100.0
+
+
+def test_evaluate_low_stock_uses_effective_stock(
+    db_session, patient_user, global_settings
+):
+    set_at = datetime.now(UTC) - timedelta(days=2)
+    global_settings.low_stock_days = 60
+    _set_stock(
+        db_session,
+        global_settings,
+        100.0,
+        set_at,
+        entry_type=LogEntryType.BASAL,
+    )
+    _log_at(
+        db_session, patient_user.id, set_at + timedelta(minutes=1), 20,
+        entry_type=LogEntryType.BASAL,
+    )
+    db_session.commit()
+
+    basal = evaluate_low_stock()["basal"]
+    assert basal["effective_stock"] == 79.0
+    assert basal["low_stock"] is True

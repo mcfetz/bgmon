@@ -44,6 +44,17 @@
 		return `${h}:${String(m).padStart(2, '0')}`;
 	}
 
+	function formatCountDate(iso: string | null | undefined): string {
+		if (!iso) return '';
+		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return '';
+		return d.toLocaleDateString('de-DE', {
+			day: '2-digit',
+			month: '2-digit',
+			year: 'numeric',
+		});
+	}
+
 	function gmiColor(gmi: number | null | undefined): string {
 		if (gmi == null) return 'var(--color-text-muted)';
 		if (gmi < 5.7) return '#22c55e';
@@ -232,7 +243,10 @@
 				<span class="value" style="color: {stats.insulin_stock.bolus.low_stock ? '#ef4444' : 'inherit'}">
 					{stats.insulin_stock.bolus.days_left ?? '—'}<span class="unit">Tage</span>
 				</span>
-				<span class="unit">Schnell · {stats.insulin_stock.bolus.stock_units ?? '—'} U · ~{stats.insulin_stock.bolus.usage_per_day} U/Tag</span>
+				<span class="unit">Schnell · rechnerisch noch {stats.insulin_stock.bolus.effective_stock ?? '—'} U · ~{stats.insulin_stock.bolus.usage_per_day} U/Tag</span>
+				{#if stats.insulin_stock.bolus.stock_set_at}
+					<span class="unit">gezählt am {formatCountDate(stats.insulin_stock.bolus.stock_set_at)}</span>
+				{/if}
 				{#if stats.insulin_stock.bolus.low_stock}
 					<span class="unit" style="color: #ef4444">Schnell: Nachschub besorgen</span>
 				{/if}
@@ -241,7 +255,10 @@
 				<span class="value" style="color: {stats.insulin_stock.basal.low_stock ? '#ef4444' : 'inherit'}">
 					{stats.insulin_stock.basal.days_left ?? '—'}<span class="unit">Tage</span>
 				</span>
-				<span class="unit">Basal · {stats.insulin_stock.basal.stock_units ?? '—'} U · ~{stats.insulin_stock.basal.usage_per_day} U/Tag</span>
+				<span class="unit">Basal · rechnerisch noch {stats.insulin_stock.basal.effective_stock ?? '—'} U · ~{stats.insulin_stock.basal.usage_per_day} U/Tag</span>
+				{#if stats.insulin_stock.basal.stock_set_at}
+					<span class="unit">gezählt am {formatCountDate(stats.insulin_stock.basal.stock_set_at)}</span>
+				{/if}
 				{#if stats.insulin_stock.basal.low_stock}
 					<span class="unit" style="color: #ef4444">Basal: Nachschub besorgen</span>
 				{/if}
