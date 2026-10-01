@@ -129,6 +129,22 @@ def _check_recovery_jump() -> None:
             patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
             if not patient:
                 return
+            from bgmon_api.models import GlobalSettings
+            settings = GlobalSettings.query.first()
+            cooldown = getattr(settings, "compression_cooldown_minutes", 60)
+            recent = (
+                m["LogEntry"].query
+                .filter(
+                    m["LogEntry"].user_id == patient.id,
+                    m["LogEntry"].entry_type == m["LogEntryType"].NOTE,
+                    m["LogEntry"].notes.like("%Recovery-Sprung%"),
+                    m["LogEntry"].created_at >= datetime.now(UTC) - timedelta(minutes=cooldown),
+                )
+                .first()
+            )
+            if recent is not None:
+                logger.info("Recovery jump already logged, skipping (cooldown)")
+                return
             note = (
                 f"Kompressionstief bestätigt durch Recovery-Sprung: "
                 f"+{result['rise_mgdl']} mg/dL "

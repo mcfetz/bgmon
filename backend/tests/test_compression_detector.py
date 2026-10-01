@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from bgmon_api.models import GlobalSettings, GlucoseReading, LogEntry, LogEntryType
+from bgmon_api.services.alarm_evaluator import _check_recovery_jump
 from bgmon_api.services.compression_detector import check_recovery_jump, detect_compression_low
 
 
@@ -235,3 +236,34 @@ class TestRecoveryJump:
         _seed_readings(db_session, sgvs, start_minutes_ago=6)
         result = check_recovery_jump()
         assert result is None
+
+    def test_recovery_jump_note_honors_cooldown(self, db_session, patient_user):
+        """Evaluator must not log the same recovery-jump NOTE multiple times."""
+        _enable_detection(db_session, confidence=0)
+        sgvs = [150, 140, 130, 60, 60, 60, 65, 70, 75]
+        _seed_readings(db_session, sgvs, start_minutes_ago=8)
+        db_session.add(
+            GlucoseReading(
+                timestamp=datetime.now(UTC) - timedelta(minutes=2),
+                sgv=60,
+                trend=3,
+                direction="Flat",
+                source="test",
+                is_compression_low=True,
+            )
+        )
+        db_session.commit()
+
+        _check_recovery_jump()
+        _check_recovery_jump()
+
+        notes = (
+            db_session.query(LogEntry)
+            .filter(
+                LogEntry.user_id == patient_user.id,
+                LogEntry.entry_type == LogEntryType.NOTE,
+                LogEntry.notes.like("%Recovery-Sprung%"),
+            )
+            .count()
+        )
+        assert notes == 1
