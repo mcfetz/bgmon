@@ -25,6 +25,56 @@
 		| 'preferences';
 	let currentView = $state<View>('main');
 
+	type MlProgress = {
+		stage: string;
+		done: number;
+		total: number;
+		elapsed_s: number | null;
+		eta_s: number | null;
+	};
+
+	const ML_STAGE_LABELS: Record<string, string> = {
+		starting: 'Wird vorbereitet…',
+		data: 'Trainingsdaten werden gelesen…',
+		train: 'Modelle werden trainiert…',
+		publish: 'Modell wird veröffentlicht…',
+		log: 'Logbucheintrag wird geschrieben…',
+		done: 'Fertig'
+	};
+
+	function mlStageLabel(stage: string): string {
+		return ML_STAGE_LABELS[stage] ?? 'Läuft…';
+	}
+
+	function fmtDuration(seconds: number | null | undefined): string {
+		if (seconds == null || !Number.isFinite(seconds)) return '–';
+		const s = Math.max(0, Math.round(seconds));
+		if (s < 60) return `${s} Sek.`;
+		const m = Math.floor(s / 60);
+		if (m < 60) return s % 60 ? `${m} Min. ${s % 60} Sek.` : `${m} Min.`;
+		return `${Math.floor(m / 60)} Std. ${m % 60} Min.`;
+	}
+
+	function mlProgressPct(p: MlProgress): number {
+		const total = p.total > 0 ? p.total : 1;
+		switch (p.stage) {
+			case 'starting':
+				return 2;
+			case 'data':
+				return 6;
+			case 'train':
+				return 25 + (Math.min(p.done, total) / total) * 70;
+			case 'publish':
+				return 97;
+			case 'log':
+				return 99;
+			case 'done':
+				return 100;
+			default:
+				return 0;
+		}
+	}
+
 	const SECTION_GROUPS: { label: string; sections: { id: View; label: string; icon: string }[] }[] = [
 		{
 			label: 'Persönliches',
@@ -234,6 +284,10 @@
 	let mlTrainResult = $state<{
 		metrics?: { horizon: number; baseline_mae: number; model_mae: number; n_splits: number }[];
 	} | null>(null);
+	let mlTrainProgress = $state<MlProgress | null>(null);
+	let mlTrainLastDuration = $state<number | null>(null);
+
+	const mlTrainPct = $derived(mlTrainProgress ? mlProgressPct(mlTrainProgress) : 0);
 	let mlEvalStatus = $state('');
 	let mlEvalResult = $state<{
 		summaries?: {
@@ -304,29 +358,43 @@
 		endpoint: string,
 		jobId: string,
 		setStatus: (s: string) => void,
-		setResult: (r: Record<string, unknown>) => void
+		setResult: (r: Record<string, unknown>) => void,
+		setProgress?: (p: MlProgress | null) => void
 	) {
 		const interval = setInterval(async () => {
 			try {
 				const res = await apiFetch(endpoint.replace('(job_id)', jobId));
 				if (!res.ok) {
 					clearInterval(interval);
+					setProgress?.(null);
 					setStatus('Fehler: ' + res.status);
 					return;
 				}
 				const data = await res.json();
+				if (setProgress && typeof data.stage === 'string') {
+					setProgress({
+						stage: data.stage,
+						done: Number(data.done ?? 0),
+						total: Number(data.total ?? 0),
+						elapsed_s: typeof data.elapsed_s === 'number' ? data.elapsed_s : null,
+						eta_s: typeof data.eta_s === 'number' ? data.eta_s : null
+					});
+				}
 				if (data.status === 'completed') {
 					clearInterval(interval);
+					setProgress?.(null);
 					setStatus('completed');
 					setResult(data);
 				} else if (data.status === 'error' || data.status === 'failed') {
 					clearInterval(interval);
+					setProgress?.(null);
 					setStatus('Fehler: ' + (data.error || 'Unbekannter Fehler'));
 				} else {
 					setStatus('running…');
 				}
 			} catch (e) {
 				clearInterval(interval);
+				setProgress?.(null);
 				setStatus('Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e)));
 			}
 		}, 2000);
@@ -335,6 +403,8 @@
 	async function startMlTrain() {
 		mlTrainStatus = 'starte…';
 		mlTrainResult = null;
+		mlTrainProgress = null;
+		mlTrainLastDuration = null;
 		try {
 			const res = await apiFetch('/api/settings/ml/train', { method: 'POST' });
 			if (!res.ok) {
@@ -347,11 +417,16 @@
 			}
 			const data = await res.json();
 			mlTrainStatus = 'running…';
+			if (typeof data.last_duration_s === 'number') mlTrainLastDuration = data.last_duration_s;
 			pollMlJob(
 				'/api/settings/ml/train/(job_id)',
 				data.job_id,
 				(s) => (mlTrainStatus = s),
-				(r) => (mlTrainResult = r)
+				(r) => {
+					mlTrainResult = r;
+					if (typeof r.duration_s === 'number') mlTrainLastDuration = r.duration_s;
+				},
+				(p) => (mlTrainProgress = p)
 			);
 		} catch (e) {
 			mlTrainStatus = 'Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e));
@@ -1562,6 +1637,37 @@
 					>
 						{mlTrainStatus ? mlTrainStatus : 'Training starten'}
 					</button>
+					{#if mlTrainLastDuration != null && mlTrainStatus !== 'running…'}
+						<p class="hint">Letztes Training dauerte {fmtDuration(mlTrainLastDuration)}.</p>
+					{/if}
+					{#if mlTrainProgress}
+						<div class="ml-progress">
+							<div class="ml-progress-head">
+								<span class="ml-progress-stage">
+									{mlStageLabel(mlTrainProgress.stage)}
+									{#if mlTrainProgress.stage === 'train' && mlTrainProgress.total > 0}
+										({mlTrainProgress.done}/{mlTrainProgress.total} Horizonte)
+									{/if}
+								</span>
+								<span class="ml-progress-pct">{Math.round(mlTrainPct)}%</span>
+							</div>
+							<div
+								class="ml-progress-track"
+								role="progressbar"
+								aria-valuenow={Math.round(mlTrainPct)}
+								aria-valuemin="0"
+								aria-valuemax="100"
+							>
+								<div class="ml-progress-fill" style="width: {mlTrainPct}%"></div>
+							</div>
+							<p class="ml-progress-meta">
+								Läuft seit {fmtDuration(mlTrainProgress.elapsed_s)}
+								{#if mlTrainProgress.eta_s != null && mlTrainProgress.eta_s > 0}
+									· noch ca. {fmtDuration(mlTrainProgress.eta_s)}
+								{/if}
+							</p>
+						</div>
+					{/if}
 					{#if mlTrainResult?.metrics}
 						<h4 class="sub-heading" style="margin-top:1rem">Ergebnisse</h4>
 						{#each mlTrainResult.metrics as m}
@@ -2016,6 +2122,50 @@
 		color: var(--color-text-muted);
 		font-size: 0.85rem;
 		margin: 0;
+	}
+
+	.ml-progress {
+		margin-top: 0.75rem;
+	}
+
+	.ml-progress-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: var(--spacing-sm);
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+	}
+
+	.ml-progress-stage {
+		color: var(--color-text);
+	}
+
+	.ml-progress-pct {
+		font-variant-numeric: tabular-nums;
+		flex-shrink: 0;
+	}
+
+	.ml-progress-track {
+		height: 6px;
+		margin-top: 0.35rem;
+		background: var(--color-border);
+		border-radius: 3px;
+		overflow: hidden;
+	}
+
+	.ml-progress-fill {
+		height: 100%;
+		background: var(--color-primary);
+		border-radius: 3px;
+		transition: width 0.4s ease;
+	}
+
+	.ml-progress-meta {
+		margin: 0.35rem 0 0;
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.field select {

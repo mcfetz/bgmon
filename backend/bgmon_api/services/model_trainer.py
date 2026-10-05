@@ -11,6 +11,7 @@ lists of GlucoseReading, LogEntry, etc.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -229,8 +230,18 @@ class ModelTrainer:
 
     # ── public API ──────────────────────────────────────────────────
 
-    def train(self, training_input: TrainingInput) -> TrainerResult:
+    def train(
+        self,
+        training_input: TrainingInput,
+        progress: Callable[[int, int], None] | None = None,
+    ) -> TrainerResult:
         """Train horizon-specific regressors for each configured horizon.
+
+        Args:
+            training_input: aligned feature rows and horizon targets.
+            progress: optional callback invoked as ``progress(done, total)``
+                after each horizon finishes. Used by the training job to
+                report progress and derive a measured ETA.
 
         Raises:
             TrainingInsufficientError: when fewer than ``cv_splits + 1``
@@ -249,7 +260,10 @@ class ModelTrainer:
         metrics: list[HorizonMetrics] = []
         models: dict[int, LinearRegression] = {}
 
-        for horizon in Config.ML_HORIZONS:
+        horizons = list(Config.ML_HORIZONS)
+        total = len(horizons)
+
+        for idx, horizon in enumerate(horizons):
             y = y_by_horizon[horizon]
 
             horizon_metrics = self._train_one_horizon(
@@ -265,6 +279,9 @@ class ModelTrainer:
             model = LinearRegression()
             model.fit(feat, y)
             models[horizon] = model
+
+            if progress is not None:
+                progress(idx + 1, total)
 
         trained_at = datetime.now(UTC)
 

@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from bgmon_api.config import Config
 from bgmon_api.models import (
     GlucoseReading,
     LogEntry,
@@ -68,17 +69,19 @@ def _build_seed_data(
 
     training_input = TrainingInput()
 
-    for i in range(n_points - (120 // interval_minutes)):
+    horizons = Config.ML_HORIZONS
+    max_horizon = max(horizons)
+
+    for i in range(n_points - (max_horizon // interval_minutes)):
         r = all_bg[i]
         ts = r.timestamp
         assert ts is not None
 
-        # Target: value at ts + horizon
-        t60_i = i + (60 // interval_minutes)
-        t120_i = i + (120 // interval_minutes)
-
-        target_60 = float(all_bg[t60_i].sgv) if t60_i < n_points else None
-        target_120 = float(all_bg[t120_i].sgv) if t120_i < n_points else None
+        # Target: value at ts + horizon, for every configured horizon
+        targets: dict[int, float | None] = {}
+        for h in horizons:
+            idx = i + max(1, h // interval_minutes)
+            targets[h] = float(all_bg[idx].sgv) if idx < n_points else None
 
         # Context readings up to this point
         context_readings = all_bg[: i + 1]
@@ -99,8 +102,7 @@ def _build_seed_data(
 
         training_input.add_context(
             ref_time=ts,
-            target_60m_val=target_60,
-            target_120m_val=target_120,
+            targets=targets,
             glucose_readings=context_readings,
             log_entries=log_entries,
             basal_rate=None,
@@ -173,24 +175,40 @@ class TestArtifactGeneration:
     """Training produces valid model artifacts and metrics."""
 
     def test_trainer_produces_two_models(self):
-        """Given: 8+ hours of seed data → Then: TrainerResult has two models."""
+        """Given: 8+ hours of seed data → Then: a model per configured horizon."""
         ti = _build_seed_data(n_hours=8)
         trainer = ModelTrainer(cv_splits=3)
         result = trainer.train(ti)
 
-        assert result.model_60m is not None
-        assert result.model_120m is not None
-        assert len(result.metrics) == 2
+        assert set(result.models) == set(Config.ML_HORIZONS)
+        assert len(result.metrics) == len(Config.ML_HORIZONS)
 
     def test_metrics_have_both_horizons(self):
-        """Given: training result → Then: metrics for 60m and 120m present."""
+        """Given: training result → Then: metrics for every configured horizon."""
         ti = _build_seed_data(n_hours=8)
         trainer = ModelTrainer(cv_splits=3)
         result = trainer.train(ti)
 
-        horizons = {m.horizon_minutes for m in result.metrics}
-        assert 60 in horizons
-        assert 120 in horizons
+        assert {m.horizon_minutes for m in result.metrics} == set(Config.ML_HORIZONS)
+
+    def test_progress_reports_each_horizon_once(self):
+        """Given: a progress callback → Then: it fires once per horizon, in order."""
+        ti = _build_seed_data(n_hours=8)
+        calls: list[tuple[int, int]] = []
+
+        ModelTrainer(cv_splits=3).train(ti, progress=lambda d, t: calls.append((d, t)))
+
+        total = calls[0][1]
+        assert total == len(Config.ML_HORIZONS)
+        assert [d for d, _ in calls] == list(range(1, total + 1))
+        assert all(t == total for _, t in calls)
+
+    def test_progress_is_optional(self):
+        """Given: no callback → Then: training still completes unchanged."""
+        ti = _build_seed_data(n_hours=8)
+        result = ModelTrainer(cv_splits=3).train(ti)
+
+        assert len(result.metrics) == len(Config.ML_HORIZONS)
 
     def test_model_mae_improves_over_baseline_mae(self):
         """Given: non-trivial seed pattern → Then: model MAE ≤ baseline MAE.

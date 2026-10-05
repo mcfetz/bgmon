@@ -78,9 +78,41 @@ def _put_job(job_id: str, data: dict) -> None:
     _save_jobs(jobs)
 
 
+def _patch_job(job_id: str, **fields: object) -> None:
+    """Merge fields into an existing job record, keeping the untouched ones."""
+    jobs = _load_jobs()
+    jobs[job_id] = {**jobs.get(job_id, {}), **fields}
+    _save_jobs(jobs)
+
+
+def _last_completed_duration() -> float | None:
+    """Duration of the slowest completed run so far, for a pre-start estimate."""
+    durations = [
+        j["duration_s"]
+        for j in _load_jobs().values()
+        if j.get("status") == "completed" and isinstance(j.get("duration_s"), (int, float))
+    ]
+    return float(max(durations)) if durations else None
+
+
+def _elapsed_since(started_at: object) -> int | None:
+    """Whole seconds since an ISO timestamp, or None when it is unusable."""
+    if not isinstance(started_at, str):
+        return None
+    try:
+        delta = datetime.now(UTC) - datetime.fromisoformat(started_at)
+    except ValueError:
+        return None
+    return max(0, int(delta.total_seconds()))
+
+
 # Background threads die with the worker process; a running job whose
 # started_at is missing or older than this is a zombie and gets failed.
 _ML_JOB_TIMEOUT_S = 29 * 60
+
+# Rough allowance for publishing the model and writing the logbook entry,
+# appended to the measured per-horizon ETA so it never promises zero.
+_ML_TRAIN_TAIL_S = 5.0
 
 
 def _stale_running_job(job: dict) -> bool:
@@ -649,6 +681,7 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
 
 def _run_train(job_id: str) -> None:
+    import time  # noqa: PLC0415
     from pathlib import Path  # noqa: PLC0415
 
     from bgmon_api.app import _app  # noqa: PLC0415
@@ -663,23 +696,63 @@ def _run_train(job_id: str) -> None:
         _put_job(job_id, {"status": "failed", "error": "App not initialized"})
         return
 
+    started = datetime.now(UTC)
+    horizon_started: float | None = None
+    horizon_costs: list[float] = []
+
+    def report(stage: str, done: int, total: int, eta_s: float | None) -> None:
+        _patch_job(
+            job_id,
+            stage=stage,
+            done=done,
+            total=total,
+            elapsed_s=int((datetime.now(UTC) - started).total_seconds()),
+            eta_s=None if eta_s is None else max(0, int(eta_s)),
+        )
+
+    def on_horizon(done: int, total: int) -> None:
+        nonlocal horizon_started
+        now = time.monotonic()
+        if horizon_started is not None:
+            horizon_costs.append(now - horizon_started)
+        horizon_started = now
+        remaining = total - done
+        eta = _ML_TRAIN_TAIL_S
+        if horizon_costs and remaining > 0:
+            eta += sum(horizon_costs) / len(horizon_costs) * remaining
+        report("train", done, total, eta)
+
     try:
         with _app.app_context():
+            report("data", 0, len(Config.ML_HORIZONS), None)
             target_dir = Path(Config.model_dir())
             training_input = _collect_training_data()
+            total_horizons = len(Config.ML_HORIZONS)
+
             trainer = ModelTrainer(cv_splits=min(5, max(2, training_input.sample_count - 1)))
-            result = trainer.train(training_input)
+            # Start the horizon clock only here so that reading the data does
+            # not inflate the first measured horizon and skew the ETA.
+            horizon_started = time.monotonic()
+            result = trainer.train(training_input, progress=on_horizon)
+
+            report("publish", total_horizons, total_horizons, _ML_TRAIN_TAIL_S)
             publish_model(result, target_dir)
 
             from bgmon_api.commands.train_predictor import (
                 _create_training_log_entry,  # noqa: PLC0415
             )
+            report("log", total_horizons, total_horizons, _ML_TRAIN_TAIL_S)
             _create_training_log_entry(result, training_input.sample_count)
 
             db.session.remove()
 
             _put_job(job_id, {
                     "status": "completed",
+                    "started_at": started.isoformat(),
+                    "stage": "done",
+                    "done": total_horizons,
+                    "total": total_horizons,
+                    "duration_s": int((datetime.now(UTC) - started).total_seconds()),
                     "samples": training_input.sample_count,
                     "metrics": [
                         {"horizon": m.horizon_minutes, "baseline_mae": round(m.baseline_mae, 1),
@@ -690,11 +763,16 @@ def _run_train(job_id: str) -> None:
     except TrainingInsufficientError:
         _put_job(job_id, {
             "status": "failed",
+            "started_at": started.isoformat(),
             "error": "Nicht genügend Trainingsdaten (mind. 3 Samples nötig).",
         })
     except Exception:
         logger.exception("ML training job %s failed", job_id)
-        _put_job(job_id, {"status": "failed", "error": "Training fehlgeschlagen."})
+        _put_job(job_id, {
+            "status": "failed",
+            "started_at": started.isoformat(),
+            "error": "Training fehlgeschlagen.",
+        })
 
 
 @settings_bp.route("/ml/train", methods=["POST"])
@@ -715,15 +793,26 @@ def ml_train_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     import uuid  # noqa: PLC0415
 
     job_id = uuid.uuid4().hex[:12]
+    horizons = len(Config.ML_HORIZONS)
+    previous_duration = _last_completed_duration()
     _put_job(job_id, {
         "status": "running",
         "started_at": datetime.now(UTC).isoformat(),
+        "stage": "starting",
+        "done": 0,
+        "total": horizons,
+        "eta_s": previous_duration,
     })
 
     thread = threading.Thread(target=_run_train, args=(job_id,))
     thread.start()
 
-    return jsonify({"job_id": job_id, "status": "running"})
+    return jsonify({
+        "job_id": job_id,
+        "status": "running",
+        "total": horizons,
+        "last_duration_s": previous_duration,
+    })
 
 
 @settings_bp.route("/ml/train/<job_id>", methods=["GET"])
@@ -735,6 +824,14 @@ def ml_train_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
     job = _resolve_job(job_id)
     if not job:
         return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
+
+    # Stages without their own heartbeat (notably reading the training data)
+    # would otherwise report a frozen clock. Recompute it on read.
+    if job.get("status") == "running":
+        elapsed = _elapsed_since(job.get("started_at"))
+        if elapsed is not None:
+            job = {**job, "elapsed_s": elapsed}
+
     return jsonify(job)
 
 
