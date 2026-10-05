@@ -320,7 +320,11 @@
 				if (!res.ok) {
 					clearInterval(interval);
 					setProgress?.(null);
-					setStatus('Fehler: ' + res.status);
+					setStatus(
+						res.status === 404
+							? 'Fehler: Job-Status nicht mehr verfügbar (Server neu gestartet?)'
+							: 'Fehler: ' + res.status
+					);
 					return;
 				}
 				const data = await res.json();

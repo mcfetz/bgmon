@@ -1,5 +1,6 @@
 """Global and user settings management."""
 
+import contextlib
 import logging
 import threading
 from datetime import UTC, datetime
@@ -53,19 +54,61 @@ def _ml_jobs_path() -> str:
     return f"{Config.model_dir()}/ml-jobs.json"
 
 
+# The job file has two independent writers (the worker thread patching progress
+# and request threads starting/inspecting jobs) plus one reader per poll. Two
+# invariants matter, and breaking either one surfaces to the user as a job that
+# "vanishes" mid-run, i.e. a 404 on an id the client is still polling:
+#
+#   * a reader must never observe a half-written file, so writes go through a
+#     temp file plus os.replace (atomic on POSIX)
+#   * a read-modify-write cycle must not write back a snapshot taken before
+#     another cycle's write, or it silently drops that job's record
+#
+# Reads alone need no lock: with atomic writes they always see a complete file.
+_JOB_FILE_LOCK = threading.Lock()
+
+
 def _load_jobs() -> dict[str, dict]:
-    try:
-        import json as _j
-        with open(_ml_jobs_path()) as _f:
-            return _j.load(_f)
-    except (FileNotFoundError, ValueError):
-        return {}
+    """Read the job file.
+
+    Retries once, because a concurrently running older process may still be
+    writing the file non-atomically and leave a torn read behind.
+    """
+    import json as _j
+    for attempt in (1, 2):
+        try:
+            with open(_ml_jobs_path()) as _f:
+                return _j.load(_f)
+        except FileNotFoundError:
+            return {}
+        except ValueError:
+            if attempt == 2:
+                # Genuinely corrupt, not a torn read. Raising keeps the file
+                # intact for inspection; returning {} would report "no jobs"
+                # and let the next write erase the whole history.
+                logger.exception("ML job file is not valid JSON")
+                raise
+    return {}
 
 
 def _save_jobs(jobs: dict[str, dict]) -> None:
+    """Write the job file atomically, so no reader sees a partial file."""
     import json as _j
-    with open(_ml_jobs_path(), "w") as _f:
-        _j.dump(jobs, _f)
+    import os
+    import tempfile
+
+    path = _ml_jobs_path()
+    fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".ml-jobs-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as _f:
+            _j.dump(jobs, _f)
+            _f.flush()
+            os.fsync(_f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_path)
+        raise
 
 
 def _get_job(job_id: str) -> dict | None:
@@ -73,16 +116,18 @@ def _get_job(job_id: str) -> dict | None:
 
 
 def _put_job(job_id: str, data: dict) -> None:
-    jobs = _load_jobs()
-    jobs[job_id] = data
-    _save_jobs(jobs)
+    with _JOB_FILE_LOCK:
+        jobs = _load_jobs()
+        jobs[job_id] = data
+        _save_jobs(jobs)
 
 
 def _patch_job(job_id: str, **fields: object) -> None:
     """Merge fields into an existing job record, keeping the untouched ones."""
-    jobs = _load_jobs()
-    jobs[job_id] = {**jobs.get(job_id, {}), **fields}
-    _save_jobs(jobs)
+    with _JOB_FILE_LOCK:
+        jobs = _load_jobs()
+        jobs[job_id] = {**jobs.get(job_id, {}), **fields}
+        _save_jobs(jobs)
 
 
 def _last_completed_duration(kind: str) -> float | None:
@@ -159,17 +204,24 @@ def _stale_running_job(job: dict) -> bool:
     return (datetime.now(UTC) - started).total_seconds() > _ML_JOB_TIMEOUT_S
 
 
+def _mark_aborted(job: dict) -> dict:
+    """Transition a stale 'running' job to failed, naming the right job kind."""
+    label = "Evaluation" if job.get("kind") == "evaluate" else "Training"
+    return {**job, "status": "failed", "error": f"{label} abgebrochen (Zeitüberschreitung)"}
+
+
 def _resolve_job(job_id: str) -> dict | None:
     """Return the job with stale 'running' entries transitioned to failed."""
-    jobs = _load_jobs()
-    job = jobs.get(job_id)
-    if job is None or job.get("status") != "running":
+    with _JOB_FILE_LOCK:
+        jobs = _load_jobs()
+        job = jobs.get(job_id)
+        if job is None or job.get("status") != "running":
+            return job
+        if _stale_running_job(job):
+            job = _mark_aborted(job)
+            jobs[job_id] = job
+            _save_jobs(jobs)
         return job
-    if _stale_running_job(job):
-        job = {**job, "status": "failed", "error": "Training abgebrochen (Zeitüberschreitung)"}
-        jobs[job_id] = job
-        _save_jobs(jobs)
-    return job
 
 
 def _has_running_job() -> bool:
@@ -186,18 +238,15 @@ def _has_running_job() -> bool:
 
 def _fail_stale_jobs() -> None:
     """Mark leftover 'running' jobs as failed (killed workers/restarts)."""
-    jobs = _load_jobs()
-    changed = False
-    for job_id, job in jobs.items():
-        if job.get("status") == "running" and _stale_running_job(job):
-            jobs[job_id] = {
-                **job,
-                "status": "failed",
-                "error": "Training abgebrochen (Zeitüberschreitung)",
-            }
-            changed = True
-    if changed:
-        _save_jobs(jobs)
+    with _JOB_FILE_LOCK:
+        jobs = _load_jobs()
+        changed = False
+        for job_id, job in jobs.items():
+            if job.get("status") == "running" and _stale_running_job(job):
+                jobs[job_id] = _mark_aborted(job)
+                changed = True
+        if changed:
+            _save_jobs(jobs)
 
 
 @settings_bp.route("/preferences", methods=["GET"])

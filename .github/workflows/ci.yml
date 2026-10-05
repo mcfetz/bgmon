@@ -59,7 +59,7 @@ jobs:
             tests/test_compression_detector.py tests/test_smart_alerts.py \
             tests/test_insulin_stock.py \
             tests/test_ml_train_progress.py tests/test_ml_evaluate_progress.py \
-            tests/test_prediction_evaluator.py \
+            tests/test_ml_job_file.py tests/test_prediction_evaluator.py \
             -v --tb=short
 
   frontend:
