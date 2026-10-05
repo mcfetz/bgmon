@@ -236,7 +236,7 @@
 			{#if bolusDays != null || basalDays != null}
 				{@const minDays = Math.min(...[bolusDays, basalDays].filter((d): d is number => d != null))}
 				<span class="value" style="color: {anyLow ? '#ef4444' : 'inherit'}">
-					{minDays}<span class="unit">Tage</span>
+					{minDays} <span class="unit">Tage</span>
 				</span>
 				<span class="unit">
 					{#if bolusDays != null}Schnell {bolusDays} Tage{:else}Schnell —{/if}
