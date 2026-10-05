@@ -15,6 +15,10 @@ STEEP_DROP_RATE_MGDL_PER_MIN = 1.5
 FLOOR_PLATEAU_MIN_COUNT = 5
 FLOOR_PLATEAU_JITTER_MGDL = 2
 FLOOR_PLATEAU_MAX_SGV = 70
+# A compression low is a falsely *low* reading, so detection requires an
+# actual low value. Without this gate, a flat high trace plus a normal decline
+# scored 70% "Kompressionstiefwert" at >140 mg/dL.
+COMPRESSION_MAX_SGV = 70
 IOB_WINDOW_MINUTES = 30
 LOOKBACK_MINUTES = 15
 GATING_CAP = 50
@@ -75,7 +79,11 @@ def detect_compression_low() -> dict | None:
 
     sgv_values = [r.sgv for r in readings]
 
-    # Rule A — STICKY_VALUES: >=3 consecutive identical SGV
+    # Hard gate: without an actual low value there is no compression low.
+    if min(sgv_values) >= COMPRESSION_MAX_SGV:
+        return None
+
+    # Rule A — STICKY_VALUES: >=3 consecutive identical SGV below the low threshold
     if _check_sticky(sgv_values):
         confidence += 30
         triggered_rules.append("KONSTANTE_WERTE")
@@ -111,18 +119,19 @@ def detect_compression_low() -> dict | None:
 
 
 def _check_sticky(sgv_values: list[int]) -> bool:
-    """Rule A: >=3 consecutive readings with identical sgv."""
-    if len(sgv_values) < STICKY_VALUES_MIN_COUNT:
-        return False
-    max_run = 1
-    current_run = 1
-    for i in range(1, len(sgv_values)):
-        if sgv_values[i] == sgv_values[i - 1]:
+    """Rule A: >=3 consecutive readings with identical sgv below the low threshold."""
+    max_run = 0
+    current_run = 0
+    previous: int | None = None
+    for value in sgv_values:
+        if value == previous and value < COMPRESSION_MAX_SGV:
             current_run += 1
-            if current_run > max_run:
-                max_run = current_run
-        else:
+        elif value < COMPRESSION_MAX_SGV:
             current_run = 1
+        else:
+            current_run = 0
+        max_run = max(max_run, current_run)
+        previous = value
     return max_run >= STICKY_VALUES_MIN_COUNT
 
 
@@ -193,6 +202,8 @@ def check_recovery_jump() -> dict | None:
         return None
 
     min_sgv = min(r.sgv for r in readings)
+    if min_sgv >= COMPRESSION_MAX_SGV:
+        return None
     last_sgv = readings[-1].sgv
     rise = last_sgv - min_sgv
     if rise < RECOVERY_JUMP_MGDL:

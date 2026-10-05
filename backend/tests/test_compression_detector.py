@@ -68,11 +68,11 @@ class TestDetectionDisabled:
 
 
 class TestStickyValues:
-    """Rule A: >=3 consecutive identical SGV values."""
+    """Rule A: >=3 consecutive identical SGV values below the low threshold."""
 
     def test_three_identical_triggers(self, db_session):
         _enable_detection(db_session, confidence=30)
-        _seed_readings(db_session, [120, 120, 120, 121, 122])
+        _seed_readings(db_session, [60, 60, 60, 61, 62])
         result = detect_compression_low()
         assert result is not None
         assert "KONSTANTE_WERTE" in result["rules"]
@@ -80,7 +80,7 @@ class TestStickyValues:
 
     def test_two_identical_not_enough(self, db_session):
         _enable_detection(db_session)
-        _seed_readings(db_session, [120, 120, 121, 122, 123])
+        _seed_readings(db_session, [60, 60, 61, 62, 63])
         result = detect_compression_low()
         # May not reach confidence 60 with just 2 sticky
         if result is not None:
@@ -88,7 +88,7 @@ class TestStickyValues:
 
     def test_sticky_values_confidence(self, db_session):
         _enable_detection(db_session, confidence=30)
-        _seed_readings(db_session, [120, 120, 120, 121, 122])
+        _seed_readings(db_session, [60, 60, 60, 61, 62])
         result = detect_compression_low()
         assert result is not None
         assert 30 in result["confidence_components"]
@@ -99,13 +99,43 @@ class TestStickyValues:
         result = detect_compression_low()
         assert result is None
 
+    def test_sticky_at_high_values_not_detected(self, db_session):
+        """Identical values above the low threshold are not a compression low."""
+        _enable_detection(db_session, confidence=30)
+        _seed_readings(db_session, [265, 265, 265, 262, 254])
+        result = detect_compression_low()
+        if result is not None:
+            assert "KONSTANTE_WERTE" not in result["rules"]
+
+
+class TestLowValueGate:
+    """Detection requires an actual low value in the window."""
+
+    def test_flat_high_trace_not_detected(self, db_session):
+        """Regression: production alerted at 233-265 mg/dL as a compression low."""
+        _enable_detection(db_session)
+        _seed_readings(db_session, [265, 265, 265, 262, 254])
+        assert detect_compression_low() is None
+
+    def test_steep_drop_at_high_values_not_detected(self, db_session):
+        _enable_detection(db_session, confidence=40)
+        _seed_readings(db_session, [216, 216, 214, 192, 186], start_minutes_ago=4)
+        assert detect_compression_low() is None
+
+    def test_detected_below_70(self, db_session):
+        _enable_detection(db_session, confidence=40)
+        _seed_readings(db_session, [70, 68, 66, 52, 51], start_minutes_ago=4)
+        result = detect_compression_low()
+        assert result is not None
+        assert "STARKER_ABFALL" in result["rules"]
+
 
 class TestSteepDrop:
     """Rule B: >15 mg/dL drop in <=5 minutes without recent IOB."""
 
     def test_steep_drop_no_iob_detected(self, db_session):
         _enable_detection(db_session, confidence=40)
-        readings_data = [150, 149, 148, 133, 132]
+        readings_data = [70, 68, 66, 52, 51]
         _seed_readings(db_session, readings_data, start_minutes_ago=4)
         result = detect_compression_low()
         assert result is not None
@@ -114,7 +144,7 @@ class TestSteepDrop:
 
     def test_steep_drop_with_iob_not_detected(self, db_session, patient_user):
         _enable_detection(db_session, confidence=40)
-        readings_data = [150, 149, 148, 133, 132]
+        readings_data = [70, 68, 66, 52, 51]
         _seed_readings(db_session, readings_data, start_minutes_ago=4)
         _seed_bolus(db_session, patient_user.id, minutes_ago=5)
         result = detect_compression_low()
@@ -123,7 +153,7 @@ class TestSteepDrop:
 
     def test_gradual_drop_not_steep_drop(self, db_session):
         _enable_detection(db_session)
-        _seed_readings(db_session, [150, 149, 148, 147, 146])
+        _seed_readings(db_session, [70, 69, 68, 67, 66])
         result = detect_compression_low()
         if result is not None:
             assert "STARKER_ABFALL" not in result["rules"]
