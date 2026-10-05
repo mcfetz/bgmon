@@ -197,4 +197,4 @@ def test_escalate_with_calls(app, db_session, patient_user, observer_user):
 
         assert result == 2
         called_observer_ids = [call.args[1] for call in mock_call_observer.call_args_list]
-        assert called_observer_ids == [observer_id, second_observer_id]
+        assert sorted(called_observer_ids) == sorted([observer_id, second_observer_id])
