@@ -142,11 +142,16 @@ describe('verdictReason', () => {
 
 describe('fmtDateTime', () => {
 	it('renders an ISO timestamp in German short form', () => {
-		const formatted = fmtDateTime('2026-10-05T19:31:25+00:00');
+		// Pin the zone: the displayed time otherwise follows the machine.
+		const formatted = fmtDateTime('2026-10-05T19:31:25+00:00', 'UTC');
 		expect(formatted).not.toBe('–');
 		// German short form drops the year: day, month, then time.
 		expect(formatted).toContain('05.10.');
-		expect(formatted).toContain('21:31');
+		expect(formatted).toContain('19:31');
+	});
+
+	it('shifts the displayed time with the requested zone', () => {
+		expect(fmtDateTime('2026-10-05T19:31:25+00:00', 'Europe/Berlin')).toContain('21:31');
 	});
 
 	it('shows a dash for missing or unparsable input', () => {

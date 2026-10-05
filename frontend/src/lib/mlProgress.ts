@@ -111,8 +111,11 @@ export function verdictReason(reason: string): string {
 	}
 }
 
-/** Compact local timestamp for window labels. */
-export function fmtDateTime(iso: string | null | undefined): string {
+/**
+ * Compact local timestamp for window labels. ``timeZone`` exists so tests can
+ * pin the zone instead of depending on the machine they run on.
+ */
+export function fmtDateTime(iso: string | null | undefined, timeZone?: string): string {
 	if (!iso) return '–';
 	const parsed = new Date(iso);
 	if (Number.isNaN(parsed.getTime())) return '–';
@@ -120,6 +123,7 @@ export function fmtDateTime(iso: string | null | undefined): string {
 		day: '2-digit',
 		month: '2-digit',
 		hour: '2-digit',
-		minute: '2-digit'
+		minute: '2-digit',
+		...(timeZone ? { timeZone } : {})
 	});
 }
