@@ -26,7 +26,7 @@
 
 ### AGP-Bericht (Druck/PDF)
 - **Ambulantes Glukoseprofil** nach FreeStyle-Libre-3-Format — klinischer Standard für Diabetologen
-- **Neun Abschnitte**: Glukosestatistik, AGP-Kurve (Perzentil-Bänder), tägliche Profile, überlagerte Tagesverläufe, Monatskalender, Tagesprotokoll, Momentaufnahme, Mahlzeitenprofil, Wochenübersicht, Tagesmuster
+- **Zehn Abschnitte**: Glukosestatistik, AGP-Kurve (Perzentil-Bänder), tägliche Profile, überlagerte Tagesverläufe, Monatskalender, Tagesprotokoll, Momentaufnahme, Mahlzeitenprofil, Wochenübersicht, Tagesmuster
 - **Drucken / PDF** mit einem Klick — A4-Seitenaufteilung mit automatischen Seitenumbrüchen
 - **Max. 90 Tage** Zeitraum, default letzte 14 Tage, Europe/Berlin-Zeitzone
 - Zugriff über `/report` (Navigation: "Bericht")
@@ -111,9 +111,9 @@ zur Qualitätskontrolle („wie gut war die Vorhersage von vor 2 Stunden?").
 
 | Komponente  | Technologie                              |
 |-------------|------------------------------------------|
-| Backend     | Python 3.14, Flask 3, SQLAlchemy 2       |
-| Frontend    | Svelte 5, Vite 6, TypeScript             |
-| Datenbank   | PostgreSQL 16                            |
+| Backend     | Python 3.12+, Flask 3, SQLAlchemy 2      |
+| Frontend    | Svelte 5, Vite 8, TypeScript             |
+| Datenbank   | PostgreSQL 18                            |
 | Telefonie   | Twilio Voice API                         |
 | Push        | VAPID / Web-Push (`pywebpush`)           |
 | Scheduler   | APScheduler mit Leader-Election          |
@@ -211,6 +211,16 @@ docker compose exec backend flask predictor train
 ./scripts/generate-vapid-keys.sh
 # Ausgabe in .env eintragen
 ```
+
+Oder direkt in die `.env` schreiben (ersetzt vorhandene VAPID-Zeilen, statt sie zu duplizieren):
+
+```bash
+./scripts/generate-vapid-keys.sh --write
+```
+
+Die Werte sind unpadded base64url, weil `pywebpush` sie unverändert an
+`py_vapid.Vapid.from_string()` weitergibt. Bestehende Push-Subscriptions
+werden ungültig, wenn sich das Schlüsselpaar ändert.
 
 #### 5. Docker Swarm (Hochverfügbarkeit)
 ```bash

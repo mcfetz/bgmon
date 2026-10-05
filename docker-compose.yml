@@ -1,6 +1,8 @@
 services:
   db:
-    image: postgres:latest
+    # Pinned to the major version the pgdata volume was initialised with
+    # (currently 18). An older server binary refuses to start against it.
+    image: postgres:18
     environment:
       POSTGRES_DB: bgmon
       POSTGRES_USER: bgmon
