@@ -85,12 +85,19 @@ def _patch_job(job_id: str, **fields: object) -> None:
     _save_jobs(jobs)
 
 
-def _last_completed_duration() -> float | None:
-    """Duration of the slowest completed run so far, for a pre-start estimate."""
+def _last_completed_duration(kind: str) -> float | None:
+    """Duration of the slowest completed run of ``kind`` so far.
+
+    Training and evaluation jobs share one job file, so they must not read
+    each other's durations: a model training run is no estimate for an
+    evaluation run.
+    """
     durations = [
         j["duration_s"]
         for j in _load_jobs().values()
-        if j.get("status") == "completed" and isinstance(j.get("duration_s"), (int, float))
+        if j.get("kind") == kind
+        and j.get("status") == "completed"
+        and isinstance(j.get("duration_s"), (int, float))
     ]
     return float(max(durations)) if durations else None
 
@@ -106,6 +113,20 @@ def _elapsed_since(started_at: object) -> int | None:
     return max(0, int(delta.total_seconds()))
 
 
+def _job_response(job: dict) -> dict:
+    """Refresh the elapsed time of a still-running job on read.
+
+    Stages without their own heartbeat (reading the training data, loading
+    the evaluation runs) would otherwise report a frozen clock.
+    """
+    if job.get("status") != "running":
+        return job
+    elapsed = _elapsed_since(job.get("started_at"))
+    if elapsed is None:
+        return job
+    return {**job, "elapsed_s": elapsed}
+
+
 # Background threads die with the worker process; a running job whose
 # started_at is missing or older than this is a zombie and gets failed.
 _ML_JOB_TIMEOUT_S = 29 * 60
@@ -113,6 +134,10 @@ _ML_JOB_TIMEOUT_S = 29 * 60
 # Rough allowance for publishing the model and writing the logbook entry,
 # appended to the measured per-horizon ETA so it never promises zero.
 _ML_TRAIN_TAIL_S = 5.0
+
+# Same idea for the evaluation job: building the aggregate summaries after
+# the per-run loop is not measured separately.
+_ML_EVAL_TAIL_S = 1.0
 
 
 def _stale_running_job(job: dict) -> bool:
@@ -693,7 +718,7 @@ def _run_train(job_id: str) -> None:
     )
 
     if _app is None:
-        _put_job(job_id, {"status": "failed", "error": "App not initialized"})
+        _put_job(job_id, {"kind": "train", "status": "failed", "error": "App not initialized"})
         return
 
     started = datetime.now(UTC)
@@ -747,6 +772,7 @@ def _run_train(job_id: str) -> None:
             db.session.remove()
 
             _put_job(job_id, {
+                    "kind": "train",
                     "status": "completed",
                     "started_at": started.isoformat(),
                     "stage": "done",
@@ -762,6 +788,7 @@ def _run_train(job_id: str) -> None:
                 })
     except TrainingInsufficientError:
         _put_job(job_id, {
+            "kind": "train",
             "status": "failed",
             "started_at": started.isoformat(),
             "error": "Nicht genügend Trainingsdaten (mind. 3 Samples nötig).",
@@ -769,6 +796,7 @@ def _run_train(job_id: str) -> None:
     except Exception:
         logger.exception("ML training job %s failed", job_id)
         _put_job(job_id, {
+            "kind": "train",
             "status": "failed",
             "started_at": started.isoformat(),
             "error": "Training fehlgeschlagen.",
@@ -794,8 +822,9 @@ def ml_train_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     job_id = uuid.uuid4().hex[:12]
     horizons = len(Config.ML_HORIZONS)
-    previous_duration = _last_completed_duration()
+    previous_duration = _last_completed_duration("train")
     _put_job(job_id, {
+        "kind": "train",
         "status": "running",
         "started_at": datetime.now(UTC).isoformat(),
         "stage": "starting",
@@ -824,31 +853,60 @@ def ml_train_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTPSta
     job = _resolve_job(job_id)
     if not job:
         return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
-
-    # Stages without their own heartbeat (notably reading the training data)
-    # would otherwise report a frozen clock. Recompute it on read.
-    if job.get("status") == "running":
-        elapsed = _elapsed_since(job.get("started_at"))
-        if elapsed is not None:
-            job = {**job, "elapsed_s": elapsed}
-
-    return jsonify(job)
+    return jsonify(_job_response(job))
 
 
 def _run_evaluate(job_id: str) -> None:
     """Execute flask predictor evaluate in a background thread."""
+    import time  # noqa: PLC0415
+
     from bgmon_api.app import _app  # noqa: PLC0415
     from bgmon_api.services.prediction_evaluator import (  # noqa: PLC0415
         evaluate_saved_predictions,
     )
 
     if _app is None:
-        _put_job(job_id, {"status": "failed", "error": "App not initialized"})
+        _put_job(job_id, {"kind": "evaluate", "status": "failed", "error": "App not initialized"})
         return
+
+    started = datetime.now(UTC)
+    run_started: float | None = None
+    run_costs: list[float] = []
+    total_runs = 0
+
+    def report(stage: str, done: int, total: int, eta_s: float | None) -> None:
+        _patch_job(
+            job_id,
+            stage=stage,
+            done=done,
+            total=total,
+            elapsed_s=int((datetime.now(UTC) - started).total_seconds()),
+            eta_s=None if eta_s is None else max(0, int(eta_s)),
+        )
+
+    def on_run(done: int, total: int) -> None:
+        """Called with (0, total) once loading finished, then per scored run."""
+        nonlocal run_started, total_runs
+        total_runs = total
+        now = time.monotonic()
+        if done == 0:
+            # Loading finished and the run count is known; start the run clock.
+            run_started = now
+            report("score", 0, total, None)
+            return
+        if run_started is not None:
+            run_costs.append(now - run_started)
+        run_started = now
+        remaining = total - done
+        eta = _ML_EVAL_TAIL_S
+        if run_costs and remaining > 0:
+            eta += sum(run_costs) / len(run_costs) * remaining
+        report("score", done, total, eta)
 
     try:
         with _app.app_context():
-            report = evaluate_saved_predictions()
+            report("load", 0, 0, None)
+            evaluation = evaluate_saved_predictions(progress=on_run)
             db.session.remove()
             summaries = [
                 {
@@ -859,12 +917,26 @@ def _run_evaluate(job_id: str) -> None:
                     "completed_runs": s.completed_runs,
                     "run_count": s.run_count,
                 }
-                for s in report.aggregate_summaries
+                for s in evaluation.aggregate_summaries
             ]
-            _put_job(job_id, {"status": "completed", "summaries": summaries})
+            _put_job(job_id, {
+                "kind": "evaluate",
+                "status": "completed",
+                "started_at": started.isoformat(),
+                "stage": "done",
+                "done": total_runs,
+                "total": total_runs,
+                "duration_s": int((datetime.now(UTC) - started).total_seconds()),
+                "summaries": summaries,
+            })
     except Exception:
         logger.exception("ML evaluation job %s failed", job_id)
-        _put_job(job_id, {"status": "failed", "error": "Evaluierung fehlgeschlagen."})
+        _put_job(job_id, {
+            "kind": "evaluate",
+            "status": "failed",
+            "started_at": started.isoformat(),
+            "error": "Evaluierung fehlgeschlagen.",
+        })
 
 
 @settings_bp.route("/ml/evaluate", methods=["POST"])
@@ -885,15 +957,26 @@ def ml_evaluate_start() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     import uuid  # noqa: PLC0415
 
     job_id = uuid.uuid4().hex[:12]
+    previous_duration = _last_completed_duration("evaluate")
     _put_job(job_id, {
+        "kind": "evaluate",
         "status": "running",
         "started_at": datetime.now(UTC).isoformat(),
+        "stage": "starting",
+        # The run count is only known once the evaluator has loaded the runs.
+        "done": 0,
+        "total": 0,
+        "eta_s": previous_duration,
     })
 
     thread = threading.Thread(target=_run_evaluate, args=(job_id,))
     thread.start()
 
-    return jsonify({"job_id": job_id, "status": "running"})
+    return jsonify({
+        "job_id": job_id,
+        "status": "running",
+        "last_duration_s": previous_duration,
+    })
 
 
 @settings_bp.route("/ml/evaluate/<job_id>", methods=["GET"])
@@ -905,4 +988,4 @@ def ml_evaluate_status(job_id: str) -> FlaskResponse | tuple[FlaskResponse, HTTP
     job = _resolve_job(job_id)
     if not job:
         return jsonify({"error": "not_found"}), HTTPStatus.NOT_FOUND
-    return jsonify(job)
+    return jsonify(_job_response(job))

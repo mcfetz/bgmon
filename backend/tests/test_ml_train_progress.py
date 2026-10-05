@@ -131,6 +131,21 @@ def test_completed_job_records_total_duration(running_job):
     assert job["stage"] == "done", "completed record must be marked as done"
 
 
+@pytest.mark.usefixtures("train_env")
+def test_completed_job_stays_visible_for_the_next_estimate(running_job):
+    """The terminal record replaces the running one, so it must keep ``kind``.
+
+    Otherwise the next training loses both its start estimate and the
+    "last training took ..." hint, because the duration lookup filters on kind.
+    """
+    settings_routes._run_train(running_job)
+
+    job = settings_routes._get_job(running_job)
+    assert job is not None
+    assert job["kind"] == "train"
+    assert settings_routes._last_completed_duration("train") == float(job["duration_s"])
+
+
 def test_failed_run_keeps_started_at(train_env, running_job, monkeypatch):
     def boom():
         raise RuntimeError("nope")
@@ -226,14 +241,25 @@ def test_patch_job_creates_entry_when_missing(monkeypatch, tmp_path):
 
 def test_last_completed_duration_uses_slowest_run(monkeypatch, tmp_path):
     monkeypatch.setattr(Config, "model_dir", classmethod(lambda _cls: str(tmp_path)))
-    settings_routes._put_job("a", {"status": "completed", "duration_s": 12.0})
-    settings_routes._put_job("b", {"status": "completed", "duration_s": 40.0})
-    settings_routes._put_job("c", {"status": "running"})
+    settings_routes._put_job("a", {"kind": "train", "status": "completed", "duration_s": 12.0})
+    settings_routes._put_job("b", {"kind": "train", "status": "completed", "duration_s": 40.0})
+    settings_routes._put_job("c", {"kind": "train", "status": "running"})
 
-    assert settings_routes._last_completed_duration() == 40.0
+    assert settings_routes._last_completed_duration("train") == 40.0
+
+
+def test_last_completed_duration_ignores_other_job_kinds(monkeypatch, tmp_path):
+    """A slow model training run is no estimate for an evaluation run."""
+    monkeypatch.setattr(Config, "model_dir", classmethod(lambda _cls: str(tmp_path)))
+    settings_routes._put_job("t", {"kind": "train", "status": "completed", "duration_s": 900.0})
+    settings_routes._put_job("e", {"kind": "evaluate", "status": "completed", "duration_s": 3.0})
+
+    assert settings_routes._last_completed_duration("evaluate") == 3.0
+    assert settings_routes._last_completed_duration("train") == 900.0
 
 
 def test_last_completed_duration_none_without_history(monkeypatch, tmp_path):
     monkeypatch.setattr(Config, "model_dir", classmethod(lambda _cls: str(tmp_path)))
 
-    assert settings_routes._last_completed_duration() is None
+    assert settings_routes._last_completed_duration("train") is None
+    assert settings_routes._last_completed_duration("evaluate") is None

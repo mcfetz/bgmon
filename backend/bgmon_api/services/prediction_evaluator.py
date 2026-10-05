@@ -9,6 +9,7 @@ runtime dashboard behaviour or scheduler paths.
 from __future__ import annotations
 
 from bisect import bisect_left
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -36,7 +37,11 @@ class _NormalizedReading:
 _EVALUATION_WINDOW_DAYS = 7
 
 
-def evaluate_saved_predictions(*, tolerance_minutes: int = 5) -> EvaluationReport:
+def evaluate_saved_predictions(
+    *,
+    tolerance_minutes: int = 5,
+    progress: Callable[[int, int], None] | None = None,
+) -> EvaluationReport:
     """Compare stored predictions with later actual glucose readings.
 
     Only evaluates runs from the last ``_EVALUATION_WINDOW_DAYS`` days to
@@ -46,6 +51,11 @@ def evaluate_saved_predictions(*, tolerance_minutes: int = 5) -> EvaluationRepor
     Args:
         tolerance_minutes: Allowed absolute timestamp delta between a predicted
             point and the actual reading chosen for scoring.
+        progress: optional callback invoked as ``progress(done, total)``.
+            Called once with ``(0, total)`` as soon as the run count is known
+            but before scoring starts, and then after every scored run. Used by
+            the evaluation job to report progress and derive a measured ETA.
+            Not called at all when there is nothing to evaluate.
     """
     cutoff = datetime.now(UTC) - timedelta(days=_EVALUATION_WINDOW_DAYS)
     runs = (
@@ -72,15 +82,23 @@ def evaluate_saved_predictions(*, tolerance_minutes: int = 5) -> EvaluationRepor
     readings = _load_readings(earliest=earliest, latest=latest)
     reading_timestamps = [reading.timestamp for reading in readings]
 
-    run_summaries = [
-        _evaluate_run(
-            run=run,
-            readings=readings,
-            reading_timestamps=reading_timestamps,
-            tolerance=tolerance,
+    # Signals that loading is done and announces the total before any scoring,
+    # so a progress consumer knows the full size of the job up front.
+    if progress is not None:
+        progress(0, len(runs))
+
+    run_summaries: list[PredictionRunSummary] = []
+    for idx, run in enumerate(runs):
+        run_summaries.append(
+            _evaluate_run(
+                run=run,
+                readings=readings,
+                reading_timestamps=reading_timestamps,
+                tolerance=tolerance,
+            )
         )
-        for run in runs
-    ]
+        if progress is not None:
+            progress(idx + 1, len(runs))
     return EvaluationReport(
         run_summaries=run_summaries,
         aggregate_summaries=_build_aggregate_summaries(run_summaries),

@@ -14,6 +14,15 @@ from bgmon_api.services.prediction_evaluator import (
 )
 
 
+def _base_time(minutes_ago: int) -> datetime:
+    """A recent timestamp, safely inside the evaluator's 7-day window.
+
+    Hard-coded dates silently age out of that window and turn these tests
+    into "there is nothing to evaluate" assertions.
+    """
+    return datetime.now(UTC) - timedelta(minutes=minutes_ago)
+
+
 def _make_run(
     *,
     user_id: int,
@@ -80,7 +89,7 @@ class TestEvaluateSavedPredictions:
     """Retrospective scoring of stored prediction runs against actual BG rows."""
 
     def test_completed_run_with_matching_actual_readings(self, db_session, patient_user):
-        base = datetime(2026, 7, 10, 12, 0, tzinfo=UTC)
+        base = _base_time(180)
         run = _seed_run_with_points(
             db_session=db_session,
             user_id=patient_user.id,
@@ -115,7 +124,7 @@ class TestEvaluateSavedPredictions:
         assert len(summary.point_summaries) == 3
 
     def test_run_with_no_matching_actual_readings_remains_pending(self, db_session, patient_user):
-        base = datetime(2026, 7, 10, 13, 0, tzinfo=UTC)
+        base = _base_time(150)
         run = _seed_run_with_points(
             db_session=db_session,
             user_id=patient_user.id,
@@ -140,7 +149,7 @@ class TestEvaluateSavedPredictions:
         assert len(summary.point_summaries) == 0
 
     def test_aggregate_mae_summary_by_horizon_and_model_version(self, db_session, patient_user):
-        base = datetime(2026, 7, 10, 14, 0, tzinfo=UTC)
+        base = _base_time(120)
         _seed_run_with_points(
             db_session=db_session,
             user_id=patient_user.id,
@@ -200,7 +209,7 @@ class TestEvaluateSavedPredictions:
         assert aggregate_map[(120, "bgpred-v2")].matched_points == 1
 
     def test_predictor_evaluate_command_emits_json_summary(self, app, db_session, patient_user):
-        base = datetime(2026, 7, 10, 15, 0, tzinfo=UTC)
+        base = _base_time(90)
         _seed_run_with_points(
             db_session=db_session,
             user_id=patient_user.id,

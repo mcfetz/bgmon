@@ -7,6 +7,8 @@
 	import { applyUserColors, getStoredColors, type UserColors } from '$lib/theme';
 	import { getVisibleWhatsNewEntries, type WhatsNewEntry } from '$lib/whatsNew/releases';
 	import { getUnseenWhatsNewCount, markVisibleWhatsNewSeen } from '$lib/whatsNew/state';
+	import MlProgressBar from '$lib/components/MlProgressBar.svelte';
+	import { fmtDuration, type MlProgress } from '$lib/mlProgress';
 
 	let open = $state(false);
 	type View =
@@ -24,56 +26,6 @@
 		| 'help'
 		| 'preferences';
 	let currentView = $state<View>('main');
-
-	type MlProgress = {
-		stage: string;
-		done: number;
-		total: number;
-		elapsed_s: number | null;
-		eta_s: number | null;
-	};
-
-	const ML_STAGE_LABELS: Record<string, string> = {
-		starting: 'Wird vorbereitet…',
-		data: 'Trainingsdaten werden gelesen…',
-		train: 'Modelle werden trainiert…',
-		publish: 'Modell wird veröffentlicht…',
-		log: 'Logbucheintrag wird geschrieben…',
-		done: 'Fertig'
-	};
-
-	function mlStageLabel(stage: string): string {
-		return ML_STAGE_LABELS[stage] ?? 'Läuft…';
-	}
-
-	function fmtDuration(seconds: number | null | undefined): string {
-		if (seconds == null || !Number.isFinite(seconds)) return '–';
-		const s = Math.max(0, Math.round(seconds));
-		if (s < 60) return `${s} Sek.`;
-		const m = Math.floor(s / 60);
-		if (m < 60) return s % 60 ? `${m} Min. ${s % 60} Sek.` : `${m} Min.`;
-		return `${Math.floor(m / 60)} Std. ${m % 60} Min.`;
-	}
-
-	function mlProgressPct(p: MlProgress): number {
-		const total = p.total > 0 ? p.total : 1;
-		switch (p.stage) {
-			case 'starting':
-				return 2;
-			case 'data':
-				return 6;
-			case 'train':
-				return 25 + (Math.min(p.done, total) / total) * 70;
-			case 'publish':
-				return 97;
-			case 'log':
-				return 99;
-			case 'done':
-				return 100;
-			default:
-				return 0;
-		}
-	}
 
 	const SECTION_GROUPS: { label: string; sections: { id: View; label: string; icon: string }[] }[] = [
 		{
@@ -287,8 +239,9 @@
 	let mlTrainProgress = $state<MlProgress | null>(null);
 	let mlTrainLastDuration = $state<number | null>(null);
 
-	const mlTrainPct = $derived(mlTrainProgress ? mlProgressPct(mlTrainProgress) : 0);
 	let mlEvalStatus = $state('');
+	let mlEvalProgress = $state<MlProgress | null>(null);
+	let mlEvalLastDuration = $state<number | null>(null);
 	let mlEvalResult = $state<{
 		summaries?: {
 			horizon: number;
@@ -436,6 +389,8 @@
 	async function startMlEvaluate() {
 		mlEvalStatus = 'starte…';
 		mlEvalResult = null;
+		mlEvalProgress = null;
+		mlEvalLastDuration = null;
 		try {
 			const res = await apiFetch('/api/settings/ml/evaluate', { method: 'POST' });
 			if (!res.ok) {
@@ -448,11 +403,16 @@
 			}
 			const data = await res.json();
 			mlEvalStatus = 'running…';
+			if (typeof data.last_duration_s === 'number') mlEvalLastDuration = data.last_duration_s;
 			pollMlJob(
 				'/api/settings/ml/evaluate/(job_id)',
 				data.job_id,
 				(s) => (mlEvalStatus = s),
-				(r) => (mlEvalResult = r)
+				(r) => {
+					mlEvalResult = r;
+					if (typeof r.duration_s === 'number') mlEvalLastDuration = r.duration_s;
+				},
+				(p) => (mlEvalProgress = p)
 			);
 		} catch (e) {
 			mlEvalStatus = 'Netzwerkfehler: ' + (e instanceof Error ? e.message : String(e));
@@ -1641,32 +1601,7 @@
 						<p class="hint">Letztes Training dauerte {fmtDuration(mlTrainLastDuration)}.</p>
 					{/if}
 					{#if mlTrainProgress}
-						<div class="ml-progress">
-							<div class="ml-progress-head">
-								<span class="ml-progress-stage">
-									{mlStageLabel(mlTrainProgress.stage)}
-									{#if mlTrainProgress.stage === 'train' && mlTrainProgress.total > 0}
-										({mlTrainProgress.done}/{mlTrainProgress.total} Horizonte)
-									{/if}
-								</span>
-								<span class="ml-progress-pct">{Math.round(mlTrainPct)}%</span>
-							</div>
-							<div
-								class="ml-progress-track"
-								role="progressbar"
-								aria-valuenow={Math.round(mlTrainPct)}
-								aria-valuemin="0"
-								aria-valuemax="100"
-							>
-								<div class="ml-progress-fill" style="width: {mlTrainPct}%"></div>
-							</div>
-							<p class="ml-progress-meta">
-								Läuft seit {fmtDuration(mlTrainProgress.elapsed_s)}
-								{#if mlTrainProgress.eta_s != null && mlTrainProgress.eta_s > 0}
-									· noch ca. {fmtDuration(mlTrainProgress.eta_s)}
-								{/if}
-							</p>
-						</div>
+						<MlProgressBar progress={mlTrainProgress} />
 					{/if}
 					{#if mlTrainResult?.metrics}
 						<h4 class="sub-heading" style="margin-top:1rem">Ergebnisse</h4>
@@ -1689,6 +1624,12 @@
 					>
 						{mlEvalStatus ? mlEvalStatus : 'Evaluation starten'}
 					</button>
+				{#if mlEvalLastDuration != null && mlEvalStatus !== 'running…'}
+					<p class="hint">Letzte Evaluation dauerte {fmtDuration(mlEvalLastDuration)}.</p>
+				{/if}
+				{#if mlEvalProgress}
+					<MlProgressBar progress={mlEvalProgress} />
+				{/if}
 					{#if mlEvalResult?.summaries}
 						<h4 class="sub-heading" style="margin-top:1rem">Zusammenfassung</h4>
 						{#each mlEvalResult.summaries as s}
@@ -2122,50 +2063,6 @@
 		color: var(--color-text-muted);
 		font-size: 0.85rem;
 		margin: 0;
-	}
-
-	.ml-progress {
-		margin-top: 0.75rem;
-	}
-
-	.ml-progress-head {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		gap: var(--spacing-sm);
-		font-size: 0.85rem;
-		color: var(--color-text-muted);
-	}
-
-	.ml-progress-stage {
-		color: var(--color-text);
-	}
-
-	.ml-progress-pct {
-		font-variant-numeric: tabular-nums;
-		flex-shrink: 0;
-	}
-
-	.ml-progress-track {
-		height: 6px;
-		margin-top: 0.35rem;
-		background: var(--color-border);
-		border-radius: 3px;
-		overflow: hidden;
-	}
-
-	.ml-progress-fill {
-		height: 100%;
-		background: var(--color-primary);
-		border-radius: 3px;
-		transition: width 0.4s ease;
-	}
-
-	.ml-progress-meta {
-		margin: 0.35rem 0 0;
-		font-size: 0.8rem;
-		color: var(--color-text-muted);
-		font-variant-numeric: tabular-nums;
 	}
 
 	.field select {
