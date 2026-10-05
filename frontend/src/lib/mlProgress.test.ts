@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDuration, progressPct, stageLabel, stageUnit, type MlProgress } from './mlProgress';
+import {
+	fmtDateTime,
+	fmtDuration,
+	fmtNullable,
+	fmtRatioPct,
+	progressPct,
+	stageLabel,
+	stageUnit,
+	verdictLabel,
+	verdictReason,
+	type MlProgress
+} from './mlProgress';
 
 function progress(overrides: Partial<MlProgress> = {}): MlProgress {
 	return { stage: 'train', done: 0, total: 3, elapsed_s: null, eta_s: null, ...overrides };
@@ -73,5 +84,75 @@ describe('fmtDuration', () => {
 		expect(fmtDuration(undefined)).toBe('–');
 		expect(fmtDuration(Number.NaN)).toBe('–');
 		expect(fmtDuration(Number.POSITIVE_INFINITY)).toBe('–');
+	});
+});
+describe('fmtNullable', () => {
+	it('formats present metrics and keeps a perfect zero visible', () => {
+		expect(fmtNullable(12.34)).toBe('12.3');
+		expect(fmtNullable(12.34, 0)).toBe('12');
+		// A flawless forecast must not collapse into the "missing" dash.
+		expect(fmtNullable(0)).toBe('0.0');
+	});
+
+	it('shows a dash when the metric could not be computed', () => {
+		expect(fmtNullable(null)).toBe('–');
+		expect(fmtNullable(undefined)).toBe('–');
+		expect(fmtNullable(Number.NaN)).toBe('–');
+		expect(fmtNullable(Number.POSITIVE_INFINITY)).toBe('–');
+	});
+});
+
+describe('fmtRatioPct', () => {
+	it('renders a 0..1 ratio as a percentage', () => {
+		expect(fmtRatioPct(0.75)).toBe('75 %');
+		expect(fmtRatioPct(1)).toBe('100 %');
+		expect(fmtRatioPct(0)).toBe('0 %');
+	});
+
+	it('distinguishes no data from zero coverage', () => {
+		expect(fmtRatioPct(null)).toBe('–');
+		expect(fmtRatioPct(undefined)).toBe('–');
+		expect(fmtRatioPct(Number.NaN)).toBe('–');
+	});
+});
+
+describe('verdictLabel', () => {
+	it('maps every verdict onto a readable trust level', () => {
+		expect(verdictLabel('conclusive')).toBe('belastbar');
+		expect(verdictLabel('provisional')).toBe('vorläufig');
+		expect(verdictLabel('insufficient_data')).toBe('nicht aussagekräftig');
+		// Unknown values must not read as trustworthy.
+		expect(verdictLabel('something_new')).toBe('nicht aussagekräftig');
+	});
+});
+
+describe('verdictReason', () => {
+	it('explains why a number may not be trusted', () => {
+		expect(verdictReason('too_few_runs')).toBe('zu wenige Runs');
+		expect(verdictReason('too_few_points')).toBe('zu wenige bewertbare Punkte');
+		expect(verdictReason('small_sample')).toBe('zu kleine Stichprobe');
+		expect(verdictReason('no_baseline')).toBe('keine Baseline verfügbar');
+		expect(verdictReason('single_version')).toBe('nur eine Modellversion vorhanden');
+	});
+
+	it('stays empty for a conclusive result', () => {
+		expect(verdictReason('')).toBe('');
+	});
+});
+
+describe('fmtDateTime', () => {
+	it('renders an ISO timestamp in German short form', () => {
+		const formatted = fmtDateTime('2026-10-05T19:31:25+00:00');
+		expect(formatted).not.toBe('–');
+		// German short form drops the year: day, month, then time.
+		expect(formatted).toContain('05.10.');
+		expect(formatted).toContain('21:31');
+	});
+
+	it('shows a dash for missing or unparsable input', () => {
+		expect(fmtDateTime(null)).toBe('–');
+		expect(fmtDateTime(undefined)).toBe('–');
+		expect(fmtDateTime('')).toBe('–');
+		expect(fmtDateTime('not-a-date')).toBe('–');
 	});
 });

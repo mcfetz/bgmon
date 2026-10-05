@@ -147,6 +147,10 @@ def _last_completed_duration(kind: str) -> float | None:
     return float(max(durations)) if durations else None
 
 
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
 def _elapsed_since(started_at: object) -> int | None:
     """Whole seconds since an ISO timestamp, or None when it is unusable."""
     if not isinstance(started_at, str):
@@ -955,7 +959,7 @@ def _run_evaluate(job_id: str) -> None:
     try:
         with _app.app_context():
             report("load", 0, 0, None)
-            evaluation = evaluate_saved_predictions(progress=on_run)
+            evaluation = evaluate_saved_predictions(progress=on_run, keep_run_summaries=False)
             db.session.remove()
             summaries = [
                 {
@@ -977,6 +981,14 @@ def _run_evaluate(job_id: str) -> None:
                 "total": total_runs,
                 "duration_s": int((datetime.now(UTC) - started).total_seconds()),
                 "summaries": summaries,
+                "quality": [s.to_dict() for s in evaluation.quality_summaries],
+                "versions": [s.to_dict() for s in evaluation.version_comparisons],
+                "window_days": Config.ML_EVAL_WINDOW_DAYS,
+                "window_start": _iso(evaluation.window_start),
+                "window_end": _iso(evaluation.window_end),
+                "paired_window_start": _iso(evaluation.paired_window_start),
+                "paired_window_end": _iso(evaluation.paired_window_end),
+                "evaluated_runs": evaluation.evaluated_runs,
             })
     except Exception:
         logger.exception("ML evaluation job %s failed", job_id)

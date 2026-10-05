@@ -8,7 +8,15 @@
 	import { getVisibleWhatsNewEntries, type WhatsNewEntry } from '$lib/whatsNew/releases';
 	import { getUnseenWhatsNewCount, markVisibleWhatsNewSeen } from '$lib/whatsNew/state';
 	import MlProgressBar from '$lib/components/MlProgressBar.svelte';
-	import { fmtDuration, type MlProgress } from '$lib/mlProgress';
+	import {
+		fmtDateTime,
+		fmtDuration,
+		fmtNullable,
+		fmtRatioPct as pct,
+		verdictLabel,
+		verdictReason,
+		type MlProgress
+	} from '$lib/mlProgress';
 
 	let open = $state(false);
 	type View =
@@ -239,6 +247,47 @@
 	let mlTrainProgress = $state<MlProgress | null>(null);
 	let mlTrainLastDuration = $state<number | null>(null);
 
+	/** Short explanation appended to a verdict, empty when conclusive. */
+	function verdictHint(verdict: string, reason: string): string {
+		if (verdict === 'conclusive') return '';
+		const label = verdictReason(reason);
+		return label ? ` (${label})` : '';
+	}
+
+	interface MlEvalQualityRow {
+		horizon_minutes: number;
+		model_version: string;
+		run_count: number;
+		completed_runs: number;
+		partial_runs: number;
+		pending_runs: number;
+		expected_points: number;
+		matched_points: number;
+		coverage: number | null;
+		model_mae: number | null;
+		baseline_mae: number | null;
+		baseline_points: number;
+		improvement: number | null;
+		first_run_at: string | null;
+		last_run_at: string | null;
+		verdict: 'insufficient_data' | 'provisional' | 'conclusive';
+		reason: string;
+	}
+
+	interface MlEvalVersionRow {
+		horizon_minutes: number;
+		model_version: string;
+		run_count: number;
+		matched_points: number;
+		model_mae: number | null;
+		baseline_mae: number | null;
+		improvement: number | null;
+		rank: number;
+		delta_to_best: number | null;
+		verdict: 'insufficient_data' | 'provisional' | 'conclusive';
+		reason: string;
+	}
+
 	let mlEvalStatus = $state('');
 	let mlEvalProgress = $state<MlProgress | null>(null);
 	let mlEvalLastDuration = $state<number | null>(null);
@@ -246,11 +295,19 @@
 		summaries?: {
 			horizon: number;
 			model_version: string;
-			mae: number;
+			mae: number | null;
 			matched_points: number;
 			completed_runs: number;
 			run_count: number;
 		}[];
+		quality?: MlEvalQualityRow[];
+		versions?: MlEvalVersionRow[];
+		window_days?: number;
+		window_start?: string | null;
+		window_end?: string | null;
+		paired_window_start?: string | null;
+		paired_window_end?: string | null;
+		evaluated_runs?: number;
 	} | null>(null);
 
 	let pushSubscribed = $state(false);
@@ -1610,39 +1667,90 @@
 					{#if mlTrainResult?.metrics}
 						<h4 class="sub-heading" style="margin-top:1rem">Ergebnisse</h4>
 						{#each mlTrainResult.metrics as m}
-							<p class="hint">
-								Horizont {m.horizon}h: Baseline MAE {m.baseline_mae.toFixed(1)}, Modell MAE {m.model_mae.toFixed(
-									1
-								)}, Splits {m.n_splits}
-							</p>
-						{/each}
-					{/if}
+<p class="hint">
+							Horizont {m.horizon} Min.: Baseline MAE {m.baseline_mae.toFixed(1)}, Modell MAE {m.model_mae.toFixed(
+								1
+							)}, Splits {m.n_splits}
+						</p>
+					{/each}
+				{/if}
 
-					<hr style="margin:1rem 0;border:none;border-top:1px solid var(--color-border)" />
+				<hr style="margin:1rem 0;border:none;border-top:1px solid var(--color-border)" />
 
-					<h3 class="sub-heading">ML Evaluation</h3>
-					<button
-						class="submit-btn"
-						onclick={startMlEvaluate}
-						disabled={mlEvalStatus === 'starte…' || mlEvalStatus === 'running…'}
-					>
-						{mlEvalStatus ? mlEvalStatus : 'Evaluation starten'}
-					</button>
+				<h3 class="sub-heading">ML Evaluation</h3>
+				<button
+					class="submit-btn"
+					onclick={startMlEvaluate}
+					disabled={mlEvalStatus === 'starte…' || mlEvalStatus === 'running…'}
+				>
+					{mlEvalStatus ? mlEvalStatus : 'Evaluation starten'}
+				</button>
 				{#if mlEvalLastDuration != null && mlEvalStatus !== 'running…'}
 					<p class="hint">Letzte Evaluation dauerte {fmtDuration(mlEvalLastDuration)}.</p>
 				{/if}
 				{#if mlEvalProgress}
 					<MlProgressBar progress={mlEvalProgress} />
 				{/if}
-					{#if mlEvalResult?.summaries}
-						<h4 class="sub-heading" style="margin-top:1rem">Zusammenfassung</h4>
-						{#each mlEvalResult.summaries as s}
-							<p class="hint">
-								Horizont {s.horizon}h (v{s.model_version}): MAE {s.mae.toFixed(1)}, {s.matched_points}
-								Punkte, {s.completed_runs}/{s.run_count} Runs
-							</p>
-						{/each}
+				{#if mlEvalResult?.quality?.length}
+					<h4 class="sub-heading" style="margin-top:1rem">Prognosequalität</h4>
+					{#if mlEvalResult.window_days != null}
+						<p class="hint">
+							Fenster: {mlEvalResult.window_days} Tage
+							{#if mlEvalResult.evaluated_runs != null}
+								· {mlEvalResult.evaluated_runs} Runs
+							{/if}
+						</p>
 					{/if}
+					{#each mlEvalResult.quality as q}
+						<p class="hint">
+							Horizont {q.horizon_minutes} Min. (v{q.model_version}): Modell MAE
+							{fmtNullable(q.model_mae, 1)}, Baseline MAE {fmtNullable(q.baseline_mae, 1)}
+							{#if q.improvement != null}
+								({q.improvement > 0 ? '+' : ''}{q.improvement.toFixed(0)} %)
+							{/if}
+							· Abdeckung {pct(q.coverage)}
+							· {q.matched_points}/{q.expected_points} Punkte
+							· {verdictLabel(q.verdict)}{verdictHint(q.verdict, q.reason)}
+						</p>
+					{/each}
+				{/if}
+				{#if mlEvalResult?.versions?.length}
+					<h4 class="sub-heading" style="margin-top:1rem">Versionsvergleich</h4>
+					{#if mlEvalResult.paired_window_start && mlEvalResult.paired_window_end}
+						<p class="hint">
+							Gemeinsames Zeitfenster: {fmtDateTime(mlEvalResult.paired_window_start)} – {fmtDateTime(
+								mlEvalResult.paired_window_end
+							)}
+						</p>
+					{:else}
+						<p class="hint">Kein gemeinsames Zeitfenster — kein Vergleich möglich.</p>
+					{/if}
+					{#each mlEvalResult.versions as v}
+						<p class="hint">
+							Horizont {v.horizon_minutes} Min. (v{v.model_version}):
+							{#if v.rank > 0}
+								Platz {v.rank}
+							{:else}
+								kein Rang
+							{/if}
+							· MAE {fmtNullable(v.model_mae, 1)}
+							{#if v.delta_to_best != null}
+								({v.delta_to_best > 0 ? '+' : ''}{v.delta_to_best.toFixed(1)} zur Besten)
+							{/if}
+							· {v.run_count} Runs
+							· {verdictLabel(v.verdict)}{verdictHint(v.verdict, v.reason)}
+						</p>
+					{/each}
+				{/if}
+				{#if mlEvalResult?.summaries?.length && !mlEvalResult?.quality?.length}
+					<h4 class="sub-heading" style="margin-top:1rem">Zusammenfassung</h4>
+					{#each mlEvalResult.summaries as s}
+						<p class="hint">
+							Horizont {s.horizon} Min. (v{s.model_version}): MAE {fmtNullable(s.mae, 1)}, {s.matched_points}
+							Punkte, {s.completed_runs}/{s.run_count} Runs
+						</p>
+					{/each}
+				{/if}
 				{/if}
 
 				{#if error}

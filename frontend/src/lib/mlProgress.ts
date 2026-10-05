@@ -68,3 +68,58 @@ export function progressPct(p: MlProgress): number {
 	}
 	return 0;
 }
+
+/** Render a metric that may legitimately be absent (too few data points). */
+export function fmtNullable(value: number | null | undefined, digits = 1): string {
+	if (value == null || !Number.isFinite(value)) return '–';
+	return value.toFixed(digits);
+}
+
+/** Render a 0..1 ratio as a percentage, keeping "no data" distinguishable. */
+export function fmtRatioPct(ratio: number | null | undefined): string {
+	if (ratio == null || !Number.isFinite(ratio)) return '–';
+	return `${Math.round(ratio * 100)} %`;
+}
+
+/** German label for how far an evaluation number may be trusted. */
+export function verdictLabel(verdict: string): string {
+	switch (verdict) {
+		case 'conclusive':
+			return 'belastbar';
+		case 'provisional':
+			return 'vorläufig';
+		default:
+			return 'nicht aussagekräftig';
+	}
+}
+
+/** Why a verdict came out the way it did. Empty for a conclusive result. */
+export function verdictReason(reason: string): string {
+	switch (reason) {
+		case 'too_few_runs':
+			return 'zu wenige Runs';
+		case 'too_few_points':
+			return 'zu wenige bewertbare Punkte';
+		case 'small_sample':
+			return 'zu kleine Stichprobe';
+		case 'no_baseline':
+			return 'keine Baseline verfügbar';
+		case 'single_version':
+			return 'nur eine Modellversion vorhanden';
+		default:
+			return '';
+	}
+}
+
+/** Compact local timestamp for window labels. */
+export function fmtDateTime(iso: string | null | undefined): string {
+	if (!iso) return '–';
+	const parsed = new Date(iso);
+	if (Number.isNaN(parsed.getTime())) return '–';
+	return parsed.toLocaleString('de-DE', {
+		day: '2-digit',
+		month: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit'
+	});
+}

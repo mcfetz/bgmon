@@ -35,6 +35,14 @@ class MlRuntimeState:
         return {horizon: self.model_dir / f"model_{horizon}m.joblib" for horizon in self.horizons}
 
 
+def _get_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "")
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 def _get_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name, str(default)).lower()
     return value in {"1", "true", "yes", "on"}
@@ -137,6 +145,13 @@ class Config:
     ML_ENABLED: bool = _get_bool("BGMON_ML_ENABLED", default=False)
     ML_MODEL_PATH: str = str(_get_ml_model_path())
     ML_HORIZONS: list[int] = _get_int_list("BGMON_ML_HORIZONS", DEFAULT_ML_HORIZONS)
+    # Retrospective evaluation. A 7-day window only ever produced ~18k scored
+    # points per horizon, which is too thin to say anything about a 30-minute
+    # forecast; 30 days yields ~100k. The gate values below are the minimum for
+    # a verdict — three times that counts as "conclusive".
+    ML_EVAL_WINDOW_DAYS: int = _get_int("BGMON_ML_EVAL_WINDOW_DAYS", 30)
+    ML_EVAL_MIN_RUNS: int = _get_int("BGMON_ML_EVAL_MIN_RUNS", 20)
+    ML_EVAL_MIN_POINTS: int = _get_int("BGMON_ML_EVAL_MIN_POINTS", 100)
 
     @classmethod
     def ml_enabled(cls) -> bool:

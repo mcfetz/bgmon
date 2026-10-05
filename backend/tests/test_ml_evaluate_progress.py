@@ -127,6 +127,43 @@ def test_run_evaluate_reports_load_then_score_then_done(
 
 
 @pytest.mark.usefixtures("eval_env")
+def test_run_evaluate_payload_carries_quality_and_window(
+    db_session, patient_user, running_eval_job
+):
+    """The job must ship baseline, coverage, verdict and window to the UI."""
+    _seed_runs(db_session, patient_user, 2)
+    settings_routes._run_evaluate(running_eval_job)
+
+    job = settings_routes._get_job(running_eval_job)
+    assert job is not None
+    assert job["status"] == "completed"
+
+    quality = job["quality"]
+    assert quality, "quality summaries must be returned"
+    row = quality[0]
+    for field in (
+        "coverage",
+        "model_mae",
+        "baseline_mae",
+        "baseline_points",
+        "improvement",
+        "verdict",
+        "reason",
+        "expected_points",
+        "matched_points",
+    ):
+        assert field in row, f"missing quality field: {field}"
+    assert row["verdict"] in {"insufficient_data", "provisional", "conclusive"}
+
+    assert job["versions"] is not None
+    assert job["evaluated_runs"] == 2
+    assert job["window_days"] == Config.ML_EVAL_WINDOW_DAYS
+    assert job["window_start"] and job["window_end"]
+    # Per-run summaries are dropped in job mode to bound memory.
+    assert "run_summaries" not in job
+
+
+@pytest.mark.usefixtures("eval_env")
 def test_run_evaluate_completes_with_measured_duration(
     db_session, patient_user, running_eval_job
 ):
