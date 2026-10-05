@@ -485,6 +485,7 @@ class GlobalSettings(db.Model):
     spike_threshold_mgdl: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     rebound_rise_threshold_mgdl: Mapped[int] = mapped_column(Integer, default=80, nullable=False)
     rebound_window_minutes: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
+    rebound_max_onset_minutes: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
     stacking_warning_hours: Mapped[float] = mapped_column(Float, default=3.0, nullable=False)
     dawn_start_hour_utc: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
     dawn_end_hour_utc: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
@@ -557,6 +558,7 @@ class GlobalSettings(db.Model):
             "spike_threshold_mgdl": self.spike_threshold_mgdl,
             "rebound_rise_threshold_mgdl": self.rebound_rise_threshold_mgdl,
             "rebound_window_minutes": self.rebound_window_minutes,
+            "rebound_max_onset_minutes": self.rebound_max_onset_minutes,
             "stacking_warning_hours": self.stacking_warning_hours,
             "dawn_start_hour_utc": self.dawn_start_hour_utc,
             "dawn_end_hour_utc": self.dawn_end_hour_utc,

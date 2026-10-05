@@ -279,6 +279,7 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
         "combined_overdose_cooldown_minutes": (1, 1440),
         "combined_overdose_crash_threshold_mgdl": (40, 150),
         "combined_overdose_fall_rate_mgdl_per_5min": (1, 100),
+        "rebound_max_onset_minutes": (5, 120),
         "insulin_low_stock_cooldown_minutes": (1, 10080),
         "basal_low_stock_cooldown_minutes": (1, 10080),
         "low_stock_days": (1, 365),

@@ -105,6 +105,34 @@ def test_hypo_rebound_without_carbs_is_detected(db_session, patient_user):
     assert result["id"] == "hypo_rebound"
 
 
+def test_hypo_rebound_ignores_late_onset_rise(db_session, patient_user):
+    """A rise that only begins long after the hypo is a separate event."""
+    _configure(db_session, rebound_require_no_carbs=True)
+    assert patient_user.id is not None
+    # Night hypo recovers on its own, then a late (meal-driven) excursion.
+    series = (
+        (200, 64), (190, 68), (185, 90), (180, 92), (175, 91), (170, 95),
+        (60, 96), (55, 100), (50, 130), (45, 180), (40, 236), (35, 250),
+    )
+    for minutes_ago, sgv in series:
+        _reading(db_session, minutes_ago, sgv)
+    db_session.commit()
+
+    assert _detect_hypo_rebound(_settings()) is None
+
+
+def test_hypo_rebound_suppressed_by_carbs_in_rebound_window(db_session, patient_user):
+    """Carbs logged after the hypo (but inside the rebound window) explain the rise."""
+    _configure(db_session, rebound_require_no_carbs=True)
+    assert patient_user.id is not None
+    for minutes_ago, sgv in ((60, 64), (55, 66), (50, 90), (30, 110), (20, 190)):
+        _reading(db_session, minutes_ago, sgv)
+    _log(db_session, patient_user.id, LogEntryType.CARBS, minutes_ago=25, value=5, unit="KE")
+    db_session.commit()
+
+    assert _detect_hypo_rebound(_settings()) is None
+
+
 def _seed_combined_meal(
     db_session, patient_id: int, *, crash: bool, meal_minutes_ago: float = 180
 ) -> None:

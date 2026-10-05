@@ -315,13 +315,26 @@ def _detect_hypo_rebound(s: GlobalSettings) -> dict | None:
     ]
     if len(post_readings) < 3:
         return None
-    peak_bg = max(r.sgv for r in post_readings)
+
+    # The rebound must begin promptly after the hypo. A rise that only starts
+    # much later belongs to a different event (meal, dawn phenomenon) and must
+    # not be attributed to counter-regulation.
+    onset_cutoff = hypo_end + timedelta(minutes=s.rebound_max_onset_minutes)
+    onset_readings = [r for r in post_readings if r.timestamp <= onset_cutoff]
+    if len(onset_readings) < 3:
+        return None
+
+    # Only readings before the onset cutoff may define the rebound peak —
+    # anything after it is a separate excursion.
+    peak_bg = max(r.sgv for r in onset_readings)
     rise = peak_bg - hypo_min
     if rise <= s.rebound_rise_threshold_mgdl:
         return None
 
-    # A carb treatment explains the rise and is not a pure counter-regulation.
-    if s.rebound_require_no_carbs and _has_carbs(patient_id, hypo_start, hypo_end):
+    # A carb treatment anywhere in the rebound window explains the rise and is
+    # not a pure counter-regulation (e.g. breakfast carbs logged after a night
+    # hypo must suppress this alert).
+    if s.rebound_require_no_carbs and _has_carbs(patient_id, hypo_start, rebound_end):
         return None
 
     _log_alert(
