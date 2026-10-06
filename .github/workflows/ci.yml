@@ -39,28 +39,18 @@ jobs:
 
       - name: Lint backend
         working-directory: ./backend
-        run: ruff check bgmon_api
+        run: ruff check .
 
       - name: Type-check backend
         working-directory: ./backend
-        continue-on-error: true
-        run: ty check bgmon_api
+        run: ty check .
 
       - name: Run backend tests
         working-directory: ./backend
         env:
           BGMON_DATABASE_URL: postgresql://bgmon:bgmon@localhost:5432/bgmon_test
           BGMON_SECRET_KEY: test-secret
-        run: |
-          pytest tests/test_libre_data.py tests/test_alarm_evaluator.py tests/test_auth.py \
-            tests/test_notification_profiles.py tests/test_users_api.py tests/test_settings_api.py \
-            tests/test_log_api.py tests/test_leader_election.py tests/test_twilio_caller.py \
-            tests/test_web_push.py tests/test_dashboard.py tests/test_shifts_night_family.py \
-            tests/test_compression_detector.py tests/test_smart_alerts.py \
-            tests/test_insulin_stock.py \
-            tests/test_ml_train_progress.py tests/test_ml_evaluate_progress.py \
-            tests/test_ml_job_file.py tests/test_prediction_evaluator.py \
-            -v --tb=short
+        run: pytest tests/ -v --tb=short
 
   frontend:
     runs-on: ubuntu-latest
