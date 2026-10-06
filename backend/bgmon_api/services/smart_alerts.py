@@ -16,6 +16,9 @@ from bgmon_api.models import (
 logger = logging.getLogger(__name__)
 
 ALERT_DEDUP_MINUTES = 30
+# Length of the post-meal window that may define a spike peak. Also the
+# freshness limit for reporting: past it the spike is history, not news.
+SPIKE_PEAK_MINUTES = 90
 ALERTS = [
     "postprandial_spike",
     "hypo_rebound",
@@ -214,6 +217,12 @@ def _detect_postprandial_spike(s: GlobalSettings) -> dict | None:
     if not last_meal_ts:
         return None
 
+    # Report only while the spike can still be current. The peak window below
+    # is fixed at the meal, so without this guard every cooldown expiry
+    # (120 min) re-reports the same already-resolved meal with its old peak.
+    if datetime.now(UTC) - last_meal_ts > timedelta(minutes=SPIKE_PEAK_MINUTES):
+        return None
+
     # Get 3 readings before meal for baseline
     pre_readings = (
         GlucoseReading.query
@@ -229,12 +238,13 @@ def _detect_postprandial_spike(s: GlobalSettings) -> dict | None:
         return None
     start_bg = sum(r.sgv for r in pre_readings) // len(pre_readings)
 
-    # Get peak within 90 min after meal
+    # Get peak within the spike window after the meal
     post_readings = (
         GlucoseReading.query
         .filter(
             GlucoseReading.timestamp >= last_meal_ts,
-            GlucoseReading.timestamp <= last_meal_ts + timedelta(minutes=90),
+            GlucoseReading.timestamp <= last_meal_ts
+            + timedelta(minutes=SPIKE_PEAK_MINUTES),
         )
         .order_by(GlucoseReading.timestamp.asc())
         .all()
@@ -289,15 +299,21 @@ def _detect_hypo_rebound(s: GlobalSettings) -> dict | None:
     hypo_end = None
     run = 0
     for i, r in enumerate(readings):
+        if hypo_end is not None:
+            # The first episode in the window is final. A later dip must not
+            # rewrite its start or minimum: that would build an inverted
+            # window [hypo_start > rebound_end], which the carb guard below
+            # queries as an empty range and therefore stops suppressing.
+            break
         if r.sgv < 70:
             if run == 0:
                 hypo_start = r.timestamp
             run += 1
             hypo_min = min(hypo_min, r.sgv)
-            if run >= 3 and hypo_end is None and i == len(readings) - 1:
+            if run >= 3 and i == len(readings) - 1:
                 hypo_end = r.timestamp
         else:
-            if run >= 3 and hypo_end is None:
+            if run >= 3:
                 hypo_end = readings[i - 1].timestamp
             run = 0
             if hypo_start and not hypo_end:
@@ -305,6 +321,10 @@ def _detect_hypo_rebound(s: GlobalSettings) -> dict | None:
                 hypo_min = 999
 
     if not hypo_start or not hypo_end:
+        return None
+    if hypo_end < hypo_start:
+        # Defensive: an episode that ends before it starts means the
+        # bookkeeping above was bypassed — nothing to report on.
         return None
 
     # Find peak within rebound window after hypo end
