@@ -83,7 +83,10 @@ def detect_compression_low() -> dict | None:
     if min(sgv_values) >= COMPRESSION_MAX_SGV:
         return None
 
-    # Rule A — STICKY_VALUES: >=3 consecutive identical SGV below the low threshold
+    # Rule A — STICKY_VALUES: >=3 consecutive identical SGV. Value-agnostic on
+    # purpose: the hard gate above already proved an actual low exists in this
+    # window, and the confirmed low episodes reach confidence by pairing a
+    # sticky run (often at the pre-drop level) with Rule B.
     if _check_sticky(sgv_values):
         confidence += 30
         triggered_rules.append("KONSTANTE_WERTE")
@@ -119,19 +122,24 @@ def detect_compression_low() -> dict | None:
 
 
 def _check_sticky(sgv_values: list[int]) -> bool:
-    """Rule A: >=3 consecutive readings with identical sgv below the low threshold."""
-    max_run = 0
-    current_run = 0
-    previous: int | None = None
-    for value in sgv_values:
-        if value == previous and value < COMPRESSION_MAX_SGV:
+    """Rule A: >=3 consecutive readings with identical sgv.
+
+    Deliberately value-agnostic — requiring the identical run itself to sit
+    below 70 removed almost every detection (real lows rarely repeat the exact
+    same value three times), while the hard gate in ``detect_compression_low``
+    already keeps pure high traces out.
+    """
+    if len(sgv_values) < STICKY_VALUES_MIN_COUNT:
+        return False
+    max_run = 1
+    current_run = 1
+    for i in range(1, len(sgv_values)):
+        if sgv_values[i] == sgv_values[i - 1]:
             current_run += 1
-        elif value < COMPRESSION_MAX_SGV:
-            current_run = 1
+            if current_run > max_run:
+                max_run = current_run
         else:
-            current_run = 0
-        max_run = max(max_run, current_run)
-        previous = value
+            current_run = 1
     return max_run >= STICKY_VALUES_MIN_COUNT
 
 

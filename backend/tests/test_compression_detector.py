@@ -68,7 +68,7 @@ class TestDetectionDisabled:
 
 
 class TestStickyValues:
-    """Rule A: >=3 consecutive identical SGV values below the low threshold."""
+    """Rule A: >=3 consecutive identical SGV values (value-agnostic, low gate applies)."""
 
     def test_three_identical_triggers(self, db_session):
         _enable_detection(db_session, confidence=30)
@@ -106,6 +106,20 @@ class TestStickyValues:
         result = detect_compression_low()
         if result is not None:
             assert "KONSTANTE_WERTE" not in result["rules"]
+
+    def test_sticky_run_above_low_with_low_in_window_detected(self, db_session):
+        """Regression: confirmed low episodes pair a sticky run with the steep drop.
+
+        Requiring the identical run itself to be below 70 cut confirmed
+        detections from 23/23 to 5/23 — real lows rarely repeat the exact same
+        value three times, they fall through a high plateau.
+        """
+        _enable_detection(db_session, confidence=60)
+        _seed_readings(db_session, [92, 92, 92, 88, 60], start_minutes_ago=4)
+        result = detect_compression_low()
+        assert result is not None
+        assert "KONSTANTE_WERTE" in result["rules"]
+        assert "STARKER_ABFALL" in result["rules"]
 
 
 class TestLowValueGate:
