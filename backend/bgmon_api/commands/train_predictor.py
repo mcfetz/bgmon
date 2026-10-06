@@ -11,6 +11,7 @@ import click
 from flask import Flask
 
 from bgmon_api.services.model_trainer import (
+    TrainerResult,
     TrainingInput,  # noqa: TCH001 — used in _collect_training_data
 )
 from bgmon_api.services.prediction_evaluator import evaluate_saved_predictions
@@ -117,7 +118,7 @@ def evaluate(tolerance_minutes: int, json_output: bool) -> None:
 
 
 def _create_training_log_entry(
-    result: TrainingResult,  # noqa: F821 — forward ref
+    result: TrainerResult,
     sample_count: int,
 ) -> None:
     """Create a logbook note documenting the completed ML training run."""

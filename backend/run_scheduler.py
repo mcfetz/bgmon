@@ -52,6 +52,7 @@ def _check_env() -> bool:
 
 
 def main():
+    """Start the standalone scheduler process."""
     if not _check_pid():
         sys.exit(1)
 
@@ -66,20 +67,26 @@ def main():
 
     app = create_app()
 
+    active_leader = leader
+    active_scheduler = scheduler
+    if active_leader is None or active_scheduler is None:
+        logger.error("create_app() did not initialise leader/scheduler")
+        sys.exit(1)
+
     # Start thread tracing (logs thread count to /tmp/bgmon-threads.log)
     from bgmon_api.thread_tracer import start_periodic_snapshot
     start_periodic_snapshot(interval_s=300)
 
     with app.app_context():
-        leader.try_acquire()
+        active_leader.try_acquire()
         # scheduler is already started by create_app() (called during import)
-        logger.info("Standalone scheduler started (leader=%s)", leader.is_leader)
+        logger.info("Standalone scheduler started (leader=%s)", active_leader.is_leader)
 
     import signal
 
-    def shutdown(signum, frame):
+    def shutdown(_signum, _frame):
         logger.info("Shutting down scheduler...")
-        scheduler.shutdown(wait=False)
+        active_scheduler.shutdown(wait=False)
         if os.path.exists(PID_FILE):
             os.unlink(PID_FILE)
         sys.exit(0)

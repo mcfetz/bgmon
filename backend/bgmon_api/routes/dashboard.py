@@ -101,6 +101,8 @@ def history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             end_dt = parse_iso_datetime(end)
         except ValueError:
             return jsonify({"error": "invalid date format"}), HTTPStatus.BAD_REQUEST
+        if start_dt is None or end_dt is None:
+            return jsonify({"error": "invalid date format"}), HTTPStatus.BAD_REQUEST
 
         readings, step = _query_and_downsample(start_dt, end_dt)
     else:
@@ -858,7 +860,7 @@ def _analyze_streaks(low: int, high: int) -> tuple[datetime | None, int, datetim
         .scalars()
         .all()
     )
-    readings.reverse()  # restore ascending order for streak logic
+    readings = list(reversed(readings))  # restore ascending order for streak logic
     if not readings:
         return None, 0, None
 
