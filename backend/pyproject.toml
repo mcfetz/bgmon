@@ -58,7 +58,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "migrations/*" = ["D", "E501", "W291", "I001", "SIM105", "ARG001"]
-"tests/*" = ["D103", "D102"]
+# Fixture arguments are requested by name and docstrings add nothing here.
+"tests/*" = ["D", "ARG"]
 "bgmon_api/routes/*" = ["D103"]
 "bgmon_api/models.py" = ["D102"]
 "bgmon_api/services/leader.py" = ["D102"]

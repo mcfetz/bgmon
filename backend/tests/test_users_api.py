@@ -1,12 +1,15 @@
-import pytest
 from http import HTTPStatus
 
-from bgmon_api.models import NightProfile, SnoozePreset, Threshold, User, UserRole
+import pytest
+
+from bgmon_api.models import User, UserRole
 
 
 @pytest.mark.xfail(reason="admin_user detached from session in CI")
 def test_admin_can_list_all_users(client, admin_user, observer_user, patient_user):
-    login = client.post("/api/auth/login", json={"email": admin_user.email, "password": "test_password"})
+    login = client.post(
+        "/api/auth/login", json={"email": admin_user.email, "password": "test_password"}
+    )
     assert login.status_code == HTTPStatus.OK
     token = login.get_json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -139,7 +142,9 @@ def test_non_admin_cannot_update_other_users(client, observer_user, patient_user
 @pytest.mark.xfail(reason="DetachedInstanceError — user detached from session")
 def test_admin_can_deactivate_and_reactivate_user(client, admin_user, patient_user):
     # log in as admin to get a fresh token (avoid fixture session staleness)
-    login = client.post("/api/auth/login", json={"email": admin_user.email, "password": "test_password"})
+    login = client.post(
+        "/api/auth/login", json={"email": admin_user.email, "password": "test_password"}
+    )
     assert login.status_code == HTTPStatus.OK
     token = login.get_json()["token"]
 

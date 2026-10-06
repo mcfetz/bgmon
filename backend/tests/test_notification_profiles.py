@@ -2,8 +2,6 @@
 
 from http import HTTPStatus
 
-import pytest
-
 
 class TestProfileCRUD:
     def test_create_profile(self, client, patient_user):
@@ -91,10 +89,13 @@ class TestProfileCRUD:
         })
         assert resp.status_code == HTTPStatus.NOT_FOUND
 
-    def test_cannot_delete_other_users_profile(self, client, patient_user, observer_user, notification_profile_with_assignments):
-        resp = client.delete(f"/api/notifications/profiles/{notification_profile_with_assignments.id}", headers={
-            "Authorization": f"Bearer {observer_user._session.token}",
-        })
+    def test_cannot_delete_other_users_profile(
+        self, client, patient_user, observer_user, notification_profile_with_assignments
+    ):
+        resp = client.delete(
+            f"/api/notifications/profiles/{notification_profile_with_assignments.id}",
+            headers={"Authorization": f"Bearer {observer_user._session.token}"},
+        )
         assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
