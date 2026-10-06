@@ -250,6 +250,8 @@ def test_evaluate_low_stock_uses_effective_stock(
     )
     db_session.commit()
 
-    basal = evaluate_low_stock()["basal"]
+    stock = evaluate_low_stock()
+    assert stock is not None
+    basal = stock["basal"]
     assert basal["effective_stock"] == 79.0
     assert basal["low_stock"] is True

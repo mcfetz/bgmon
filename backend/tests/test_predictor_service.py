@@ -139,12 +139,17 @@ def _write_fake_artifacts(
     n_features = len(expected_feature_names)
 
     for horizon in horizons:
-        # Train a trivial model on random data matching the real feature count.
+        # Fit on random data, then pin the model to a constant prediction.
+        # A model left on the random fit would multiply real feature scales
+        # (latest_bg ≈ 120) into a negative mean, which the predictor's
+        # garbage guard (y_mean <= 0) rejects as 'prediction_rejected'.
         rng = np.random.RandomState(42)
         X = rng.randn(20, n_features)  # noqa: N806
         y = rng.randn(20) * 30 + 120.0
         model = LinearRegression()
         model.fit(X, y)
+        model.coef_ = np.zeros(n_features)
+        model.intercept_ = 120.0
         fname = f"model_{horizon}m.joblib"
         model_files[f"{horizon}m"] = fname
         joblib.dump(model, model_dir / fname)

@@ -189,7 +189,7 @@ def test_daily_protocol_caps_markers_and_long_notes():
     assert protocol.markers_truncated is True
     assert len(protocol.markers) == 50
     assert all(marker.notes is not None and len(marker.notes) == 240 for marker in protocol.markers)
-    assert all(marker.notes.endswith("...") for marker in protocol.markers)
+    assert all((marker.notes or "").endswith("...") for marker in protocol.markers)
 
 
 def test_report_skips_non_finite_legacy_log_values():

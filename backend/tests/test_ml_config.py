@@ -18,13 +18,13 @@ class TestMlConfigDefaults:
         assert isinstance(Config.ML_MODEL_PATH, str)
         assert Config.ML_MODEL_PATH.endswith("ml_models/bg_prediction_v1")
 
-    def test_ml_horizons_defaults_to_60_and_120(self):
+    def test_ml_horizons_defaults_to_30_60_120(self):
         assert hasattr(Config, "ML_HORIZONS"), "Config.ML_HORIZONS must exist"
-        assert Config.ML_HORIZONS == [60, 120]
+        assert Config.ML_HORIZONS == [30, 60, 120]
         assert callable(Config.ml_horizons), "Config.ml_horizons must be callable"
         horizons = Config.ml_horizons()
         assert isinstance(horizons, list)
-        assert horizons == [60, 120]
+        assert horizons == [30, 60, 120]
 
     def test_ml_horizons_immutable(self):
         h1 = Config.ml_horizons()
@@ -88,8 +88,8 @@ class TestMlConfigUnavailableState:
         assert state.reason == "missing_manifest"
         assert state.manifest_path == model_dir / "manifest.json"
         assert state.model_paths == {
-            60: model_dir / "model_60m.joblib",
-            120: model_dir / "model_120m.joblib",
+            horizon: model_dir / f"model_{horizon}m.joblib"
+            for horizon in Config.ml_horizons()
         }
 
     def test_is_ml_available_false_when_model_dir_missing(self, monkeypatch, tmp_path):

@@ -80,8 +80,8 @@ class TestDashboardEndpoints:
         with app.app_context():
             reading = GlucoseReading(
                 sgv=125,
-                trend="Flat",
-                direction="Stable",
+                trend=4,
+                direction="Flat",
                 timestamp=datetime.now(UTC),
             )
             db_session.add(reading)
@@ -94,7 +94,8 @@ class TestDashboardEndpoints:
         assert response.status_code == HTTPStatus.OK
         data = response.get_json()
         assert data["sgv"] == 125
-        assert data["trend"] == "Flat"
+        assert data["trend"] == 4
+        assert data["direction"] == "Flat"
 
     def test_get_glucose_history(self, client, patient_session, db_session, app):
         """Test /dashboard/history returns glucose readings in time range."""
@@ -107,8 +108,8 @@ class TestDashboardEndpoints:
             for i in range(5):
                 reading = GlucoseReading(
                     sgv=100 + i * 10,
-                    trend="Flat",
-                    direction="Stable",
+                    trend=4,
+                    direction="Flat",
                     timestamp=now - timedelta(hours=i),
                 )
                 db_session.add(reading)
@@ -391,29 +392,32 @@ class TestAlarmEndpoints:
             db_session.commit()
 
         response = client.get(
-            "/api/alarms/",
+            "/api/alarms/active",
             headers={"Authorization": f"Bearer {patient_session.token}"},
         )
         assert response.status_code == HTTPStatus.OK
         data = response.get_json()
-        assert isinstance(data, list)
+        assert isinstance(data["alarms"], list)
+        assert any(a["sgv"] == 65 for a in data["alarms"])
 
     def test_snooze_alarm(self, client, patient_session):
         """Test snoozing alarms."""
         response = client.post(
-            "/api/alarms/snooze",
-            json={"duration_minutes": 15},
+            "/api/notifications/snooze",
+            json={"minutes": 15},
             headers={"Authorization": f"Bearer {patient_session.token}"},
         )
         assert response.status_code == HTTPStatus.OK or response.status_code == HTTPStatus.CREATED
+        assert response.get_json()["active"] is True
 
     def test_get_snooze_status(self, client, patient_session):
         """Test getting current snooze status."""
         response = client.get(
-            "/api/alarms/snooze",
+            "/api/notifications/snooze",
             headers={"Authorization": f"Bearer {patient_session.token}"},
         )
-        assert response.status_code in [HTTPStatus.OK, HTTPStatus.NOT_FOUND]
+        assert response.status_code == HTTPStatus.OK
+        assert "active" in response.get_json()
 
 
 class TestHealthEndpoint:
