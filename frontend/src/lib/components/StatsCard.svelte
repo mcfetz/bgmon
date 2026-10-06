@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { StatsData, PredictionPoint } from '$lib/api/dashboard';
-	import { DASHBOARD_STAT_TILES, type DashboardStatTile } from '$lib/dashboardTiles';
+	import type { StatsData, PredictionPoint } from '#lib/api/dashboard.js';
+	import { DASHBOARD_STAT_TILES, type DashboardStatTile } from '#lib/dashboardTiles.js';
 	import TirModal from './TirModal.svelte';
 	import DailyScoreModal from './DailyScoreModal.svelte';
 	import BadgeModal from './BadgeModal.svelte';
@@ -27,7 +27,7 @@
 		lastBgTime = '',
 		visibleTiles = DEFAULT_VISIBLE_TILES,
 		editMode = false,
-		onToggleTile = ignoreStatTile,
+		onToggleTile = ignoreStatTile
 	} = $props();
 
 	let tirModalOpen = $state(false);
@@ -66,200 +66,299 @@
 	}
 </script>
 
-	<div class="stats-grid" class:editing={editMode}>
-		{#if shouldRenderStatTile('daily-score')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('daily-score')}>
-	<button class="stat-card clickable" type="button" onclick={() => (dailyScoreModalOpen = true)}>
-		<span class="label">Heute ⭐</span>
-		<span class="value">{stats?.daily_score?.total ?? 0}</span>
-		<span class="unit">Punkte · Level {stats?.daily_score?.level ?? 1}</span>
-		<div class="level-bar">
-			<div class="level-bar-fill" style="width: {stats?.daily_score?.progress ?? 0}%"></div>
-		</div>
-		{#if stats?.daily_score?.breakdown && stats.daily_score.breakdown.length > 0}
-			<span class="streak-date">{stats.daily_score.breakdown.length} Belohnungen</span>
-		{:else}
-			<span class="streak-date">Noch keine Punkte heute</span>
-		{/if}
-	</button>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('daily-score')} aria-label={visibleTiles.includes('daily-score') ? 'Heute ausblenden' : 'Heute einblenden'} onclick={() => onToggleTile('daily-score')}>
-						<span>{visibleTiles.includes('daily-score') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
-				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('prediction')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('prediction')}>
-	<button class="stat-card clickable" type="button" onclick={() => (predictionModalOpen = true)}>
-		<span class="label">Prognose +30min</span>
-		{#if predictions30.length > 0}
-			{@const last = predictions30[predictions30.length - 1]}
-			<span class="value">{last.predicted_sgv.toFixed(0)}</span>
-			<span class="unit">
-				{#if last.lower_bound != null && last.upper_bound != null}
-					{last.lower_bound.toFixed(0)}–{last.upper_bound.toFixed(0)} mg/dL
-				{:else}
-					mg/dL
-				{/if}
-				{#if modelMae30 !== null}
-					<span class="mae-label">±{modelMae30.toFixed(0)}</span>
-				{/if}
-			</span>
-		{:else}
-			<span class="value">—</span>
-			<span class="unit">Keine Prognose</span>
-		{/if}
-	</button>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('prediction')} aria-label={visibleTiles.includes('prediction') ? 'Prognose ausblenden' : 'Prognose einblenden'} onclick={() => onToggleTile('prediction')}>
-						<span>{visibleTiles.includes('prediction') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
-				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('tir')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('tir')}>
-	<button
-		class="stat-card clickable"
-		class:good={!(stats?.tir_percent != null && stats.tir_percent < 50)}
-		type="button"
-		onclick={() => (tirModalOpen = true)}
-	>
-		<span class="label">Time in Range</span>
-		<span class="value">{stats?.tir_percent ?? '—'}<span class="unit">%</span></span>
-		<div class="tir-bar">
-			<div class="tir-segment below" style="width: {stats?.tir_below ?? 0}%"></div>
-			<div class="tir-segment range" style="width: {stats?.tir_percent ?? 0}%"></div>
-			<div class="tir-segment above" style="width: {stats?.tir_above ?? 0}%"></div>
-		</div>
-	</button>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('tir')} aria-label={visibleTiles.includes('tir') ? 'Time in Range ausblenden' : 'Time in Range einblenden'} onclick={() => onToggleTile('tir')}>
-						<span>{visibleTiles.includes('tir') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
-				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('streak')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('streak')}>
-	<button class="stat-card clickable" type="button" onclick={() => (streakModalOpen = true)}>
-		<span class="label">Streak 🏆</span>
-		<span class="value">{formatStreakHM(stats?.best_streak_hours ?? stats?.streak_hours ?? 0)}</span
+<div class="stats-grid" class:editing={editMode}>
+	{#if shouldRenderStatTile('daily-score')}
+		<div
+			class="stat-card-wrapper"
+			class:inactive={editMode && !visibleTiles.includes('daily-score')}
 		>
-		<span class="unit">h:mm</span>
-	</button>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('streak')} aria-label={visibleTiles.includes('streak') ? 'Streak ausblenden' : 'Streak einblenden'} onclick={() => onToggleTile('streak')}>
-						<span>{visibleTiles.includes('streak') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
+			<button
+				class="stat-card clickable"
+				type="button"
+				onclick={() => (dailyScoreModalOpen = true)}
+			>
+				<span class="label">Heute ⭐</span>
+				<span class="value">{stats?.daily_score?.total ?? 0}</span>
+				<span class="unit">Punkte · Level {stats?.daily_score?.level ?? 1}</span>
+				<div class="level-bar">
+					<div class="level-bar-fill" style="width: {stats?.daily_score?.progress ?? 0}%"></div>
+				</div>
+				{#if stats?.daily_score?.breakdown && stats.daily_score.breakdown.length > 0}
+					<span class="streak-date">{stats.daily_score.breakdown.length} Belohnungen</span>
+				{:else}
+					<span class="streak-date">Noch keine Punkte heute</span>
 				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('min-mean-max')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('min-mean-max')}>
-	<div class="stat-card">
-		<span class="label">Min / Ø / Max</span>
-		<span class="value">
-			{stats?.min ?? '—'} / {stats?.mean ?? '—'} / {stats?.max ?? '—'}
-		</span>
-		<span class="unit">mg/dL</span>
-	</div>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('min-mean-max')} aria-label={visibleTiles.includes('min-mean-max') ? 'Min Mittelwert Max ausblenden' : 'Min Mittelwert Max einblenden'} onclick={() => onToggleTile('min-mean-max')}>
-						<span>{visibleTiles.includes('min-mean-max') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
-				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('badges')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('badges')}>
-	<button class="stat-card clickable" type="button" onclick={() => (badgeModalOpen = true)}>
-		<span class="label">Badges 🏅</span>
-		<span class="value">
-			{stats?.achievements?.filter((a) => a.unlocked).length ?? 0}/{stats?.achievements?.length ??
-				0}
-		</span>
-		<span class="unit">freigeschaltet</span>
-	</button>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('badges')} aria-label={visibleTiles.includes('badges') ? 'Badges ausblenden' : 'Badges einblenden'} onclick={() => onToggleTile('badges')}>
-						<span>{visibleTiles.includes('badges') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
-				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('gmi')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('gmi')}>
-	<button class="stat-card clickable" type="button" onclick={() => (gmiModalOpen = true)}>
-		<span class="label">GMI (eA1c)</span>
-		<span class="value" style="color: {gmiColor(stats?.gmi)}">{stats?.gmi ?? '—'}</span>
-		<span class="unit">% · {gmiLabel(stats?.gmi)}</span>
-	</button>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('gmi')} aria-label={visibleTiles.includes('gmi') ? 'GMI ausblenden' : 'GMI einblenden'} onclick={() => onToggleTile('gmi')}>
-						<span>{visibleTiles.includes('gmi') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
-				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('readings')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('readings')}>
-	<div class="stat-card">
-		<span class="label">Messwerte</span>
-		<span class="value">{stats?.readings ?? 0}</span>
-		<span class="unit">Stk.</span>
-	</div>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('readings')} aria-label={visibleTiles.includes('readings') ? 'Messwerte ausblenden' : 'Messwerte einblenden'} onclick={() => onToggleTile('readings')}>
-						<span>{visibleTiles.includes('readings') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
-				{/if}
-			</div>
-		{/if}
-
-		{#if shouldRenderStatTile('insulin-stock')}
-			<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('insulin-stock')}>
-	<button class="stat-card clickable" type="button" onclick={() => (insulinStockModalOpen = true)}>
-		<span class="label">Insulin-Vorrat 📦</span>
-		{#if stats?.insulin_stock}
-			{@const bolusDays = stats.insulin_stock.bolus?.configured ? stats.insulin_stock.bolus.days_left : null}
-			{@const basalDays = stats.insulin_stock.basal?.configured ? stats.insulin_stock.basal.days_left : null}
-			{@const anyLow = (stats.insulin_stock.bolus?.low_stock ?? false) || (stats.insulin_stock.basal?.low_stock ?? false)}
-			{#if bolusDays != null || basalDays != null}
-				{@const minDays = Math.min(...[bolusDays, basalDays].filter((d): d is number => d != null))}
-				<span class="value" style="color: {anyLow ? '#ef4444' : 'inherit'}">
-					{minDays} <span class="unit">Tage</span>
-				</span>
-				<span class="unit">
-					{#if bolusDays != null}Schnell {bolusDays} Tage{:else}Schnell —{/if}
-					&nbsp;·&nbsp;
-					{#if basalDays != null}Basal {basalDays} Tage{:else}Basal —{/if}
-				</span>
-			{:else}
-				<span class="value">—</span>
-				<span class="unit">Bestand nicht konfiguriert</span>
+			</button>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('daily-score')}
+					aria-label={visibleTiles.includes('daily-score')
+						? 'Heute ausblenden'
+						: 'Heute einblenden'}
+					onclick={() => onToggleTile('daily-score')}
+				>
+					<span>{visibleTiles.includes('daily-score') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
 			{/if}
-		{:else}
-			<span class="value">—</span>
-			<span class="unit">Bestand nicht konfiguriert</span>
-		{/if}
-	</button>
-				{#if editMode}
-					<button class="card-edit-overlay" type="button" aria-pressed={visibleTiles.includes('insulin-stock')} aria-label={visibleTiles.includes('insulin-stock') ? 'Insulin-Vorrat ausblenden' : 'Insulin-Vorrat einblenden'} onclick={() => onToggleTile('insulin-stock')}>
-						<span>{visibleTiles.includes('insulin-stock') ? 'Aktiv' : 'Ausgeblendet'}</span>
-					</button>
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('prediction')}
+		<div
+			class="stat-card-wrapper"
+			class:inactive={editMode && !visibleTiles.includes('prediction')}
+		>
+			<button
+				class="stat-card clickable"
+				type="button"
+				onclick={() => (predictionModalOpen = true)}
+			>
+				<span class="label">Prognose +30min</span>
+				{#if predictions30.length > 0}
+					{@const last = predictions30[predictions30.length - 1]}
+					<span class="value">{last.predicted_sgv.toFixed(0)}</span>
+					<span class="unit">
+						{#if last.lower_bound != null && last.upper_bound != null}
+							{last.lower_bound.toFixed(0)}–{last.upper_bound.toFixed(0)} mg/dL
+						{:else}
+							mg/dL
+						{/if}
+						{#if modelMae30 !== null}
+							<span class="mae-label">±{modelMae30.toFixed(0)}</span>
+						{/if}
+					</span>
+				{:else}
+					<span class="value">—</span>
+					<span class="unit">Keine Prognose</span>
 				{/if}
+			</button>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('prediction')}
+					aria-label={visibleTiles.includes('prediction')
+						? 'Prognose ausblenden'
+						: 'Prognose einblenden'}
+					onclick={() => onToggleTile('prediction')}
+				>
+					<span>{visibleTiles.includes('prediction') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('tir')}
+		<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('tir')}>
+			<button
+				class="stat-card clickable"
+				class:good={!(stats?.tir_percent != null && stats.tir_percent < 50)}
+				type="button"
+				onclick={() => (tirModalOpen = true)}
+			>
+				<span class="label">Time in Range</span>
+				<span class="value">{stats?.tir_percent ?? '—'}<span class="unit">%</span></span>
+				<div class="tir-bar">
+					<div class="tir-segment below" style="width: {stats?.tir_below ?? 0}%"></div>
+					<div class="tir-segment range" style="width: {stats?.tir_percent ?? 0}%"></div>
+					<div class="tir-segment above" style="width: {stats?.tir_above ?? 0}%"></div>
+				</div>
+			</button>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('tir')}
+					aria-label={visibleTiles.includes('tir')
+						? 'Time in Range ausblenden'
+						: 'Time in Range einblenden'}
+					onclick={() => onToggleTile('tir')}
+				>
+					<span>{visibleTiles.includes('tir') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('streak')}
+		<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('streak')}>
+			<button class="stat-card clickable" type="button" onclick={() => (streakModalOpen = true)}>
+				<span class="label">Streak 🏆</span>
+				<span class="value"
+					>{formatStreakHM(stats?.best_streak_hours ?? stats?.streak_hours ?? 0)}</span
+				>
+				<span class="unit">h:mm</span>
+			</button>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('streak')}
+					aria-label={visibleTiles.includes('streak') ? 'Streak ausblenden' : 'Streak einblenden'}
+					onclick={() => onToggleTile('streak')}
+				>
+					<span>{visibleTiles.includes('streak') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('min-mean-max')}
+		<div
+			class="stat-card-wrapper"
+			class:inactive={editMode && !visibleTiles.includes('min-mean-max')}
+		>
+			<div class="stat-card">
+				<span class="label">Min / Ø / Max</span>
+				<span class="value">
+					{stats?.min ?? '—'} / {stats?.mean ?? '—'} / {stats?.max ?? '—'}
+				</span>
+				<span class="unit">mg/dL</span>
 			</div>
-		{/if}
-	</div>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('min-mean-max')}
+					aria-label={visibleTiles.includes('min-mean-max')
+						? 'Min Mittelwert Max ausblenden'
+						: 'Min Mittelwert Max einblenden'}
+					onclick={() => onToggleTile('min-mean-max')}
+				>
+					<span>{visibleTiles.includes('min-mean-max') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('badges')}
+		<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('badges')}>
+			<button class="stat-card clickable" type="button" onclick={() => (badgeModalOpen = true)}>
+				<span class="label">Badges 🏅</span>
+				<span class="value">
+					{stats?.achievements?.filter((a) => a.unlocked).length ?? 0}/{stats?.achievements
+						?.length ?? 0}
+				</span>
+				<span class="unit">freigeschaltet</span>
+			</button>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('badges')}
+					aria-label={visibleTiles.includes('badges') ? 'Badges ausblenden' : 'Badges einblenden'}
+					onclick={() => onToggleTile('badges')}
+				>
+					<span>{visibleTiles.includes('badges') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('gmi')}
+		<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('gmi')}>
+			<button class="stat-card clickable" type="button" onclick={() => (gmiModalOpen = true)}>
+				<span class="label">GMI (eA1c)</span>
+				<span class="value" style="color: {gmiColor(stats?.gmi)}">{stats?.gmi ?? '—'}</span>
+				<span class="unit">% · {gmiLabel(stats?.gmi)}</span>
+			</button>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('gmi')}
+					aria-label={visibleTiles.includes('gmi') ? 'GMI ausblenden' : 'GMI einblenden'}
+					onclick={() => onToggleTile('gmi')}
+				>
+					<span>{visibleTiles.includes('gmi') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('readings')}
+		<div class="stat-card-wrapper" class:inactive={editMode && !visibleTiles.includes('readings')}>
+			<div class="stat-card">
+				<span class="label">Messwerte</span>
+				<span class="value">{stats?.readings ?? 0}</span>
+				<span class="unit">Stk.</span>
+			</div>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('readings')}
+					aria-label={visibleTiles.includes('readings')
+						? 'Messwerte ausblenden'
+						: 'Messwerte einblenden'}
+					onclick={() => onToggleTile('readings')}
+				>
+					<span>{visibleTiles.includes('readings') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if shouldRenderStatTile('insulin-stock')}
+		<div
+			class="stat-card-wrapper"
+			class:inactive={editMode && !visibleTiles.includes('insulin-stock')}
+		>
+			<button
+				class="stat-card clickable"
+				type="button"
+				onclick={() => (insulinStockModalOpen = true)}
+			>
+				<span class="label">Insulin-Vorrat 📦</span>
+				{#if stats?.insulin_stock}
+					{@const bolusDays = stats.insulin_stock.bolus?.configured
+						? stats.insulin_stock.bolus.days_left
+						: null}
+					{@const basalDays = stats.insulin_stock.basal?.configured
+						? stats.insulin_stock.basal.days_left
+						: null}
+					{@const anyLow =
+						(stats.insulin_stock.bolus?.low_stock ?? false) ||
+						(stats.insulin_stock.basal?.low_stock ?? false)}
+					{#if bolusDays != null || basalDays != null}
+						{@const minDays = Math.min(
+							...[bolusDays, basalDays].filter((d): d is number => d != null)
+						)}
+						<span class="value" style="color: {anyLow ? '#ef4444' : 'inherit'}">
+							{minDays} <span class="unit">Tage</span>
+						</span>
+						<span class="unit">
+							{#if bolusDays != null}Schnell {bolusDays} Tage{:else}Schnell —{/if}
+							&nbsp;·&nbsp;
+							{#if basalDays != null}Basal {basalDays} Tage{:else}Basal —{/if}
+						</span>
+					{:else}
+						<span class="value">—</span>
+						<span class="unit">Bestand nicht konfiguriert</span>
+					{/if}
+				{:else}
+					<span class="value">—</span>
+					<span class="unit">Bestand nicht konfiguriert</span>
+				{/if}
+			</button>
+			{#if editMode}
+				<button
+					class="card-edit-overlay"
+					type="button"
+					aria-pressed={visibleTiles.includes('insulin-stock')}
+					aria-label={visibleTiles.includes('insulin-stock')
+						? 'Insulin-Vorrat ausblenden'
+						: 'Insulin-Vorrat einblenden'}
+					onclick={() => onToggleTile('insulin-stock')}
+				>
+					<span>{visibleTiles.includes('insulin-stock') ? 'Aktiv' : 'Ausgeblendet'}</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+</div>
 
 <TirModal bind:open={tirModalOpen} {stats} />
 <DailyScoreModal
@@ -295,14 +394,19 @@
 			<button class="close-btn" type="button" onclick={() => (gmiModalOpen = false)}>✕</button>
 			<h2>GMI — Glucose Management Indicator</h2>
 			<p class="gmi-desc">
-				Der GMI ist ein aus CGM-Daten berechneter Schätzwert, der dem
-				laborbestimmten HbA1c ähnelt. Er wird aus deinem durchschnittlichen
-				Blutzucker der letzten Wochen berechnet.
+				Der GMI ist ein aus CGM-Daten berechneter Schätzwert, der dem laborbestimmten HbA1c ähnelt.
+				Er wird aus deinem durchschnittlichen Blutzucker der letzten Wochen berechnet.
 			</p>
 			<div class="gmi-ranges">
-				<div class="gmi-range"><span class="dot" style="background:#22c55e"></span> &lt;5,7% — Normal</div>
-				<div class="gmi-range"><span class="dot" style="background:#eab308"></span> 5,7–6,5% — Prädiabetes</div>
-				<div class="gmi-range"><span class="dot" style="background:#ef4444"></span> &gt;6,5% — Diabetes-Bereich</div>
+				<div class="gmi-range">
+					<span class="dot" style="background:#22c55e"></span> &lt;5,7% — Normal
+				</div>
+				<div class="gmi-range">
+					<span class="dot" style="background:#eab308"></span> 5,7–6,5% — Prädiabetes
+				</div>
+				<div class="gmi-range">
+					<span class="dot" style="background:#ef4444"></span> &gt;6,5% — Diabetes-Bereich
+				</div>
 			</div>
 			<p class="gmi-formula">Formel: GMI (%) = 3,31 + 0,02392 × ∅-Blutzucker (mg/dL)</p>
 		</div>
@@ -316,7 +420,6 @@
 		grid-auto-rows: 1fr;
 		gap: var(--spacing-md);
 	}
-
 
 	.stat-card-wrapper {
 		display: flex;

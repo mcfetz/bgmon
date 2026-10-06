@@ -1,4 +1,4 @@
-import type { GlucosePoint } from '$lib/api/report';
+import type { GlucosePoint } from '#lib/api/report.js';
 
 export const GLUCOSE_MIN = 0;
 export const GLUCOSE_MAX = 350;

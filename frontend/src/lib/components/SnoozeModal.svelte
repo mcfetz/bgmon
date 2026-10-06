@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { apiFetch } from '$lib/auth';
+	import { apiFetch } from '#lib/auth.js';
 
 	type SnoozeState = {
 		active: boolean;

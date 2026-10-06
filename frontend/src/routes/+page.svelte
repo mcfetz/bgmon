@@ -1,22 +1,22 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
+	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { apiFetch, getAuthToken } from '$lib/auth';
-	import GlucoseGraph from '$lib/components/GlucoseGraph.svelte';
-	import LogEntryForm from '$lib/components/LogEntryForm.svelte';
-	import LogHistory from '$lib/components/LogHistory.svelte';
-	import ProfileSelector from '$lib/components/ProfileSelector.svelte';
-	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
-	import SnoozeIndicator from '$lib/components/SnoozeIndicator.svelte';
-	import BgModal from '$lib/components/BgModal.svelte';
-	import StatsCard from '$lib/components/StatsCard.svelte';
+	import { apiFetch, getAuthToken } from '#lib/auth.js';
+	import GlucoseGraph from '#lib/components/GlucoseGraph.svelte';
+	import LogEntryForm from '#lib/components/LogEntryForm.svelte';
+	import LogHistory from '#lib/components/LogHistory.svelte';
+	import ProfileSelector from '#lib/components/ProfileSelector.svelte';
+	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
+	import SnoozeIndicator from '#lib/components/SnoozeIndicator.svelte';
+	import BgModal from '#lib/components/BgModal.svelte';
+	import StatsCard from '#lib/components/StatsCard.svelte';
 	import {
 		ensurePendingLogEntriesLoaded,
 		flushPendingLogEntries,
 		pendingLogEntries,
 		sortLogsByCreatedAtDesc
-	} from '$lib/stores/pendingLogs';
+	} from '#lib/stores/pendingLogs.js';
 	import {
 		fetchCurrent,
 		fetchHistoryRange,
@@ -27,14 +27,14 @@
 		fetchPrediction,
 		fetchSmartAlerts,
 		type SmartAlert
-	} from '$lib/api/dashboard';
+	} from '#lib/api/dashboard.js';
 	import type {
 		GlucoseReading,
 		LogEntryReading,
 		PredictionPoint,
 		PredictionResponse,
 		StatsData
-	} from '$lib/api/dashboard';
+	} from '#lib/api/dashboard.js';
 	import {
 		dashboardTilesFromPreferences,
 		defaultDashboardTiles,
@@ -45,9 +45,13 @@
 		toggleDashboardTile,
 		visibleDashboardStatTiles,
 		type DashboardTile
-	} from '$lib/dashboardTiles';
+	} from '#lib/dashboardTiles.js';
 
-	let current = $state<{ sgv: number | null; direction: string | null; compression_warning?: boolean } | null>(null);
+	let current = $state<{
+		sgv: number | null;
+		direction: string | null;
+		compression_warning?: boolean;
+	} | null>(null);
 	let readings = $state<GlucoseReading[]>([]);
 	let logs = $state<LogEntryReading[]>([]);
 	let stats = $state<StatsData | null>(null);
@@ -74,7 +78,14 @@
 	let logRefreshTrigger = $state(0);
 	let bgModalOpen = $state(false);
 	let highlightedTimestamp = $state<string | null>(null);
-	let logFilters = $state({ carbs: true, insulin: true, basal: true, alarm: false, note: true, success: true });
+	let logFilters = $state({
+		carbs: true,
+		insulin: true,
+		basal: true,
+		alarm: false,
+		note: true,
+		success: true
+	});
 	let smartAlerts = $state<SmartAlert[]>([]);
 	let predictionStatus = $state<
 		'idle' | 'ready' | 'disabled' | 'unavailable' | 'insufficient_context'
@@ -239,17 +250,18 @@
 			const endIso = windowEnd.toISOString();
 
 			// 1. Graph first — update immediately
-			const [cur, hist] = await Promise.all([
-				fetchCurrent(),
-				fetchHistoryRange(startIso, endIso),
-			]);
+			const [cur, hist] = await Promise.all([fetchCurrent(), fetchHistoryRange(startIso, endIso)]);
 			if (cur) {
 				if (current?.sgv != null && current.sgv !== cur.sgv) {
 					previousSgv = current.sgv;
 				} else if (previousSgv === null) {
 					previousSgv = cur.sgv;
 				}
-				current = { sgv: cur.sgv, direction: cur.direction, compression_warning: cur.compression_warning ?? false };
+				current = {
+					sgv: cur.sgv,
+					direction: cur.direction,
+					compression_warning: cur.compression_warning ?? false
+				};
 				lastUpdate = cur.timestamp;
 			}
 			readings = hist;
@@ -262,7 +274,7 @@
 			const [stat, thresh, globalSettings] = await Promise.all([
 				fetchStatsRange(startIso, endIso),
 				fetchThresholds(),
-				fetchGlobalSettings(),
+				fetchGlobalSettings()
 			]);
 			stats = stat;
 			if (thresh) thresholds = thresh;
@@ -300,9 +312,15 @@
 	async function loadHistoricalPredictions() {
 		try {
 			const results = await Promise.all([
-				apiFetch('/api/dashboard/predictions/history?horizon=30&hours=6', { credentials: 'include' }),
-				apiFetch('/api/dashboard/predictions/history?horizon=60&hours=6', { credentials: 'include' }),
-				apiFetch('/api/dashboard/predictions/history?horizon=120&hours=6', { credentials: 'include' }),
+				apiFetch('/api/dashboard/predictions/history?horizon=30&hours=6', {
+					credentials: 'include'
+				}),
+				apiFetch('/api/dashboard/predictions/history?horizon=60&hours=6', {
+					credentials: 'include'
+				}),
+				apiFetch('/api/dashboard/predictions/history?horizon=120&hours=6', {
+					credentials: 'include'
+				})
 			]);
 			if (results[0].ok) historicalPredictions30 = await results[0].json();
 			if (results[1].ok) historicalPredictions60 = await results[1].json();
@@ -374,7 +392,9 @@
 		loadHistoricalPredictions();
 		checkHealth();
 		checkVersion();
-		fetchSmartAlerts().then((a) => (smartAlerts = a)).catch(() => {});
+		fetchSmartAlerts()
+			.then((a) => (smartAlerts = a))
+			.catch(() => {});
 		const handleOnline = () => {
 			refreshDashboard().catch((e) => console.error('Online sync failed:', e));
 		};
@@ -382,10 +402,15 @@
 		const interval = setInterval(() => {
 			refreshDashboard().catch((e) => console.error('Auto-refresh failed:', e));
 			loadPrediction().catch((e) => console.error('Prediction refresh failed:', e));
-			loadHistoricalPredictions().catch((e) => console.error('Historical prediction refresh failed:', e));
+			loadHistoricalPredictions().catch((e) =>
+				console.error('Historical prediction refresh failed:', e)
+			);
 			checkHealth();
-			fetchSmartAlerts().then((a) => (smartAlerts = a)).catch(() => {});
+			fetchSmartAlerts()
+				.then((a) => (smartAlerts = a))
+				.catch(() => {});
 		}, 30_000);
+
 		// Check for new app version every 5 minutes
 		const versionInterval = setInterval(checkVersion, 5 * 60_000);
 		const nowInterval = setInterval(() => {
@@ -490,6 +515,7 @@
 							<span class="sgv {pulsing ? 'pulse' : ''}" style="color: {glucoseColor(current.sgv)}"
 								>{current.sgv}</span
 							>
+
 							<span class="sgv-label">mg/dL</span>
 						</button>
 					</div>
@@ -531,7 +557,8 @@
 		<div class="smart-alerts-bar">
 			{#each smartAlerts as alert}
 				<span class="smart-alert-badge" title={alert.recommendation}>
-					{alert.icon} {alert.title}
+					{alert.icon}
+					{alert.title}
 				</span>
 			{/each}
 		</div>
@@ -557,7 +584,13 @@
 	{#if showTimeControls}
 		<div class="time-controls">
 			<div class="time-segments" aria-label="Zeitraum auswählen">
-				<button class="range-btn" class:now-active={nowMode} onclick={jumpToNow} title="Zur aktuellen Zeit springen. Im Now-Mode folgt das Dashboard automatisch der aktuellen Zeit.">Jetzt</button>
+				<button
+					class="range-btn"
+					class:now-active={nowMode}
+					onclick={jumpToNow}
+					title="Zur aktuellen Zeit springen. Im Now-Mode folgt das Dashboard automatisch der aktuellen Zeit."
+					>Jetzt</button
+				>
 				{#each durationButtons as btn}
 					<button
 						class="range-btn"
@@ -566,27 +599,27 @@
 					>
 				{/each}
 			</div>
-		<button
-			class="refresh-btn"
-			onclick={refreshDashboard}
-			disabled={loading}
-			title={loading ? 'Lade...' : 'Aktualisieren'}
-		>
-			<svg
-				width="16"
-				height="16"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2.5"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				class:spinning={loading}
+			<button
+				class="refresh-btn"
+				onclick={refreshDashboard}
+				disabled={loading}
+				title={loading ? 'Lade...' : 'Aktualisieren'}
 			>
-				<path d="M21 12a9 9 0 1 1-3.36-7"></path>
-				<polyline points="21 4 21 10 15 10"></polyline>
-			</svg>
-		</button>
+				<svg
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2.5"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class:spinning={loading}
+				>
+					<path d="M21 12a9 9 0 1 1-3.36-7"></path>
+					<polyline points="21 4 21 10 15 10"></polyline>
+				</svg>
+			</button>
 		</div>
 	{/if}
 
@@ -596,12 +629,17 @@
 
 	<div class="content" class:editing={dashboardEditMode}>
 		{#if dashboardEditMode || hasDashboardTile(dashboardTiles, 'graph')}
-			<div class="dashboard-tile" class:inactive={dashboardEditMode && !hasDashboardTile(dashboardTiles, 'graph')}>
+			<div
+				class="dashboard-tile"
+				class:inactive={dashboardEditMode && !hasDashboardTile(dashboardTiles, 'graph')}
+			>
 				{#if dashboardEditMode}
 					<button
 						class="tile-edit-overlay"
 						type="button"
-						aria-label={hasDashboardTile(dashboardTiles, 'graph') ? 'Diagramm ausblenden' : 'Diagramm einblenden'}
+						aria-label={hasDashboardTile(dashboardTiles, 'graph')
+							? 'Diagramm ausblenden'
+							: 'Diagramm einblenden'}
 						aria-pressed={hasDashboardTile(dashboardTiles, 'graph')}
 						onclick={() => toggleDashboardTileSelection('graph')}
 					>
@@ -623,7 +661,7 @@
 					{windowStart}
 					{windowEnd}
 					windowLabel={formatWindowLabel()}
-{logFilters}
+					{logFilters}
 					historyPredictions30={historicalPredictions30}
 					historyPredictions60={historicalPredictions60}
 					historyPredictions120={historicalPredictions120}
@@ -631,12 +669,17 @@
 			</div>
 		{/if}
 		{#if dashboardEditMode || hasDashboardTile(dashboardTiles, 'logbook')}
-			<div class="dashboard-tile" class:inactive={dashboardEditMode && !hasDashboardTile(dashboardTiles, 'logbook')}>
+			<div
+				class="dashboard-tile"
+				class:inactive={dashboardEditMode && !hasDashboardTile(dashboardTiles, 'logbook')}
+			>
 				{#if dashboardEditMode}
 					<button
 						class="tile-edit-overlay"
 						type="button"
-						aria-label={hasDashboardTile(dashboardTiles, 'logbook') ? 'Logbuch ausblenden' : 'Logbuch einblenden'}
+						aria-label={hasDashboardTile(dashboardTiles, 'logbook')
+							? 'Logbuch ausblenden'
+							: 'Logbuch einblenden'}
 						aria-pressed={hasDashboardTile(dashboardTiles, 'logbook')}
 						onclick={() => toggleDashboardTileSelection('logbook')}
 					>
@@ -677,8 +720,10 @@
 
 	{#if newVersionAvailable && !newVersionDismissed}
 		<div class="version-banner">
-			<span>Neue Version verfügbar — </span>
+			<span>Neue Version verfügbar —</span>
+
 			<button class="version-reload" onclick={handleVersionReload}>Jetzt neu laden</button>
+
 			<button class="version-dismiss" onclick={() => (newVersionDismissed = true)}>✕</button>
 		</div>
 	{/if}
@@ -692,11 +737,31 @@
 			onclick={toggleDashboardEditMode}
 		>
 			{#if dashboardEditMode}
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<svg
+					width="15"
+					height="15"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2.5"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
 					<polyline points="20 6 9 17 4 12"></polyline>
 				</svg>
 			{:else}
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<svg
+					width="15"
+					height="15"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
 					<path d="M12 20h9"></path>
 					<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
 				</svg>
@@ -1090,7 +1155,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 	}
 
 	.version-reload {

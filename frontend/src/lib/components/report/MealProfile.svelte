@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MealBlock, MealPoint } from '$lib/api/report';
+	import type { MealBlock, MealPoint } from '#lib/api/report.js';
 	import { areaPaths, clampGlucose, glucoseRangeCapMarkers, linePath } from './chart';
 
 	let { blocks }: { blocks: MealBlock[] } = $props();

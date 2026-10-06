@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ReportData } from '$lib/api/report';
+	import type { ReportData } from '#lib/api/report.js';
 	import { formatNumber } from './chart';
 
 	let {

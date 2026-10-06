@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DayOverview } from '$lib/api/report';
+	import type { DayOverview } from '#lib/api/report.js';
 	import { formatNumber } from './chart';
 
 	let { days }: { days: DayOverview[] } = $props();

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AGPPoint } from '$lib/api/report';
+	import type { AGPPoint } from '#lib/api/report.js';
 	import { areaPaths, clampGlucose, glucoseRangeCapMarkers, linePath } from './chart';
 
 	let { points, compact = false }: { points: AGPPoint[]; compact?: boolean } = $props();

@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { fmtDuration, progressPct, stageLabel, stageUnit, type MlProgress } from '$lib/mlProgress';
+	import {
+		fmtDuration,
+		progressPct,
+		stageLabel,
+		stageUnit,
+		type MlProgress
+	} from '#lib/mlProgress.js';
 
 	let { progress }: { progress: MlProgress } = $props();
 

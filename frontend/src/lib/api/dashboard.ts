@@ -1,4 +1,4 @@
-import { apiFetch } from '$lib/auth';
+import { apiFetch } from '#lib/auth.js';
 
 export interface GlucoseReading {
 	sgv: number | null;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DailyProfile, GlucosePoint } from '$lib/api/report';
+	import type { DailyProfile, GlucosePoint } from '#lib/api/report.js';
 	import { clampGlucose, glucoseTrace, type GlucoseTrace } from './chart';
 
 	let { profiles }: { profiles: DailyProfile[] } = $props();

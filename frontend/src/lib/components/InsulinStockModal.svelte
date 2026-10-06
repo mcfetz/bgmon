@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { InsulinStockInfo, StatsData } from '$lib/api/dashboard';
+	import type { InsulinStockInfo, StatsData } from '#lib/api/dashboard.js';
 
 	let {
 		open = $bindable(false),
@@ -44,11 +44,11 @@
 		<div class="sm-body">
 			{#if !info?.bolus?.configured && !info?.basal?.configured}
 				<p class="sm-empty">
-					Kein Bestand hinterlegt. Lege ihn unter <em>Einstellungen → Faktoren</em> an, um
-					den Vorrat zu verfolgen.
+					Kein Bestand hinterlegt. Lege ihn unter <em>Einstellungen → Faktoren</em> an, um den Vorrat
+					zu verfolgen.
 				</p>
 			{:else}
-				{#each (['bolus', 'basal'] as const) as key (key)}
+				{#each ['bolus', 'basal'] as const as key (key)}
 					{@const item = info?.[key] as InsulinStockInfo | null}
 					{@const label = key === 'bolus' ? 'Schnellinsulin' : 'Basalinsulin'}
 					{@const icon = key === 'bolus' ? '💉' : '🧴'}
@@ -77,7 +77,9 @@
 									<li>
 										<span class="sm-detail-label">Gezählt (Bestand)</span>
 										<span class="sm-detail-value"
-											>{formatUnits(item.stock_units)} U · {formatCountDate(item.stock_set_at)}</span
+											>{formatUnits(item.stock_units)} U · {formatCountDate(
+												item.stock_set_at
+											)}</span
 										>
 									</li>
 									<li>

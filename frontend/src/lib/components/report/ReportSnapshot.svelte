@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { LowGlucoseEvent, ReportSnapshot as SnapshotType } from '$lib/api/report';
-	import { formatGermanCalendarDate, formatLowGlucoseEventTime } from '$lib/utils/reportDates';
+	import type { LowGlucoseEvent, ReportSnapshot as SnapshotType } from '#lib/api/report.js';
+	import { formatGermanCalendarDate, formatLowGlucoseEventTime } from '#lib/utils/reportDates.js';
 	import { formatNumber } from './chart';
 
 	let {

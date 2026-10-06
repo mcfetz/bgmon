@@ -54,7 +54,10 @@ export function dashboardTilesStorageKey(authToken: string | null): string {
 	return `${STORAGE_KEY_PREFIX}:${tokenSuffix}`;
 }
 
-export function loadDashboardTiles(storage: StorageLike, authToken: string | null): DashboardTile[] {
+export function loadDashboardTiles(
+	storage: StorageLike,
+	authToken: string | null
+): DashboardTile[] {
 	const rawValue = storage.getItem(dashboardTilesStorageKey(authToken));
 	if (!rawValue) return defaultDashboardTiles();
 
@@ -92,9 +95,7 @@ export function shouldShowTimeControls(
 	return isEditMode || hasDashboardTile(tiles, 'graph') || hasDashboardTile(tiles, 'logbook');
 }
 
-export function visibleDashboardStatTiles(
-	tiles: readonly DashboardTile[]
-): DashboardStatTile[] {
+export function visibleDashboardStatTiles(tiles: readonly DashboardTile[]): DashboardStatTile[] {
 	return DASHBOARD_STAT_TILES.filter((tile) => hasDashboardTile(tiles, tile));
 }
 

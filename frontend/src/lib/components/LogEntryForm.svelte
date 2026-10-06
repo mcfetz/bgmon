@@ -1,7 +1,11 @@
 <script lang="ts">
-	import { createLog, fetchCarbFactor, fetchLogs, fetchGlobalSettings } from '$lib/api/log';
-	import { apiFetch } from '$lib/auth';
-	import { createPendingLogInputs, queuePendingLogEntries, type PendingLogInput } from '$lib/stores/pendingLogs';
+	import { createLog, fetchCarbFactor, fetchLogs, fetchGlobalSettings } from '#lib/api/log.js';
+	import { apiFetch } from '#lib/auth.js';
+	import {
+		createPendingLogInputs,
+		queuePendingLogEntries,
+		type PendingLogInput
+	} from '#lib/stores/pendingLogs.js';
 
 	let {
 		onsaved,
@@ -43,7 +47,9 @@
 	// AI KE estimation
 	let llmLoading = $state(false);
 	let llmModalOpen = $state(false);
-	let llmResult = $state<{ ke_value: number; reasoning: string; food_summary?: string } | null>(null);
+	let llmResult = $state<{ ke_value: number; reasoning: string; food_summary?: string } | null>(
+		null
+	);
 	let llmError = $state('');
 
 	// Photo upload for AI vision
@@ -234,7 +240,10 @@
 	): boolean {
 		if (type === 'note') return t.notes.trim() !== '';
 		if (type === 'insulin') {
-			return (t.value !== '' && t.value !== 0) || (t.correctionValue !== '' && Number(t.correctionValue) > 0);
+			return (
+				(t.value !== '' && t.value !== 0) ||
+				(t.correctionValue !== '' && Number(t.correctionValue) > 0)
+			);
 		}
 		return t.value !== '' && t.value !== 0;
 	}
@@ -408,7 +417,10 @@
 	}
 
 	function buildEntriesToPersist(
-		entriesToSave: readonly [string, { value: number | ''; correctionValue: number | ''; notes: string }][],
+		entriesToSave: readonly [
+			string,
+			{ value: number | ''; correctionValue: number | ''; notes: string }
+		][],
 		timestamp: string,
 		hasCorrectionEntry: boolean
 	): Omit<PendingLogInput, 'group_id' | 'sequence'>[] {
@@ -420,12 +432,13 @@
 				notes: data.notes || null,
 				created_at: timestamp
 			}))
-			.filter((entry) => !(hasCorrectionEntry && entry.entry_type === 'insulin' && entry.value === 0));
+			.filter(
+				(entry) => !(hasCorrectionEntry && entry.entry_type === 'insulin' && entry.value === 0)
+			);
 
 		if (hasCorrectionEntry) {
-			const correctionNote = currentBg !== null
-				? `Korrektur: BG ${currentBg} → Ziel ${TARGET_BG}`
-				: 'Korrektur';
+			const correctionNote =
+				currentBg !== null ? `Korrektur: BG ${currentBg} → Ziel ${TARGET_BG}` : 'Korrektur';
 			entries.push({
 				entry_type: 'insulin',
 				value: Number(correctionValue),
@@ -570,7 +583,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-	<button class="add-btn" type="button" onclick={() => openModal()} title="Neuen Eintrag">+</button>
+<button class="add-btn" type="button" onclick={() => openModal()} title="Neuen Eintrag">+</button>
 
 <!-- Modal -->
 <!-- Hidden file input for photo upload -->
@@ -745,8 +758,7 @@
 							bind:value={notes}
 							oninput={syncToTabValues}
 							placeholder="Notiz eingeben..."
-							rows="4"
-						></textarea>
+							rows="4"></textarea>
 						{#if llmError}
 							<span class="llm-error">{llmError}</span>
 						{/if}
@@ -831,26 +843,26 @@
 				{/if}
 
 				<!-- Simulation forecast preview -->
-					<div class="forecast-bar">
-						<span class="forecast-label">📈</span>
-						{#if simulationResult && !simulationLoading}
-							{#each Object.entries(simulationResult) as [key, data], i}
-								{#if data.points?.[0]?.predicted_sgv}
-									{@const sgv = data.points[0].predicted_sgv}
-									<span
-										class="forecast-value"
-										class:forecast-green={sgv >= 70 && sgv <= 180}
-										class:forecast-yellow={sgv > 180 && sgv <= 250}
-										class:forecast-red={sgv < 70 || sgv > 250}
-									>
-										{i > 0 ? ' | ' : ''}{key}min: {sgv}
-									</span>
-								{/if}
-							{/each}
-						{:else}
-							<span class="forecast-placeholder">Werte eingeben für Vorhersage</span>
-						{/if}
-					</div>
+				<div class="forecast-bar">
+					<span class="forecast-label">📈</span>
+					{#if simulationResult && !simulationLoading}
+						{#each Object.entries(simulationResult) as [key, data], i}
+							{#if data.points?.[0]?.predicted_sgv}
+								{@const sgv = data.points[0].predicted_sgv}
+								<span
+									class="forecast-value"
+									class:forecast-green={sgv >= 70 && sgv <= 180}
+									class:forecast-yellow={sgv > 180 && sgv <= 250}
+									class:forecast-red={sgv < 70 || sgv > 250}
+								>
+									{i > 0 ? ' | ' : ''}{key}min: {sgv}
+								</span>
+							{/if}
+						{/each}
+					{:else}
+						<span class="forecast-placeholder">Werte eingeben für Vorhersage</span>
+					{/if}
+				</div>
 
 				<button
 					class="submit-btn"
@@ -901,7 +913,9 @@
 			</div>
 		</div>
 		<div class="llm-modal-actions">
-			<button class="llm-cancel-btn" type="button" onclick={() => (llmModalOpen = false)}>Abbrechen</button>
+			<button class="llm-cancel-btn" type="button" onclick={() => (llmModalOpen = false)}
+				>Abbrechen</button
+			>
 			<button class="llm-accept-btn" type="button" onclick={applyLlmdKe}>Übernehmen</button>
 		</div>
 	</div>
@@ -935,7 +949,6 @@
 			transform 0.15s ease,
 			box-shadow 0.15s ease;
 	}
-
 
 	.add-btn:hover {
 		transform: translateX(-50%) scale(1.1);
@@ -1425,7 +1438,9 @@
 		animation: ai-spin 0.6s linear infinite;
 	}
 	@keyframes ai-spin {
-		to { transform: rotate(360deg); }
+		to {
+			transform: rotate(360deg);
+		}
 	}
 	.llm-error {
 		color: #e53e3e;

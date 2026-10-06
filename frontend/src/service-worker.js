@@ -1,4 +1,8 @@
-self.addEventListener('push', (event) => {
+/// <reference lib="webworker" />
+/* eslint-disable no-undef */
+/** @type {ServiceWorkerGlobalScope} */
+const scope = /** @type {any} */ (self);
+scope.addEventListener('push', (event) => {
 	const data = event.data?.json() ?? {};
 	const title = data.title || 'bgmon Alarm';
 	const options = {
@@ -8,10 +12,10 @@ self.addEventListener('push', (event) => {
 		tag: data.tag || 'bgmon-alarm',
 		requireInteraction: data.requireInteraction ?? true
 	};
-	event.waitUntil(self.registration.showNotification(title, options));
+	event.waitUntil(scope.registration.showNotification(title, options));
 });
 
-self.addEventListener('notificationclick', (event) => {
+scope.addEventListener('notificationclick', (event) => {
 	event.notification.close();
-	event.waitUntil(self.clients.openWindow('/'));
+	event.waitUntil(scope.clients.openWindow('/'));
 });

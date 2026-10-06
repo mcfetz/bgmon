@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { deleteLog, fetchLogsRange, type LogEntry } from '$lib/api/log';
-	import { sortLogsByCreatedAtDesc, type PendingLogEntry } from '$lib/stores/pendingLogs';
+	import { deleteLog, fetchLogsRange, type LogEntry } from '#lib/api/log.js';
+	import { sortLogsByCreatedAtDesc, type PendingLogEntry } from '#lib/stores/pendingLogs.js';
 
 	let {
 		refreshTrigger = 0,
@@ -16,7 +16,14 @@
 		windowEnd: Date;
 		highlightedTimestamp: string | null;
 		onHighlight: (ts: string | null) => void;
-		filters: { carbs: boolean; insulin: boolean; basal: boolean; alarm: boolean; note: boolean; success: boolean };
+		filters: {
+			carbs: boolean;
+			insulin: boolean;
+			basal: boolean;
+			alarm: boolean;
+			note: boolean;
+			success: boolean;
+		};
 		pendingLogs?: readonly PendingLogEntry[];
 	} = $props();
 
@@ -167,7 +174,16 @@
 				</svg>
 			</button>
 			<button class="filter-btn" onclick={() => (filterOpen = !filterOpen)} title="Filtern">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
 					<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
 				</svg>
 			</button>
@@ -175,81 +191,89 @@
 		{#if historyExpanded && filterOpen}
 			<div class="filter-overlay" onclick={() => (filterOpen = false)}></div>
 			<div class="filter-popover">
-				{#each [
-					{ key: 'carbs', label: 'Kohlenhydrate', icon: '🥪' },
-					{ key: 'insulin', label: 'Insulin', icon: '💉' },
-					{ key: 'basal', label: 'Basal', icon: '💉' },
-					{ key: 'alarm', label: 'Alarm', icon: '🔔' },
-					{ key: 'note', label: 'Notizen', icon: '📝' },
-					{ key: 'success', label: 'Erfolge', icon: '🏆' }
-				] as item}
+				{#each [{ key: 'carbs', label: 'Kohlenhydrate', icon: '🥪' }, { key: 'insulin', label: 'Insulin', icon: '💉' }, { key: 'basal', label: 'Basal', icon: '💉' }, { key: 'alarm', label: 'Alarm', icon: '🔔' }, { key: 'note', label: 'Notizen', icon: '📝' }, { key: 'success', label: 'Erfolge', icon: '🏆' }] as item}
 					<label class="filter-item">
 						<span class="filter-icon">{item.icon}</span>
 						<span class="filter-label">{item.label}</span>
 						<input
 							type="checkbox"
 							checked={filters[item.key as keyof typeof filters]}
-							onchange={() => (filters[item.key as keyof typeof filters] = !filters[item.key as keyof typeof filters])}
+							onchange={() =>
+								(filters[item.key as keyof typeof filters] =
+									!filters[item.key as keyof typeof filters])}
 						/>
 					</label>
 				{/each}
 			</div>
 		{/if}
 		{#if historyExpanded}
-		<ul>
-			{#each groupedLogs as group}
-				<li class="date-heading">{group.dateLabel}</li>
-				{#each group.logs as log}
-					<li
-					class:active={highlightedTimestamp === log.created_at}
-					onmouseenter={() => onHighlight(log.created_at)}
-					onmouseleave={() => onHighlight(null)}
-					onclick={() =>
-						onHighlight(highlightedTimestamp === log.created_at ? null : log.created_at)}
-					>
-						<span class="icon">{typeIcon(log.entry_type)}</span>
-						<span class="time">{formatTime(log.created_at)}</span>
-					{#if isPendingLog(log)}
-						<span class="sync-badge">offline</span>
-					{/if}
-					{#if log.entry_type === 'note' || log.entry_type === 'alarm' || log.entry_type === 'success'}
-						<span class="notes-note">{log.notes ?? ''}</span>
-					{:else}
-						<span class="value">{formatEntry(log)}</span>
-						{#if log.notes}
-							<span class="notes">— {log.notes}</span>
-						{/if}
-					{/if}
-					<span class="actions">
-						{#if isPendingLog(log)}
-							<span class="pending-text">Wird synchronisiert…</span>
-						{:else if highlightedTimestamp === log.created_at}
-							<button
-								class="delete-btn"
-								onclick={(event) => {
-									event.stopPropagation();
-									deleteConfirmation = log;
-								}}
-								title="Löschen"
-								>×</button
-							>
-						{/if}
-					</span>
-					</li>
+			<ul>
+				{#each groupedLogs as group}
+					<li class="date-heading">{group.dateLabel}</li>
+					{#each group.logs as log}
+						<li
+							class:active={highlightedTimestamp === log.created_at}
+							onmouseenter={() => onHighlight(log.created_at)}
+							onmouseleave={() => onHighlight(null)}
+							onclick={() =>
+								onHighlight(highlightedTimestamp === log.created_at ? null : log.created_at)}
+						>
+							<span class="icon">{typeIcon(log.entry_type)}</span>
+							<span class="time">{formatTime(log.created_at)}</span>
+							{#if isPendingLog(log)}
+								<span class="sync-badge">offline</span>
+							{/if}
+							{#if log.entry_type === 'note' || log.entry_type === 'alarm' || log.entry_type === 'success'}
+								<span class="notes-note">{log.notes ?? ''}</span>
+							{:else}
+								<span class="value">{formatEntry(log)}</span>
+								{#if log.notes}
+									<span class="notes">— {log.notes}</span>
+								{/if}
+							{/if}
+							<span class="actions">
+								{#if isPendingLog(log)}
+									<span class="pending-text">Wird synchronisiert…</span>
+								{:else if highlightedTimestamp === log.created_at}
+									<button
+										class="delete-btn"
+										onclick={(event) => {
+											event.stopPropagation();
+											deleteConfirmation = log;
+										}}
+										title="Löschen">×</button
+									>
+								{/if}
+							</span>
+						</li>
+					{/each}
 				{/each}
-			{/each}
-		</ul>
+			</ul>
 		{/if}
 	</div>
 {/if}
 
 {#if deleteConfirmation}
-	<div class="delete-modal-backdrop" role="presentation" onclick={() => (deleteConfirmation = null)}>
-		<div class="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" onclick={(event) => event.stopPropagation()}>
+	<div
+		class="delete-modal-backdrop"
+		role="presentation"
+		onclick={() => (deleteConfirmation = null)}
+	>
+		<div
+			class="delete-modal"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="delete-modal-title"
+			onclick={(event) => event.stopPropagation()}
+		>
 			<h3 id="delete-modal-title">Eintrag löschen?</h3>
 			<p>{formatEntry(deleteConfirmation)}</p>
 			<div class="delete-modal-actions">
-				<button class="delete-modal-cancel" type="button" onclick={() => (deleteConfirmation = null)}>
+				<button
+					class="delete-modal-cancel"
+					type="button"
+					onclick={() => (deleteConfirmation = null)}
+				>
 					Abbrechen
 				</button>
 				<button class="delete-modal-confirm" type="button" onclick={confirmDelete}>
@@ -318,7 +342,6 @@
 		transform: none;
 	}
 
-
 	.filter-btn {
 		background: none;
 		border: none;
@@ -350,7 +373,7 @@
 		border-radius: var(--radius);
 		padding: 0.5rem;
 		z-index: 50;
-		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
