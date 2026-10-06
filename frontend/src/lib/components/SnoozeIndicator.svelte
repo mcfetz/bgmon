@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { apiFetch } from '$lib/auth';
+	import { apiFetch } from '#lib/auth.js';
 	import SnoozeModal from './SnoozeModal.svelte';
 
 	type SnoozeState = {

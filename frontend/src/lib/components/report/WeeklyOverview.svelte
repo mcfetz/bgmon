@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { GlucosePoint, WeeklyDay } from '$lib/api/report';
+	import type { GlucosePoint, WeeklyDay } from '#lib/api/report.js';
 	import { clampGlucose, formatNumber, glucoseTrace, type GlucoseTrace } from './chart';
 
 	let {

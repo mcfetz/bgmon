@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { setAuthToken } from '$lib/auth';
+	import { setAuthToken } from '#lib/auth.js';
 
 	let email = $state('');
 	let password = $state('');

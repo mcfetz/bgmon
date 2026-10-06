@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DayOverview, GlucosePoint, LowGlucoseEvent, ReportData } from '$lib/api/report';
+	import type { DayOverview, GlucosePoint, LowGlucoseEvent, ReportData } from '#lib/api/report.js';
 	import ReportHeader from './ReportHeader.svelte';
 	import GlucoseStatsSection from './GlucoseStatsSection.svelte';
 	import AGPCurve from './AGPCurve.svelte';

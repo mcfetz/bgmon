@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { GlucoseReading, LogEntryReading, PredictionPoint } from '$lib/api/dashboard';
+	import type { GlucoseReading, LogEntryReading, PredictionPoint } from '#lib/api/dashboard.js';
 
 	let {
 		readings = [] as GlucoseReading[],
@@ -16,7 +16,14 @@
 		windowStart = null as Date | null,
 		windowEnd = new Date() as Date,
 		windowLabel = '',
-		logFilters = { carbs: true, insulin: true, basal: true, alarm: false, note: true, success: true } as Record<string, boolean>,
+		logFilters = {
+			carbs: true,
+			insulin: true,
+			basal: true,
+			alarm: false,
+			note: true,
+			success: true
+		} as Record<string, boolean>,
 		historyPredictions30 = [] as PredictionPoint[],
 		historyPredictions60 = [] as PredictionPoint[],
 		historyPredictions120 = [] as PredictionPoint[]
@@ -51,9 +58,7 @@
 	const plotWidth = $derived(width - pad.left - pad.right);
 	const plotHeight = $derived(height - pad.top - pad.bottom);
 
-	const showPredictions = $derived(
-		Math.abs(windowEnd.getTime() - Date.now()) < 10 * 60 * 1000
-	);
+	const showPredictions = $derived(Math.abs(windowEnd.getTime() - Date.now()) < 10 * 60 * 1000);
 
 	const timeRange = $derived.by(() => {
 		let min = windowStart?.getTime() ?? (timePoints.length > 0 ? timePoints[0].ts : null);
@@ -488,7 +493,14 @@
 					onclick={() => (historyFilterOpen = !historyFilterOpen)}
 					aria-label="Prognose-Verlauf einstellen"
 				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+					>
 						<path d="M4 21v-7M4 10V3M12 21v-5M12 12V3M20 21v-3M20 14V3" />
 						<circle cx="4" cy="14" r="2" fill="currentColor" />
 						<circle cx="12" cy="16" r="2" fill="currentColor" />
@@ -498,18 +510,20 @@
 				{#if historyFilterOpen}
 					<div class="history-filter-popup">
 						{#each [30, 60, 120] as h}
-							{@const checked = h === 30 ? showHistory30 : h === 60 ? showHistory60 : showHistory120}
-							{@const onChange = h === 30
-								? () => (showHistory30 = !showHistory30)
-								: h === 60
-									? () => (showHistory60 = !showHistory60)
-									: () => (showHistory120 = !showHistory120)}
+							{@const checked =
+								h === 30 ? showHistory30 : h === 60 ? showHistory60 : showHistory120}
+							{@const onChange =
+								h === 30
+									? () => (showHistory30 = !showHistory30)
+									: h === 60
+										? () => (showHistory60 = !showHistory60)
+										: () => (showHistory120 = !showHistory120)}
 							<label class="history-filter-item">
 								<span class="history-filter-item-label">
 									<span class="history-color-dot" style="background:{HISTORY_COLORS[h]}"></span>
 									{h} min Prognose
 								</span>
-								<input type="checkbox" checked={checked} onchange={onChange} />
+								<input type="checkbox" {checked} onchange={onChange} />
 							</label>
 						{/each}
 					</div>
@@ -620,13 +634,34 @@
 
 			<!-- Historical predictions (colored lines) -->
 			{#if historyPath30}
-				<path d={historyPath30} fill="none" stroke={HISTORY_COLORS[30]} stroke-width="1.5" stroke-dasharray="3,6" opacity="0.4" />
+				<path
+					d={historyPath30}
+					fill="none"
+					stroke={HISTORY_COLORS[30]}
+					stroke-width="1.5"
+					stroke-dasharray="3,6"
+					opacity="0.4"
+				/>
 			{/if}
 			{#if historyPath60}
-				<path d={historyPath60} fill="none" stroke={HISTORY_COLORS[60]} stroke-width="1.5" stroke-dasharray="3,6" opacity="0.4" />
+				<path
+					d={historyPath60}
+					fill="none"
+					stroke={HISTORY_COLORS[60]}
+					stroke-width="1.5"
+					stroke-dasharray="3,6"
+					opacity="0.4"
+				/>
 			{/if}
 			{#if historyPath120}
-				<path d={historyPath120} fill="none" stroke={HISTORY_COLORS[120]} stroke-width="1.5" stroke-dasharray="3,6" opacity="0.4" />
+				<path
+					d={historyPath120}
+					fill="none"
+					stroke={HISTORY_COLORS[120]}
+					stroke-width="1.5"
+					stroke-dasharray="3,6"
+					opacity="0.4"
+				/>
 			{/if}
 
 			<!-- Combined prediction band (last BG → 30min CI → 60min CI) -->
@@ -648,12 +683,22 @@
 
 			<!-- Terminal dots -->
 			{#if showPredictions && forecast30.terminalDot}
-				<circle cx={forecast30.terminalDot.cx} cy={forecast30.terminalDot.cy}
-					r="4" fill="#8b5cf6" opacity="0.8" />
+				<circle
+					cx={forecast30.terminalDot.cx}
+					cy={forecast30.terminalDot.cy}
+					r="4"
+					fill="#8b5cf6"
+					opacity="0.8"
+				/>
 			{/if}
 			{#if showPredictions && forecast60.terminalDot}
-				<circle cx={forecast60.terminalDot.cx} cy={forecast60.terminalDot.cy}
-					r="4" fill="#8b5cf6" opacity="0.8" />
+				<circle
+					cx={forecast60.terminalDot.cx}
+					cy={forecast60.terminalDot.cy}
+					r="4"
+					fill="#8b5cf6"
+					opacity="0.8"
+				/>
 			{/if}
 
 			<!-- Data dots -->

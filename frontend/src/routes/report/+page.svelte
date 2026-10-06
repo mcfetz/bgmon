@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import ReportView from '$lib/components/report/ReportView.svelte';
-	import { fetchReport, type ReportData } from '$lib/api/report';
-	import { defaultBerlinReportDates } from '$lib/utils/reportDates';
+	import ReportView from '#lib/components/report/ReportView.svelte';
+	import { fetchReport, type ReportData } from '#lib/api/report.js';
+	import { defaultBerlinReportDates } from '#lib/utils/reportDates.js';
 
 	const defaultDates = defaultBerlinReportDates(new Date());
 	let start = $state<string>(defaultDates.start);

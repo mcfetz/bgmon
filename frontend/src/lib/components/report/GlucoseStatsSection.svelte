@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { GlucoseStats } from '$lib/api/report';
+	import type { GlucoseStats } from '#lib/api/report.js';
 	import { formatNumber } from './chart';
 
 	let { stats }: { stats: GlucoseStats } = $props();

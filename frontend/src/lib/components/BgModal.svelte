@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { apiFetch } from '$lib/auth';
+	import { apiFetch } from '#lib/auth.js';
 	import SnoozeModal from './SnoozeModal.svelte';
 
-	import type { PredictionPoint, SmartAlert } from '$lib/api/dashboard';
+	import type { PredictionPoint, SmartAlert } from '#lib/api/dashboard.js';
 
 	let {
 		open = $bindable(false),
@@ -196,7 +196,8 @@
 				<div class="smart-alerts-row">
 					{#each smartAlerts as alert}
 						<span class="smart-alert-badge" title={alert.recommendation}>
-							{alert.icon} {alert.title}
+							{alert.icon}
+							{alert.title}
 						</span>
 					{/each}
 				</div>

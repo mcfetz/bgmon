@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DayProtocol, GlucosePoint, LogMarker } from '$lib/api/report';
+	import type { DayProtocol, GlucosePoint, LogMarker } from '#lib/api/report.js';
 	import { clampGlucose, glucoseTrace, timeOfDayMinutes, type GlucoseTrace } from './chart';
 
 	let {

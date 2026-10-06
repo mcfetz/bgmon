@@ -1,13 +1,12 @@
-
 <script lang="ts">
-	import { browser } from '$app/environment';
+	import { browser } from '$app/env';
 	import { goto } from '$app/navigation';
-	import { apiFetch } from '$lib/auth';
-	import { logout } from '$lib/auth';
-	import { applyUserColors, getStoredColors, type UserColors } from '$lib/theme';
-	import { getVisibleWhatsNewEntries, type WhatsNewEntry } from '$lib/whatsNew/releases';
-	import { getUnseenWhatsNewCount, markVisibleWhatsNewSeen } from '$lib/whatsNew/state';
-	import MlProgressBar from '$lib/components/MlProgressBar.svelte';
+	import { apiFetch } from '#lib/auth.js';
+	import { logout } from '#lib/auth.js';
+	import { applyUserColors, getStoredColors, type UserColors } from '#lib/theme.js';
+	import { getVisibleWhatsNewEntries, type WhatsNewEntry } from '#lib/whatsNew/releases.js';
+	import { getUnseenWhatsNewCount, markVisibleWhatsNewSeen } from '#lib/whatsNew/state.js';
+	import MlProgressBar from '#lib/components/MlProgressBar.svelte';
 	import {
 		fmtDateTime,
 		fmtDuration,
@@ -16,7 +15,7 @@
 		verdictLabel,
 		verdictReason,
 		type MlProgress
-	} from '$lib/mlProgress';
+	} from '#lib/mlProgress.js';
 
 	let open = $state(false);
 	type View =
@@ -35,40 +34,41 @@
 		| 'preferences';
 	let currentView = $state<View>('main');
 
-	const SECTION_GROUPS: { label: string; sections: { id: View; label: string; icon: string }[] }[] = [
-		{
-			label: 'Persönliches',
-			sections: [
-				{ id: 'account', label: 'Konto', icon: '👤' },
-				{ id: 'preferences', label: 'Einstellungen', icon: '⚙️' },
-				{ id: 'notifications', label: 'Profile', icon: '🔕' },
-				{ id: 'push', label: 'Push Benachrichtigungen', icon: '🔔' },
-				{ id: 'twilio', label: 'Twilio Anrufe', icon: '📞' }
-			]
-		},
-		{
-			label: 'Diabetes',
-			sections: [
-				{ id: 'treatment', label: 'Faktoren', icon: '💊' },
-				{ id: 'thresholds', label: 'Schwellwerte', icon: '📊' },
-				{ id: 'report', label: 'AGP-Bericht', icon: '📋' }
-			]
-		},
-		{
-			label: 'Infos',
-			sections: [
-				{ id: 'whatsnew', label: 'Was ist neu?', icon: '🆕' },
-				{ id: 'help', label: 'Hilfe', icon: '❓' }
-			]
-		},
-		{
-			label: 'Admin',
-			sections: [
-				{ id: 'ml', label: 'Prognose', icon: '🧠' },
-				{ id: 'users', label: 'Benutzer', icon: '👥' }
-			]
-		}
-	];
+	const SECTION_GROUPS: { label: string; sections: { id: View; label: string; icon: string }[] }[] =
+		[
+			{
+				label: 'Persönliches',
+				sections: [
+					{ id: 'account', label: 'Konto', icon: '👤' },
+					{ id: 'preferences', label: 'Einstellungen', icon: '⚙️' },
+					{ id: 'notifications', label: 'Profile', icon: '🔕' },
+					{ id: 'push', label: 'Push Benachrichtigungen', icon: '🔔' },
+					{ id: 'twilio', label: 'Twilio Anrufe', icon: '📞' }
+				]
+			},
+			{
+				label: 'Diabetes',
+				sections: [
+					{ id: 'treatment', label: 'Faktoren', icon: '💊' },
+					{ id: 'thresholds', label: 'Schwellwerte', icon: '📊' },
+					{ id: 'report', label: 'AGP-Bericht', icon: '📋' }
+				]
+			},
+			{
+				label: 'Infos',
+				sections: [
+					{ id: 'whatsnew', label: 'Was ist neu?', icon: '🆕' },
+					{ id: 'help', label: 'Hilfe', icon: '❓' }
+				]
+			},
+			{
+				label: 'Admin',
+				sections: [
+					{ id: 'ml', label: 'Prognose', icon: '🧠' },
+					{ id: 'users', label: 'Benutzer', icon: '👥' }
+				]
+			}
+		];
 
 	const SECTION_LABELS: Record<View, string> = {
 		main: 'Einstellungen',
@@ -764,8 +764,10 @@
 			root.removeAttribute('data-theme');
 		}
 		applyUserColors({
-			bgLight: colorBgLight, primaryLight: colorPrimaryLight,
-			bgDark: colorBgDark, primaryDark: colorPrimaryDark,
+			bgLight: colorBgLight,
+			primaryLight: colorPrimaryLight,
+			bgDark: colorBgDark,
+			primaryDark: colorPrimaryDark,
 			mode
 		});
 	}
@@ -1088,7 +1090,11 @@
 								<h3>{group.label}</h3>
 								<div class="section-group-items">
 									{#each group.sections as section}
-										<button class="section-item" type="button" onclick={() => navigateTo(section.id)}>
+										<button
+											class="section-item"
+											type="button"
+											onclick={() => navigateTo(section.id)}
+										>
 											<span class="section-icon">{section.icon}</span>
 											<span class="section-name">{section.label}</span>
 											{#if section.id === 'whatsnew' && hasUnreadWhatsNew}
@@ -1104,7 +1110,9 @@
 				{:else if currentView === 'whatsnew'}
 					<div class="whats-new-intro">
 						<p class="hint">Version {formatVersionLabel(appVersion)}</p>
-						<p class="hint">Hier findest du die wichtigsten Änderungen, die du in der App wirklich merkst.</p>
+						<p class="hint">
+							Hier findest du die wichtigsten Änderungen, die du in der App wirklich merkst.
+						</p>
 					</div>
 
 					<div class="whats-new-list">
@@ -1189,8 +1197,8 @@
 						<label>Keine Daten (Minuten)</label>
 						<input type="number" bind:value={noDataAlertMinutes} min="1" max="600" />
 						<p class="hint">
-							Alarm wenn länger keine Blutzuckerwerte einlaufen. Was passieren soll
-							(„Keine Daten" im Profil) stellst du unter Profile ein.
+							Alarm wenn länger keine Blutzuckerwerte einlaufen. Was passieren soll („Keine Daten"
+							im Profil) stellst du unter Profile ein.
 						</p>
 					</div>
 
@@ -1214,7 +1222,14 @@
 
 					<div class="field">
 						<label>Insulin-Wirkzeit (Stunden)</label>
-						<input type="text" inputmode="decimal" bind:value={insulinActionHours} oninput={normalizeDecimal} pattern="[0-9]*" placeholder="4" />
+						<input
+							type="text"
+							inputmode="decimal"
+							bind:value={insulinActionHours}
+							oninput={normalizeDecimal}
+							pattern="[0-9]*"
+							placeholder="4"
+						/>
 					</div>
 
 					<div class="field">
@@ -1238,7 +1253,8 @@
 							Compression Low Erkennung aktivieren
 						</label>
 						<p class="hint">
-							Warnt vor falsch-niedrigen Werten durch Sensor-Kompression (z.B. beim Liegen auf dem Sensor).
+							Warnt vor falsch-niedrigen Werten durch Sensor-Kompression (z.B. beim Liegen auf dem
+							Sensor).
 						</p>
 					</div>
 
@@ -1269,8 +1285,8 @@
 							placeholder="1500"
 						/>
 						<p class="hint">
-							Aktueller Vorrat an langwirksamem Insulin in Einheiten. Das Dashboard zeigt dann,
-							wie viele Tage er bei aktuellem Verbrauch noch reicht.
+							Aktueller Vorrat an langwirksamem Insulin in Einheiten. Das Dashboard zeigt dann, wie
+							viele Tage er bei aktuellem Verbrauch noch reicht.
 						</p>
 					</div>
 
@@ -1395,7 +1411,9 @@
 										(editingProfile = editingProfile?.id === profile.id ? null : profile)}
 								>
 									<span class="profile-name">{profile.name}</span>
-									<span class="profile-count">{profile.assignments.length}/{NOTIFICATION_THRESHOLDS.length}</span>
+									<span class="profile-count"
+										>{profile.assignments.length}/{NOTIFICATION_THRESHOLDS.length}</span
+									>
 								</button>
 								{#if editingProfile?.id === profile.id}
 									<div class="profile-editor">
@@ -1455,24 +1473,25 @@
 											</div>
 										{/each}
 										{#if profile.webhook_token}
-										<div class="field">
-											<label>Webhook (aktiviert dieses Profil)</label>
-											<div class="webhook-row">
-												<input
-													type="text"
-													readonly
-													value={webhookUrl(profile.webhook_token)}
-													class="webhook-input"
-												/>
-												<button
-													type="button"
-													class="test-btn"
-													onclick={() => { if (profile.webhook_token) copyWebhook(profile.webhook_token); }}
-													>{copyState === profile.webhook_token ? '✓' : 'Kopieren'}</button
-												>
+											<div class="field">
+												<label>Webhook (aktiviert dieses Profil)</label>
+												<div class="webhook-row">
+													<input
+														type="text"
+														readonly
+														value={webhookUrl(profile.webhook_token)}
+														class="webhook-input"
+													/>
+													<button
+														type="button"
+														class="test-btn"
+														onclick={() => {
+															if (profile.webhook_token) copyWebhook(profile.webhook_token);
+														}}>{copyState === profile.webhook_token ? '✓' : 'Kopieren'}</button
+													>
+												</div>
 											</div>
-										</div>
-									{/if}
+										{/if}
 										<div class="button-row">
 											<button class="submit-btn" onclick={saveProfile}>Speichern</button>
 											<button class="test-btn" onclick={() => deleteProfile(profile.id)}
@@ -1490,43 +1509,78 @@
 					<div class="help-content">
 						<h3>Was ist bgmon?</h3>
 						<p>
-							bgmon zeigt den aktuellen Blutzucker live an — alle 60 Sekunden von LibreLinkUp.
-							Du kannst KE und Insulin eintragen, wirst bei gefährlichen Werten alarmiert und
-							bekommst eine Vorhersage für 30/60/120 Minuten.
+							bgmon zeigt den aktuellen Blutzucker live an — alle 60 Sekunden von LibreLinkUp. Du
+							kannst KE und Insulin eintragen, wirst bei gefährlichen Werten alarmiert und bekommst
+							eine Vorhersage für 30/60/120 Minuten.
 						</p>
 
 						<h3>Dashboard</h3>
 						<ul>
-							<li><strong>BG-Wert</strong> — Grün (70–180), Gelb, Rot. Trendpfeil + Delta</li>
-							<li><strong>Zeitangabe</strong> unter dem Wert: „vor X Min." — über 10 Min. = Sensor prüfen</li>
-							<li><strong>Graph</strong> — Zoom-Buttons (-1h … -1w), Jetzt, Wischgeste, Punkt antippen</li>
-							<li><strong>Performance</strong> — Bei großen Zeitbereichen (&gt;6h) wird der Graph automatisch reduziert, damit er flüssig lädt (5-Minuten-, 15-Minuten- oder 30-Minuten-Schritte)</li>
-							<li><strong>Großer BG-Bildschirm</strong> — Auf den Wert tippen, bleibt mit Wake Lock an</li>
+							<li>
+								<strong>BG-Wert</strong>
+								— Grün (70–180), Gelb, Rot. Trendpfeil + Delta
+							</li>
+
+							<li>
+								<strong>Zeitangabe</strong>
+								unter dem Wert: „vor X Min." — über 10 Min. = Sensor prüfen
+							</li>
+
+							<li>
+								<strong>Graph</strong>
+								— Zoom-Buttons (-1h … -1w), Jetzt, Wischgeste, Punkt antippen
+							</li>
+
+							<li>
+								<strong>Performance</strong>
+								— Bei großen Zeitbereichen (>6h) wird der Graph automatisch reduziert, damit er flüssig
+								lädt (5-Minuten-, 15-Minuten- oder 30-Minuten-Schritte)
+							</li>
+
+							<li>
+								<strong>Großer BG-Bildschirm</strong>
+								— Auf den Wert tippen, bleibt mit Wake Lock an
+							</li>
 						</ul>
 
 						<h3>Eintragungen</h3>
 						<ul>
 							<li><strong>KE</strong> — 1 KE = 10 g, nur ganze Zahlen</li>
-							<li><strong>Insulin</strong> — 0,5er-Schritte, automatischer Vorschlag aus KE×Faktor+Korrektur</li>
+							<li>
+								<strong>Insulin</strong> — 0,5er-Schritte, automatischer Vorschlag aus KE×Faktor+Korrektur
+							</li>
 							<li><strong>Basal</strong> — Einmal täglich, letzter Wert als Vorschlag</li>
 							<li><strong>Notiz</strong> — Freitext</li>
-							<li><strong>Simulation</strong> — Gestrichelte Linie im Graph beim Eintippen (vor dem Speichern)</li>
+							<li>
+								<strong>Simulation</strong> — Gestrichelte Linie im Graph beim Eintippen (vor dem Speichern)
+							</li>
 							<li><strong>Löschen</strong> — Log-Einträge mit 🗑️-Button entfernen</li>
 						</ul>
 
 						<h3>Alarme & Push</h3>
 						<ul>
-							<li>Schwellwerte: &lt;54 kritisch, &lt;70 niedrig, &gt;180 hoch, &gt;250 kritisch (anpassbar)</li>
-							<li>Push: Nur mit installierter App (Homescreen). Bei Erstabfrage „Erlauben" wählen</li>
+							<li>
+								Schwellwerte: &lt;54 kritisch, &lt;70 niedrig, >180 hoch, >250 kritisch (anpassbar)
+							</li>
+							<li>
+								Push: Nur mit installierter App (Homescreen). Bei Erstabfrage „Erlauben" wählen
+							</li>
 							<li>Telefonanruf (Twilio): Automatischer Anruf mit Sprachansage</li>
 							<li>15-Min-Snooze nach jedem Alarm</li>
-							<li>Notification-Profile: Profile für Tag/Nacht, je Schwellwert (inkl. „Keine Daten") Push/Anruf wählbar</li>
+							<li>
+								Notification-Profile: Profile für Tag/Nacht, je Schwellwert (inkl. „Keine Daten")
+								Push/Anruf wählbar
+							</li>
 						</ul>
 
 						<h3>Familie-Dashboard</h3>
 						<ul>
 							<li>Öffentlicher Link für Oma/Opa/Betreuer ohne Login</li>
-							<li>Token aus Notification-Profil: <code>/api/family/&lt;token&gt;</code></li>
+
+							<li>
+								Token aus Notification-Profil:
+								<code>/api/family/<token></token></code>
+							</li>
 						</ul>
 
 						<h3>Prognose (ML)</h3>
@@ -1539,7 +1593,9 @@
 						<ul>
 							<li><strong>Behandlung</strong>: KE-Faktor, Korrekturfaktor, Insulinwirkzeit</li>
 							<li><strong>Schwellwerte</strong>: Alarmgrenzen pro Benutzer</li>
-							<li><strong>Benachrichtigungen</strong>: Profile, Push/Anruf, Nachtzeiten, Webhook</li>
+							<li>
+								<strong>Benachrichtigungen</strong>: Profile, Push/Anruf, Nachtzeiten, Webhook
+							</li>
 							<li><strong>Twilio</strong>: Telefonnummern, Testanruf</li>
 							<li><strong>Benutzer</strong>: Anlegen/Verwalten (Admin)</li>
 							<li><strong>ML</strong>: Modell trainieren + evaluieren</li>
@@ -1563,16 +1619,29 @@
 						<label>Hintergrund</label>
 						<div class="color-row">
 							<input type="color" bind:value={colorBgLight} />
+
 							<input type="text" bind:value={colorBgLight} placeholder="#f8fafc" maxlength="7" />
-							<button type="button" class="test-btn" onclick={() => (colorBgLight = '')}>Reset</button>
+
+							<button type="button" class="test-btn" onclick={() => (colorBgLight = '')}
+								>Reset</button
+							>
 						</div>
 					</div>
 					<div class="field">
 						<label>Akzentfarbe</label>
 						<div class="color-row">
 							<input type="color" bind:value={colorPrimaryLight} />
-							<input type="text" bind:value={colorPrimaryLight} placeholder="#4f46e5" maxlength="7" />
-							<button type="button" class="test-btn" onclick={() => (colorPrimaryLight = '')}>Reset</button>
+
+							<input
+								type="text"
+								bind:value={colorPrimaryLight}
+								placeholder="#4f46e5"
+								maxlength="7"
+							/>
+
+							<button type="button" class="test-btn" onclick={() => (colorPrimaryLight = '')}
+								>Reset</button
+							>
 						</div>
 					</div>
 					<h3 class="sub-heading">Farben Dunkel</h3>
@@ -1580,16 +1649,29 @@
 						<label>Hintergrund</label>
 						<div class="color-row">
 							<input type="color" bind:value={colorBgDark} />
+
 							<input type="text" bind:value={colorBgDark} placeholder="#020617" maxlength="7" />
-							<button type="button" class="test-btn" onclick={() => (colorBgDark = '')}>Reset</button>
+
+							<button type="button" class="test-btn" onclick={() => (colorBgDark = '')}
+								>Reset</button
+							>
 						</div>
 					</div>
 					<div class="field">
 						<label>Akzentfarbe</label>
 						<div class="color-row">
 							<input type="color" bind:value={colorPrimaryDark} />
-							<input type="text" bind:value={colorPrimaryDark} placeholder="#4f46e5" maxlength="7" />
-							<button type="button" class="test-btn" onclick={() => (colorPrimaryDark = '')}>Reset</button>
+
+							<input
+								type="text"
+								bind:value={colorPrimaryDark}
+								placeholder="#4f46e5"
+								maxlength="7"
+							/>
+
+							<button type="button" class="test-btn" onclick={() => (colorPrimaryDark = '')}
+								>Reset</button
+							>
 						</div>
 					</div>
 					<button class="submit-btn" onclick={savePreferences}>Speichern</button>
@@ -1667,90 +1749,90 @@
 					{#if mlTrainResult?.metrics}
 						<h4 class="sub-heading" style="margin-top:1rem">Ergebnisse</h4>
 						{#each mlTrainResult.metrics as m}
-<p class="hint">
-							Horizont {m.horizon} Min.: Baseline MAE {m.baseline_mae.toFixed(1)}, Modell MAE {m.model_mae.toFixed(
-								1
-							)}, Splits {m.n_splits}
-						</p>
-					{/each}
-				{/if}
-
-				<hr style="margin:1rem 0;border:none;border-top:1px solid var(--color-border)" />
-
-				<h3 class="sub-heading">ML Evaluation</h3>
-				<button
-					class="submit-btn"
-					onclick={startMlEvaluate}
-					disabled={mlEvalStatus === 'starte…' || mlEvalStatus === 'running…'}
-				>
-					{mlEvalStatus ? mlEvalStatus : 'Evaluation starten'}
-				</button>
-				{#if mlEvalLastDuration != null && mlEvalStatus !== 'running…'}
-					<p class="hint">Letzte Evaluation dauerte {fmtDuration(mlEvalLastDuration)}.</p>
-				{/if}
-				{#if mlEvalProgress}
-					<MlProgressBar progress={mlEvalProgress} />
-				{/if}
-				{#if mlEvalResult?.quality?.length}
-					<h4 class="sub-heading" style="margin-top:1rem">Prognosequalität</h4>
-					{#if mlEvalResult.window_days != null}
-						<p class="hint">
-							Fenster: {mlEvalResult.window_days} Tage
-							{#if mlEvalResult.evaluated_runs != null}
-								· {mlEvalResult.evaluated_runs} Runs
-							{/if}
-						</p>
+							<p class="hint">
+								Horizont {m.horizon} Min.: Baseline MAE {m.baseline_mae.toFixed(1)}, Modell MAE {m.model_mae.toFixed(
+									1
+								)}, Splits {m.n_splits}
+							</p>
+						{/each}
 					{/if}
-					{#each mlEvalResult.quality as q}
-						<p class="hint">
-							Horizont {q.horizon_minutes} Min. (v{q.model_version}): Modell MAE
-							{fmtNullable(q.model_mae, 1)}, Baseline MAE {fmtNullable(q.baseline_mae, 1)}
-							{#if q.improvement != null}
-								({q.improvement > 0 ? '+' : ''}{q.improvement.toFixed(0)} %)
-							{/if}
-							· Abdeckung {pct(q.coverage)}
-							· {q.matched_points}/{q.expected_points} Punkte
-							· {verdictLabel(q.verdict)}{verdictHint(q.verdict, q.reason)}
-						</p>
-					{/each}
-				{/if}
-				{#if mlEvalResult?.versions?.length}
-					<h4 class="sub-heading" style="margin-top:1rem">Versionsvergleich</h4>
-					{#if mlEvalResult.paired_window_start && mlEvalResult.paired_window_end}
-						<p class="hint">
-							Gemeinsames Zeitfenster: {fmtDateTime(mlEvalResult.paired_window_start)} – {fmtDateTime(
-								mlEvalResult.paired_window_end
-							)}
-						</p>
-					{:else}
-						<p class="hint">Kein gemeinsames Zeitfenster — kein Vergleich möglich.</p>
+
+					<hr style="margin:1rem 0;border:none;border-top:1px solid var(--color-border)" />
+
+					<h3 class="sub-heading">ML Evaluation</h3>
+					<button
+						class="submit-btn"
+						onclick={startMlEvaluate}
+						disabled={mlEvalStatus === 'starte…' || mlEvalStatus === 'running…'}
+					>
+						{mlEvalStatus ? mlEvalStatus : 'Evaluation starten'}
+					</button>
+					{#if mlEvalLastDuration != null && mlEvalStatus !== 'running…'}
+						<p class="hint">Letzte Evaluation dauerte {fmtDuration(mlEvalLastDuration)}.</p>
 					{/if}
-					{#each mlEvalResult.versions as v}
-						<p class="hint">
-							Horizont {v.horizon_minutes} Min. (v{v.model_version}):
-							{#if v.rank > 0}
-								Platz {v.rank}
-							{:else}
-								kein Rang
-							{/if}
-							· MAE {fmtNullable(v.model_mae, 1)}
-							{#if v.delta_to_best != null}
-								({v.delta_to_best > 0 ? '+' : ''}{v.delta_to_best.toFixed(1)} zur Besten)
-							{/if}
-							· {v.run_count} Runs
-							· {verdictLabel(v.verdict)}{verdictHint(v.verdict, v.reason)}
-						</p>
-					{/each}
-				{/if}
-				{#if mlEvalResult?.summaries?.length && !mlEvalResult?.quality?.length}
-					<h4 class="sub-heading" style="margin-top:1rem">Zusammenfassung</h4>
-					{#each mlEvalResult.summaries as s}
-						<p class="hint">
-							Horizont {s.horizon} Min. (v{s.model_version}): MAE {fmtNullable(s.mae, 1)}, {s.matched_points}
-							Punkte, {s.completed_runs}/{s.run_count} Runs
-						</p>
-					{/each}
-				{/if}
+					{#if mlEvalProgress}
+						<MlProgressBar progress={mlEvalProgress} />
+					{/if}
+					{#if mlEvalResult?.quality?.length}
+						<h4 class="sub-heading" style="margin-top:1rem">Prognosequalität</h4>
+						{#if mlEvalResult.window_days != null}
+							<p class="hint">
+								Fenster: {mlEvalResult.window_days} Tage
+								{#if mlEvalResult.evaluated_runs != null}
+									· {mlEvalResult.evaluated_runs} Runs
+								{/if}
+							</p>
+						{/if}
+						{#each mlEvalResult.quality as q}
+							<p class="hint">
+								Horizont {q.horizon_minutes} Min. (v{q.model_version}): Modell MAE
+								{fmtNullable(q.model_mae, 1)}, Baseline MAE {fmtNullable(q.baseline_mae, 1)}
+								{#if q.improvement != null}
+									({q.improvement > 0 ? '+' : ''}{q.improvement.toFixed(0)} %)
+								{/if}
+								· Abdeckung {pct(q.coverage)}
+								· {q.matched_points}/{q.expected_points} Punkte · {verdictLabel(
+									q.verdict
+								)}{verdictHint(q.verdict, q.reason)}
+							</p>
+						{/each}
+					{/if}
+					{#if mlEvalResult?.versions?.length}
+						<h4 class="sub-heading" style="margin-top:1rem">Versionsvergleich</h4>
+						{#if mlEvalResult.paired_window_start && mlEvalResult.paired_window_end}
+							<p class="hint">
+								Gemeinsames Zeitfenster: {fmtDateTime(mlEvalResult.paired_window_start)} – {fmtDateTime(
+									mlEvalResult.paired_window_end
+								)}
+							</p>
+						{:else}
+							<p class="hint">Kein gemeinsames Zeitfenster — kein Vergleich möglich.</p>
+						{/if}
+						{#each mlEvalResult.versions as v}
+							<p class="hint">
+								Horizont {v.horizon_minutes} Min. (v{v.model_version}):
+								{#if v.rank > 0}
+									Platz {v.rank}
+								{:else}
+									kein Rang
+								{/if}
+								· MAE {fmtNullable(v.model_mae, 1)}
+								{#if v.delta_to_best != null}
+									({v.delta_to_best > 0 ? '+' : ''}{v.delta_to_best.toFixed(1)} zur Besten)
+								{/if}
+								· {v.run_count} Runs · {verdictLabel(v.verdict)}{verdictHint(v.verdict, v.reason)}
+							</p>
+						{/each}
+					{/if}
+					{#if mlEvalResult?.summaries?.length && !mlEvalResult?.quality?.length}
+						<h4 class="sub-heading" style="margin-top:1rem">Zusammenfassung</h4>
+						{#each mlEvalResult.summaries as s}
+							<p class="hint">
+								Horizont {s.horizon} Min. (v{s.model_version}): MAE {fmtNullable(s.mae, 1)}, {s.matched_points}
+								Punkte, {s.completed_runs}/{s.run_count} Runs
+							</p>
+						{/each}
+					{/if}
 				{/if}
 
 				{#if error}
@@ -2395,7 +2477,7 @@
 		gap: 0.5rem;
 		align-items: center;
 	}
-	.color-row input[type="color"] {
+	.color-row input[type='color'] {
 		width: 36px;
 		height: 36px;
 		padding: 0;
@@ -2406,14 +2488,14 @@
 		-webkit-appearance: none;
 		appearance: none;
 	}
-	.color-row input[type="color"]::-webkit-color-swatch-wrapper {
+	.color-row input[type='color']::-webkit-color-swatch-wrapper {
 		padding: 2px;
 	}
-	.color-row input[type="color"]::-webkit-color-swatch {
+	.color-row input[type='color']::-webkit-color-swatch {
 		border: none;
 		border-radius: 4px;
 	}
-	.color-row input[type="text"] {
+	.color-row input[type='text'] {
 		flex: 1;
 	}
 </style>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GlucosePoint } from '$lib/api/report';
+import type { GlucosePoint } from '#lib/api/report.js';
 import { glucoseTrace } from './chart';
 
 const xScale = (minutes: number) => minutes;

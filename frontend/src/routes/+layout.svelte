@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { applyUserColors, getStoredColors } from '$lib/theme';
+	import { applyUserColors, getStoredColors } from '#lib/theme.js';
 
 	let { children } = $props();
 

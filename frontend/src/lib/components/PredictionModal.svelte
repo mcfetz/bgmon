@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PredictionPoint } from '$lib/api/dashboard';
+	import type { PredictionPoint } from '#lib/api/dashboard.js';
 
 	let {
 		open = $bindable(false),
@@ -11,7 +11,7 @@
 		modelMae120 = null as number | null,
 		modelVersion = '',
 		lastBg = null as number | null,
-		lastBgTime = '' as string | null,
+		lastBgTime = '' as string | null
 	} = $props();
 
 	function formatTime(iso: string): string {

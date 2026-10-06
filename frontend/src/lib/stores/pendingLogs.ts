@@ -1,6 +1,6 @@
 import { get, writable } from 'svelte/store';
-import { getAuthToken } from '$lib/auth';
-import { createLog, fetchLogsRange, type LogEntry, type LogEntryType } from '$lib/api/log';
+import { getAuthToken } from '#lib/auth.js';
+import { createLog, fetchLogsRange, type LogEntry, type LogEntryType } from '#lib/api/log.js';
 
 export type PendingLogEntryType = Extract<LogEntryType, 'carbs' | 'insulin' | 'basal' | 'note'>;
 export type PendingLogSyncState = 'pending' | 'syncing';
@@ -74,9 +74,9 @@ function normalizeNotes(notes: string | null): string {
 	return (notes ?? '').trim();
 }
 
-export function sortPendingLogEntries<T extends { readonly queued_at: string; readonly sequence: number }>(
-	entries: readonly T[]
-): T[] {
+export function sortPendingLogEntries<
+	T extends { readonly queued_at: string; readonly sequence: number }
+>(entries: readonly T[]): T[] {
 	return [...entries].sort((a, b) => {
 		const queuedDiff = new Date(a.queued_at).getTime() - new Date(b.queued_at).getTime();
 		if (queuedDiff !== 0) return queuedDiff;
@@ -160,9 +160,7 @@ export function createPendingLogInputs(
 	}));
 }
 
-export function queuePendingLogEntries(
-	entries: readonly PendingLogInput[]
-): PendingLogEntry[] {
+export function queuePendingLogEntries(entries: readonly PendingLogInput[]): PendingLogEntry[] {
 	ensurePendingLogEntriesLoaded();
 	if (entries.length === 0) return [];
 	const queuedAt = new Date().toISOString();

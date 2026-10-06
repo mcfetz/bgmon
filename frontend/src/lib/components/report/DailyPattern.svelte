@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DailyPatternPoint } from '$lib/api/report';
+	import type { DailyPatternPoint } from '#lib/api/report.js';
 	import { areaPaths, clampGlucose, glucoseRangeCapMarkers, linePath } from './chart';
 
 	let { points }: { points: DailyPatternPoint[] } = $props();

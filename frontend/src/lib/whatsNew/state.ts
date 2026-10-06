@@ -1,4 +1,4 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { getVisibleWhatsNewEntries } from './releases';
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;

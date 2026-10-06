@@ -53,7 +53,10 @@ export function applyUserColors(colors: UserColors) {
 	if (primary) {
 		root.style.setProperty('--color-primary', primary);
 		root.style.setProperty('--color-primary-dark', darken(primary, 15));
-		root.style.setProperty('--color-primary-contrast', isColorDark(primary) ? '#ffffff' : '#0f172a');
+		root.style.setProperty(
+			'--color-primary-contrast',
+			isColorDark(primary) ? '#ffffff' : '#0f172a'
+		);
 		const num = parseInt(primary.replace('#', ''), 16);
 		const r = (num >> 16) & 0xff;
 		const g = (num >> 8) & 0xff;
