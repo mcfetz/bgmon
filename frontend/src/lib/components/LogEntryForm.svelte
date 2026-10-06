@@ -264,7 +264,7 @@
 		if (ke === '' || ke === 0) return null;
 		const raw = Number(ke) * carbFactor;
 		const insulin = Math.round(raw * 2) / 2;
-		return { ke: Number(ke), factor: carbFactor, insulin };
+		return { ke: Number(ke), factor: carbFactor, insulin, raw: Number(raw.toFixed(2)) };
 	});
 
 	function countEntriesToSave() {
@@ -766,7 +766,7 @@
 				{:else if activeTab === 'insulin'}
 					{#if insulinHint}
 						<button class="last-value-hint calc-hint" onclick={applyCalculatedInsulin}>
-							{insulinHint.ke} KE × {insulinHint.factor} = {insulinHint.insulin}
+							{insulinHint.ke} KE × {insulinHint.factor} = {insulinHint.raw} → {insulinHint.insulin}
 							{units.insulin} → übernehmen
 						</button>
 					{/if}
