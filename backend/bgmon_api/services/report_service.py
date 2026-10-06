@@ -11,7 +11,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from math import isfinite
-from statistics import median
 from zoneinfo import ZoneInfo
 
 from bgmon_api.models import MAX_LOG_ENTRY_VALUE, GlucoseReading, LogEntry, LogEntryType
@@ -607,6 +606,21 @@ def _glucose_points(readings: list[_ReadingSample]) -> list[GlucosePoint]:
 # ── Observed-time coverage and weighting ─────────────────────────────────
 
 
+def _median_delta(values: list[timedelta]) -> timedelta:
+    """Median interval of *values*.
+
+    ``statistics.median`` is typed for numbers only, so timedeltas need their
+    own median here.
+    """
+    ordered = sorted(values)
+    if not ordered:
+        raise ValueError("median of empty sequence")
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) / 2
+
+
 def _cadence_by_reading(readings: list[_ReadingSample]) -> dict[int, timedelta]:
     """Infer contiguous cadence regimes independently for each source.
 
@@ -642,7 +656,7 @@ def _cadence_by_reading(readings: list[_ReadingSample]) -> dict[int, timedelta]:
                 next_delta >= current * 2 or current >= next_delta * 2
             )
             if differs and is_sustained:
-                cadence = min(median(deltas[regime_start:edge_index]), _MAX_COVERAGE_CADENCE)
+                cadence = min(_median_delta(deltas[regime_start:edge_index]), _MAX_COVERAGE_CADENCE)
                 for reading in run[regime_start:edge_index]:
                     cadences[id(reading)] = cadence
                 regime_start = edge_index
@@ -650,7 +664,7 @@ def _cadence_by_reading(readings: list[_ReadingSample]) -> dict[int, timedelta]:
             elif not differs:
                 regime_baseline = current
 
-        cadence = min(median(deltas[regime_start:]), _MAX_COVERAGE_CADENCE)
+        cadence = min(_median_delta(deltas[regime_start:]), _MAX_COVERAGE_CADENCE)
         for reading in run[regime_start:]:
             cadences[id(reading)] = cadence
 
