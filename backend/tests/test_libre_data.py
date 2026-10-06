@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from bgmon_api.models import GlucoseReading
+from bgmon_api.services.libre_fetcher import _resolve_trend
 
 
 def _make_reading(
@@ -228,3 +229,20 @@ def test_timestamps_with_timezone(db_session):
     assert stored.timestamp.tzinfo is not None
     assert stored.timestamp.utcoffset() == timedelta(0)
     assert stored.timestamp == timestamp
+
+
+def test_resolve_trend_maps_raw_libre_integers():
+    """LibreLinkUp sends TrendArrow as an int, not as the old emoji keys."""
+    assert _resolve_trend(1) == (1, "DoubleDown")
+    assert _resolve_trend(2) == (2, "SingleDown")
+    assert _resolve_trend(3) == (3, "Flat")
+    assert _resolve_trend(4) == (4, "SingleUp")
+    assert _resolve_trend(5) == (5, "DoubleUp")
+
+
+def test_resolve_trend_falls_back_to_flat():
+    assert _resolve_trend(None) == (4, "Flat")
+    assert _resolve_trend("") == (4, "Flat")
+    assert _resolve_trend("➡️") == (4, "Flat")
+    assert _resolve_trend(99) == (4, "Flat")
+    assert _resolve_trend("3") == (3, "Flat")

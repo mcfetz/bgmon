@@ -19,14 +19,27 @@ logger = logging.getLogger(__name__)
 _last_fetch_at: datetime | None = None
 _last_fetch_status: str = "never"
 
-# Map Libre trend arrow to legacy numeric values
-_TREND_MAP = {
-    "⬇️": (1, "DoubleDown"),
-    "↘️": (2, "SingleDown"),
-    "➡️": (4, "Flat"),
-    "↗️": (6, "SingleUp"),
-    "⬆️": (7, "DoubleUp"),
+# LibreLinkUp sends TrendArrow as an *integer* on the current measurement only
+# (verified live: 3 at a stable 165 mg/dL, 5 during a +4 mg/dL/min rise).
+# graphData entries carry no TrendArrow at all and keep the Flat fallback.
+# Scale: 1 = falling fast, 2 = falling, 3 = flat, 4 = rising, 5 = rising fast.
+_TREND_MAP: dict[int, tuple[int, str]] = {
+    1: (1, "DoubleDown"),
+    2: (2, "SingleDown"),
+    3: (3, "Flat"),
+    4: (4, "SingleUp"),
+    5: (5, "DoubleUp"),
 }
+_TREND_FALLBACK: tuple[int, str] = (4, "Flat")
+
+
+def _resolve_trend(trend_arrow: object) -> tuple[int, str]:
+    """Map a raw Libre TrendArrow to the (trend, direction) pair we store."""
+    if isinstance(trend_arrow, int) and not isinstance(trend_arrow, bool):
+        return _TREND_MAP.get(trend_arrow, _TREND_FALLBACK)
+    if isinstance(trend_arrow, str) and trend_arrow.strip().lstrip("+-").isdigit():
+        return _TREND_MAP.get(int(trend_arrow), _TREND_FALLBACK)
+    return _TREND_FALLBACK
 
 
 def get_last_fetch_info() -> dict[str, str | None]:
@@ -151,7 +164,7 @@ def _get_latest_sgv(
                 value = glucose_measurement.get("ValueInMgPerDl", 0)
                 trend_arrow = glucose_measurement.get("TrendArrow", "")
                 timestamp_str = glucose_measurement.get("Timestamp", "")
-                trend_num, direction = _TREND_MAP.get(trend_arrow, (4, "Flat"))
+                trend_num, direction = _resolve_trend(trend_arrow)
 
                 return {
                     "sgv": int(value),
@@ -233,7 +246,7 @@ def _store_historical_data(graph_data: list[dict]) -> int:
 
     written = 0
     for ts, value, trend_arrow in to_write:
-        trend_num, direction = _TREND_MAP.get(trend_arrow, (4, "Flat"))
+        trend_num, direction = _resolve_trend(trend_arrow)
 
         try:
             reading = GlucoseReading(
