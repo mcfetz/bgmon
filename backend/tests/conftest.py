@@ -11,9 +11,54 @@ os.environ["VAPID_PRIVATE_KEY"] = "test-private-key"
 os.environ["VAPID_SUBJECT"] = "mailto:test@example.com"
 os.environ["BGMON_SECRET_KEY"] = "test-secret-key"
 
-_TEST_DB_URL = os.environ.get(
-    "BGMON_DATABASE_URL", "postgresql://bgmon:bgmon@localhost:5432/test_bgmon"
-)
+# Repository .env enables ML, which would leak into the config defaults tests.
+# Force the documented defaults here; load_dotenv() never overrides existing
+# variables, so config.py picks these up even when a local .env exists.
+os.environ["BGMON_ML_ENABLED"] = "false"
+os.environ["BGMON_ML_HORIZONS"] = "30,60,120"
+
+_DEFAULT_TEST_DB_URL = "postgresql://bgmon:bgmon@localhost:5432/test_bgmon"
+
+
+def _resolve_test_db_url() -> str:
+    """Never inherit the development database from .env.
+
+    The `db_session` fixture deletes every row of every table, so running the
+    suite against `bgmon` would wipe local development data. An explicitly
+    configured test database (CI: `.../bgmon_test`) is still honoured.
+    """
+    for var in ("BGMON_TEST_DATABASE_URL", "BGMON_DATABASE_URL"):
+        url = os.environ.get(var, "")
+        database = url.rsplit("/", 1)[-1].split("?")[0]
+        if url and "test" in database:
+            return url
+    return _DEFAULT_TEST_DB_URL
+
+
+def _ensure_database(url: str) -> None:
+    """Create the test database when it does not exist yet."""
+    import psycopg2
+    from psycopg2 import sql
+
+    database = url.rsplit("/", 1)[-1].split("?")[0]
+    try:
+        psycopg2.connect(url).close()
+        return
+    except psycopg2.OperationalError:
+        pass
+
+    admin_url = url.rsplit("/", 1)[0] + "/postgres"
+    conn = psycopg2.connect(admin_url)
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
+    finally:
+        conn.close()
+
+
+_TEST_DB_URL = _resolve_test_db_url()
+_ensure_database(_TEST_DB_URL)
 os.environ["BGMON_DATABASE_URL"] = _TEST_DB_URL
 
 
@@ -28,6 +73,9 @@ def app():
         "SQLALCHEMY_DATABASE_URI": _TEST_DB_URL,
     })
     with app_instance.app_context():
+        # Fresh schema: create_all alone would keep stale tables/columns of an
+        # outdated test database around.
+        _db.drop_all()
         _db.create_all()
     yield app_instance
     with app_instance.app_context():
