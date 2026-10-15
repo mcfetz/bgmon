@@ -8,6 +8,7 @@ food_summary}`` payload.
 
 from __future__ import annotations
 
+import logging
 from http import HTTPStatus
 from typing import Any
 
@@ -22,6 +23,8 @@ from bgmon_api.services.ke_estimator import (
 )
 
 ke_estimator_bp = Blueprint("ke_estimator", __name__)
+
+logger = logging.getLogger(__name__)
 
 
 @ke_estimator_bp.route("/estimate", methods=["POST"])
@@ -61,8 +64,9 @@ def estimate_ke() -> tuple[FlaskResponse, HTTPStatus] | FlaskResponse:
         else:
             result = estimate_ke_from_description(raw_description)
     except KeEstimationError as exc:
+        logger.warning("KE estimation failed: %s", exc)
         return (
-            jsonify({"error": "llm_unavailable", "detail": str(exc)}),
+            jsonify({"error": "llm_unavailable"}),
             HTTPStatus.SERVICE_UNAVAILABLE,
         )
 
