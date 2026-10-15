@@ -62,4 +62,7 @@ secrets/
 .omo/
 *.original.md
 
+# Local documents
+*.pdf
+
 backend/ml_models/
