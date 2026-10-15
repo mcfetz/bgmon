@@ -333,6 +333,7 @@ def update_preferences() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         "color_primary_dark": user.color_primary_dark,
         "dashboard_tiles": _expand_legacy_dashboard_tiles(user.dashboard_tiles),
     })
+@settings_bp.route("/libre/reload-history", methods=["POST"])
 def reload_libre_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
@@ -345,8 +346,12 @@ def reload_libre_history() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     try:
         fetch_and_store(fetch_history=True)
         return jsonify({"message": "Historische Daten erfolgreich geladen"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+    except Exception:
+        logger.exception("Reloading LibreLinkUp history failed")
+        return (
+            jsonify({"error": "Historische Daten konnten nicht geladen werden"}),
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
 
 
 @settings_bp.route("/global", methods=["GET"])
@@ -752,7 +757,11 @@ def test_twilio_call() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
         ))
         with transactional_session():
             pass  # commit handled by context manager
-        return jsonify({"error": f"Twilio call failed: {exc}"}), HTTPStatus.SERVICE_UNAVAILABLE
+        logger.warning("Twilio test call for user %d failed: %s", user.id, exc)
+        return (
+            jsonify({"error": "Testanruf fehlgeschlagen"}),
+            HTTPStatus.SERVICE_UNAVAILABLE,
+        )
 
 
 # ── ML endpoints ─────────────────────────────────────────────────────────

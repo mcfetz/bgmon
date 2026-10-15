@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 
@@ -404,3 +405,54 @@ def test_post_twilio_settings_from_number_equals_phone_number(client, observer_u
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
     assert response.get_json() == {"error": "from_number and phone_number must differ"}
+
+
+def test_reload_libre_history_failure_does_not_leak_exception(
+    client,
+    observer_user,
+    auth_headers,
+):
+    with patch(
+        "bgmon_api.services.libre_fetcher.fetch_and_store",
+        side_effect=RuntimeError("boom secret-detail"),
+    ):
+        response = client.post(
+            "/api/settings/libre/reload-history",
+            headers=auth_headers(observer_user),
+        )
+
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert response.get_json() == {"error": "Historische Daten konnten nicht geladen werden"}
+    assert "secret-detail" not in response.get_data(as_text=True)
+
+
+def test_test_twilio_call_failure_does_not_leak_exception(
+    client,
+    observer_user,
+    auth_headers,
+    db_session,
+):
+    class _FailingCalls:
+        @staticmethod
+        def create(**_kwargs):
+            raise RuntimeError("boom secret-detail")
+
+    class _FailingClient:
+        calls = _FailingCalls()
+
+    observer_user.phone_number = "+4915112345678"
+    observer_user.twilio_from_number = "+491739070444"
+    db_session.commit()
+
+    with patch(
+        "bgmon_api.services.twilio_caller._get_client",
+        return_value=_FailingClient(),
+    ):
+        response = client.post(
+            "/api/settings/twilio/test",
+            headers=auth_headers(observer_user),
+        )
+
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+    assert response.get_json() == {"error": "Testanruf fehlgeschlagen"}
+    assert "secret-detail" not in response.get_data(as_text=True)

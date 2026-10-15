@@ -113,8 +113,8 @@ def place_call(user: User, sgv: int | None, title: str, compression_low: bool = 
                 pass
 
             logger.info(
-                "Twilio call %d/%d to %s (user %d) — %s",
-                attempt, max_retries, user.phone_number, user.id, call_status,
+                "Twilio call %d/%d to user %d (%s) — %s",
+                attempt, max_retries, user.id, user.display_name, call_status,
             )
             return True
 

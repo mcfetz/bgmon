@@ -80,7 +80,7 @@ def viewer(token: str) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     if not entry:
         return FlaskResponse("<h1>Ungultiger Token</h1>", status=404)
 
-    return FlaskResponse(_FAMILY_HTML.replace("{TOKEN}", token), mimetype="text/html")
+    return FlaskResponse(_FAMILY_HTML, mimetype="text/html")
 
 
 _FAMILY_HTML = r"""<!doctype html>
@@ -116,7 +116,7 @@ body{background:#f8fafc;color:#0f172a}
 <body>
 <div id="app" class="loading"><span class="loader">Lade...</span></div>
 <script>
-var T="{TOKEN}";
+var T=decodeURIComponent(location.pathname.split("/").filter(Boolean).pop()||"");
 var A="/api/family/"+T+"/current";
 function t(d){return{DoubleUp:"\u21c8",SingleUp:"\u2191",FortyFiveUp:"\u2197",Flat:"\u2192",FortyFiveDown:"\u2198",SingleDown:"\u2193",DoubleDown:"\u21ca"}[d]||"\u2192"}
 function c(v){if(v==null)return"";if(v<54||v>250)return"critical";if(v<70||v>180)return"borderline";return"in-range"}

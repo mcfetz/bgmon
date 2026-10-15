@@ -158,6 +158,25 @@ def test_family_dashboard_invalid_token(client):
     assert response.get_json() == {"error": "invalid token"}
 
 
+def test_family_viewer_does_not_reflect_token(client, family_token):
+    response = client.get(f"/api/family/view/{family_token.token}")
+
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.mimetype == "text/html"
+    assert family_token.token not in html
+    assert '{TOKEN}' not in html
+    assert 'location.pathname.split("/")' in html
+
+
+def test_family_viewer_rejects_invalid_token(client):
+    response = client.get("/api/family/view/invalid-token")
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert "Ungultiger Token" in response.get_data(as_text=True)
+
+
 def test_family_current_glucose(client, db_session, family_token):
     earlier = GlucoseReading()
     earlier.timestamp = datetime.now(UTC) - timedelta(minutes=15)
