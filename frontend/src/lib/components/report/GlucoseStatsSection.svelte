@@ -49,7 +49,7 @@
 	<section class="stat-panel time-in-range" aria-labelledby="time-in-range-title">
 		<div class="panel-heading">
 			<h3 id="time-in-range-title">Zeit in Bereichen</h3>
-			<span>Ziele für Erwachsene mit Diabetes Typ 1 oder 2</span>
+			<span>Ziele für Diabetes Typ 1 oder 2</span>
 		</div>
 		<div class="band-bar" aria-label="Zeit in Glukosebereichen">
 			{#each shownBands as band}

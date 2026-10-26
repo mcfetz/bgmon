@@ -94,10 +94,15 @@ def test_report_adds_gmi_ifcc_and_splits_low_episodes_after_long_gaps():
         date(2026, 6, 1),
         [
             _reading(datetime(2026, 6, 1, 6, 0, tzinfo=UTC), 65),
-            _reading(datetime(2026, 6, 1, 6, 10, tzinfo=UTC), 60),
+            _reading(datetime(2026, 6, 1, 6, 6, tzinfo=UTC), 60),
+            _reading(datetime(2026, 6, 1, 6, 12, tzinfo=UTC), 62),
+            _reading(datetime(2026, 6, 1, 6, 18, tzinfo=UTC), 64),
             # The 20-minute gap starts a second low episode.
-            _reading(datetime(2026, 6, 1, 6, 30, tzinfo=UTC), 65),
-            _reading(datetime(2026, 6, 1, 6, 40, tzinfo=UTC), 120),
+            _reading(datetime(2026, 6, 1, 6, 38, tzinfo=UTC), 65),
+            _reading(datetime(2026, 6, 1, 6, 44, tzinfo=UTC), 60),
+            _reading(datetime(2026, 6, 1, 6, 50, tzinfo=UTC), 62),
+            _reading(datetime(2026, 6, 1, 6, 56, tzinfo=UTC), 64),
+            _reading(datetime(2026, 6, 1, 7, 20, tzinfo=UTC), 120),
         ],
         [],
     )
@@ -353,13 +358,19 @@ def test_compression_lows_remain_in_raw_trace_but_not_clinical_aggregates():
 def test_compression_low_splits_an_existing_low_episode():
     readings = [
         _reading(datetime(2026, 1, 1, 0, 0, tzinfo=UTC), 60),
+        _reading(datetime(2026, 1, 1, 0, 6, tzinfo=UTC), 62),
+        _reading(datetime(2026, 1, 1, 0, 12, tzinfo=UTC), 64),
+        _reading(datetime(2026, 1, 1, 0, 18, tzinfo=UTC), 66),
         _reading(
-            datetime(2026, 1, 1, 0, 5, tzinfo=UTC),
+            datetime(2026, 1, 1, 0, 22, tzinfo=UTC),
             45,
             is_compression_low=True,
         ),
-        _reading(datetime(2026, 1, 1, 0, 10, tzinfo=UTC), 60),
-        _reading(datetime(2026, 1, 1, 0, 15, tzinfo=UTC), 100),
+        _reading(datetime(2026, 1, 1, 0, 26, tzinfo=UTC), 60),
+        _reading(datetime(2026, 1, 1, 0, 32, tzinfo=UTC), 62),
+        _reading(datetime(2026, 1, 1, 0, 38, tzinfo=UTC), 64),
+        _reading(datetime(2026, 1, 1, 0, 44, tzinfo=UTC), 66),
+        _reading(datetime(2026, 1, 1, 0, 50, tzinfo=UTC), 100),
     ]
 
     report = compute_report_data(date(2026, 1, 1), date(2026, 1, 1), readings, [])
@@ -562,11 +573,14 @@ def test_snapshot_caps_low_event_details_but_preserves_full_aggregate():
     start = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
     readings = []
     for index in range(105):
-        event_start = start + timedelta(minutes=index * 20)
+        event_start = start + timedelta(minutes=index * 25)
         readings.extend(
             [
                 _reading(event_start, 60),
-                _reading(event_start + timedelta(minutes=5), 100),
+                _reading(event_start + timedelta(minutes=5), 58),
+                _reading(event_start + timedelta(minutes=10), 60),
+                _reading(event_start + timedelta(minutes=16), 62),
+                _reading(event_start + timedelta(minutes=20), 100),
             ]
         )
 
@@ -576,15 +590,41 @@ def test_snapshot_caps_low_event_details_but_preserves_full_aggregate():
     assert len(report.snapshot.low_events) == 100
     assert report.snapshot.low_events_truncated is True
     assert report.snapshot.low_events[0].time == "01:00"
-    assert report.snapshot.low_events[-1].time == "10:00"
+    assert report.snapshot.low_events[-1].time == "18:15"
+
+
+def test_low_events_shorter_than_fifteen_minutes_are_not_counted():
+    readings = [
+        _reading(datetime(2026, 1, 1, 6, 0, tzinfo=UTC), 66),
+        _reading(datetime(2026, 1, 1, 6, 2, tzinfo=UTC), 64),
+        _reading(datetime(2026, 1, 1, 6, 5, tzinfo=UTC), 100),
+        _reading(datetime(2026, 1, 1, 8, 0, tzinfo=UTC), 60),
+        _reading(datetime(2026, 1, 1, 8, 4, tzinfo=UTC), 58),
+        _reading(datetime(2026, 1, 1, 8, 9, tzinfo=UTC), 60),
+        _reading(datetime(2026, 1, 1, 8, 10, tzinfo=UTC), 100),
+    ]
+
+    report = compute_report_data(date(2026, 1, 1), date(2026, 1, 1), readings, [])
+
+    assert report.snapshot.low_events_count == 0
+    assert report.snapshot.low_events == []
+    min_val = report.glucose_stats.min_val
+    assert min_val is not None
+    assert min_val < 70
 
 
 def test_fallback_low_events_include_distinct_offset_timestamps():
     readings = [
         _reading(datetime(2026, 10, 25, 0, 30, tzinfo=UTC), 60),
-        _reading(datetime(2026, 10, 25, 0, 35, tzinfo=UTC), 100),
+        _reading(datetime(2026, 10, 25, 0, 36, tzinfo=UTC), 58),
+        _reading(datetime(2026, 10, 25, 0, 42, tzinfo=UTC), 60),
+        _reading(datetime(2026, 10, 25, 0, 48, tzinfo=UTC), 62),
+        _reading(datetime(2026, 10, 25, 0, 52, tzinfo=UTC), 100),
         _reading(datetime(2026, 10, 25, 1, 30, tzinfo=UTC), 60),
-        _reading(datetime(2026, 10, 25, 1, 35, tzinfo=UTC), 100),
+        _reading(datetime(2026, 10, 25, 1, 36, tzinfo=UTC), 58),
+        _reading(datetime(2026, 10, 25, 1, 42, tzinfo=UTC), 60),
+        _reading(datetime(2026, 10, 25, 1, 48, tzinfo=UTC), 62),
+        _reading(datetime(2026, 10, 25, 1, 52, tzinfo=UTC), 100),
     ]
 
     report = compute_report_data(date(2026, 10, 25), date(2026, 10, 25), readings, [])

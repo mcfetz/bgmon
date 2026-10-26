@@ -141,7 +141,11 @@
 		</article>
 	{/each}
 </div>
-<footer class="weekly-legend"><span><i></i>Möglicher Kompressionswert</span></footer>
+<footer class="weekly-legend">
+	<span><i></i>Möglicher Kompressionswert</span><span class="legend-note"
+		>Niedrige Ereignisse: &lt; 70 mg/dL für mindestens 15 Minuten</span
+	>
+</footer>
 
 <style>
 	.weekly-overview {
@@ -273,6 +277,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.2rem;
+	}
+
+	.weekly-legend .legend-note {
+		margin-left: 0.6rem;
 	}
 
 	.weekly-legend i {

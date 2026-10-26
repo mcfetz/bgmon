@@ -38,6 +38,11 @@ _TRACE_MAX_COMPRESSION_MARKERS_PER_DAY = 150
 # A gap longer than this cannot establish that two low observations are one event.
 _LOW_EPISODE_MAX_GAP = timedelta(minutes=15)
 
+# AGP/ATTD consensus: only a low phase of at least 15 minutes counts as a low
+# event. Shorter dips stay visible in the trace but not in the event list, so
+# the count stays comparable to LibreView's low-glucose events.
+_LOW_EVENT_MIN_DURATION = timedelta(minutes=15)
+
 # Detail rows are bounded for API/PDF payloads; summary counts retain all events.
 _MAX_LOW_EVENT_DETAILS = 100
 
@@ -984,9 +989,15 @@ def _append_low_event(
     end: datetime,
     minimum_sgv: int,
 ) -> None:
-    """Append a local-display low event from its observed start/end bounds."""
+    """Append a local-display low event from its observed start/end bounds.
+
+    Episodes shorter than ``_LOW_EVENT_MIN_DURATION`` are not clinical low
+    events and are dropped, keeping the count comparable to the AGP report.
+    """
+    if end - start < _LOW_EVENT_MIN_DURATION:
+        return
     local_start = _to_local(start)
-    duration = max(1, int((end - start).total_seconds() // 60))
+    duration = int((end - start).total_seconds() // 60)
     events.append(
         LowGlucoseEvent(
             date=local_start.date().isoformat(),
@@ -1004,7 +1015,8 @@ def _compute_low_events(readings: list[_ReadingSample]) -> list[LowGlucoseEvent]
     A low sequence can only remain one episode when each consecutive low reading
     is at most ``_LOW_EPISODE_MAX_GAP`` apart. A recovery reading closes the
     episode at its timestamp when it is timely; otherwise the final low reading
-    is the conservative observed endpoint.
+    is the conservative observed endpoint. Only episodes of at least
+    ``_LOW_EVENT_MIN_DURATION`` are reported as events.
     """
     sorted_readings = readings
     events: list[LowGlucoseEvent] = []

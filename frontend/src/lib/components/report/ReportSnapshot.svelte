@@ -104,7 +104,11 @@
 				</div>
 			</div>
 			<div class="low-summary">
-				<div><span>Niedrige Ereignisse</span><b>{snapshot.low_events_count}</b></div>
+				<div>
+					<span>Niedrige Ereignisse</span><b>{snapshot.low_events_count}</b><small
+						>&lt; 70 mg/dL für mind. 15 Min.</small
+					>
+				</div>
 				<div>
 					<span>Mittlere Dauer</span><b
 						>{snapshot.low_events_avg_duration_minutes === null
@@ -208,7 +212,10 @@
 	class:events-continuation={!showSummary}
 	aria-label="Ereignisse mit niedrigem Glukosewert"
 >
-	<h3>{showSummary ? 'Ereignisse mit niedrigem Glukosewert' : 'Ereignisliste'}</h3>
+	<h3>
+		{showSummary ? 'Ereignisse mit niedrigem Glukosewert' : 'Ereignisliste'}
+		<small>&lt; 70 mg/dL für mindestens 15 Minuten</small>
+	</h3>
 	{#if showSummary && snapshot.low_events_truncated}
 		<p class="events-truncated">
 			Nur die ersten {snapshot.low_events.length} von insgesamt {snapshot.low_events_count} Ereignissen
@@ -232,7 +239,9 @@
 			</table>
 		</div>
 	{:else}
-		<p class="no-events">Keine Ereignisse mit Glukosewerten unter 70 mg/dL erkannt.</p>
+		<p class="no-events">
+			Keine Ereignisse mit Glukosewerten unter 70 mg/dL für mindestens 15 Minuten erkannt.
+		</p>
 	{/if}
 </section>
 
@@ -301,7 +310,9 @@
 		color: #18313d;
 	}
 
-	.summary-grid small {
+	.summary-grid small,
+	.low-summary small {
+		display: block;
 		font-size: 0.57rem;
 		color: #6b7e85;
 	}
@@ -368,6 +379,13 @@
 		margin: 0 0 0.45rem;
 		font-size: 0.8rem;
 		color: #18313d;
+	}
+
+	h3 small {
+		margin-left: 0.35rem;
+		font-size: 0.6rem;
+		font-weight: 400;
+		color: #6b7e85;
 	}
 
 	.treatment-cards {
