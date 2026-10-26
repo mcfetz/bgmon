@@ -266,8 +266,6 @@ def update_carb_factor() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
     if isinstance(user, tuple):
         return jsonify(user[0]), user[1]
-    if user.role == UserRole.PATIENT:
-        return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
 
     patient = _get_patient(user)
     if not patient:

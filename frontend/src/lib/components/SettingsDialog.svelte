@@ -126,6 +126,7 @@
 	let colorPrimaryDark = $state('');
 	let currentUserId = $state<number | null>(null);
 	let isAdmin = $state(false);
+	let isPatient = $state(false);
 	let appVersion = $state('');
 	let whatsNewEntries = $state<readonly WhatsNewEntry[]>([]);
 	let hasUnreadWhatsNew = $state(false);
@@ -713,6 +714,7 @@
 				displayName = data.display_name ?? '';
 				currentUserId = data.id ?? null;
 				isAdmin = data.role === 'admin';
+				isPatient = data.role === 'patient';
 			}
 
 			if (twilioRes.ok) {
@@ -866,27 +868,34 @@
 		error = '';
 		message = '';
 
-		const [globalRes, carbRes] = await Promise.all([
-			apiFetch('/api/settings/global', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					insulin_action_hours: Number(insulinActionHours),
-					correction_factor: Number(correctionFactor),
-					compression_low_enabled: compressionLowEnabled,
-					insulin_stock: insulinStock === '' ? null : Number(insulinStock),
-					basal_stock: basalStock === '' ? null : Number(basalStock),
-					low_stock_days: Number(lowStockDays)
-				})
-			}),
+		const requests = [
 			apiFetch('/api/log/carb-factor', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ factor: Number(carbFactor) })
 			})
-		]);
+		];
 
-		if (!globalRes.ok || !carbRes.ok) {
+		if (!isPatient) {
+			requests.push(
+				apiFetch('/api/settings/global', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						insulin_action_hours: Number(insulinActionHours),
+						correction_factor: Number(correctionFactor),
+						compression_low_enabled: compressionLowEnabled,
+						insulin_stock: insulinStock === '' ? null : Number(insulinStock),
+						basal_stock: basalStock === '' ? null : Number(basalStock),
+						low_stock_days: Number(lowStockDays)
+					})
+				})
+			);
+		}
+
+		const responses = await Promise.all(requests);
+
+		if (responses.some((response) => !response.ok)) {
 			error = 'Behandlungs-Einstellungen konnten nicht gespeichert werden';
 			return;
 		}
@@ -1220,108 +1229,123 @@
 						</p>
 					</div>
 
-					<div class="field">
-						<label>Insulin-Wirkzeit (Stunden)</label>
-						<input
-							type="text"
-							inputmode="decimal"
-							bind:value={insulinActionHours}
-							oninput={normalizeDecimal}
-							pattern="[0-9]*"
-							placeholder="4"
-						/>
-					</div>
+					{#if !isPatient}
+						<div class="field">
+							<label>Insulin-Wirkzeit (Stunden)</label>
+							<input
+								type="text"
+								inputmode="decimal"
+								bind:value={insulinActionHours}
+								oninput={normalizeDecimal}
+								pattern="[0-9]*"
+								placeholder="4"
+							/>
+						</div>
 
-					<div class="field">
-						<label>Korrekturfaktor (mg/dL pro IE Insulin)</label>
-						<input
-							type="text"
-							inputmode="decimal"
-							bind:value={correctionFactor}
-							oninput={normalizeDecimal}
-							pattern="[0-9]*"
-							placeholder="50"
-						/>
-						<p class="hint">
-							Wie viele mg/dL eine Einheit Insulin senkt. Beispiel: 50 → 1 IE senkt BG um 50 Punkte.
-						</p>
-					</div>
+						<div class="field">
+							<label>Korrekturfaktor (mg/dL pro IE Insulin)</label>
+							<input
+								type="text"
+								inputmode="decimal"
+								bind:value={correctionFactor}
+								oninput={normalizeDecimal}
+								pattern="[0-9]*"
+								placeholder="50"
+							/>
+							<p class="hint">
+								Wie viele mg/dL eine Einheit Insulin senkt. Beispiel: 50 → 1 IE senkt BG um 50
+								Punkte.
+							</p>
+						</div>
 
-					<div class="field-checkbox">
-						<label>
-							<input type="checkbox" bind:checked={compressionLowEnabled} />
-							Compression Low Erkennung aktivieren
-						</label>
-						<p class="hint">
-							Warnt vor falsch-niedrigen Werten durch Sensor-Kompression (z.B. beim Liegen auf dem
-							Sensor).
-						</p>
-					</div>
+						<div class="field-checkbox">
+							<label>
+								<input type="checkbox" bind:checked={compressionLowEnabled} />
+								Compression Low Erkennung aktivieren
+							</label>
+							<p class="hint">
+								Warnt vor falsch-niedrigen Werten durch Sensor-Kompression (z.B. beim Liegen auf dem
+								Sensor).
+							</p>
+						</div>
 
-					<div class="field">
-						<label>Insulinbestand (U)</label>
-						<input
-							type="text"
-							inputmode="decimal"
-							bind:value={insulinStock}
-							oninput={normalizeDecimal}
-							pattern="[0-9]*"
-							placeholder="3000"
-						/>
-						<p class="hint">
-							Aktueller Insulinvorrat in Einheiten. Das Dashboard zeigt dann, wie viele Tage der
-							Vorrat bei aktuellem Verbrauch noch reicht.
-						</p>
-					</div>
+						<div class="field">
+							<label>Insulinbestand (U)</label>
+							<input
+								type="text"
+								inputmode="decimal"
+								bind:value={insulinStock}
+								oninput={normalizeDecimal}
+								pattern="[0-9]*"
+								placeholder="3000"
+							/>
+							<p class="hint">
+								Aktueller Insulinvorrat in Einheiten. Das Dashboard zeigt dann, wie viele Tage der
+								Vorrat bei aktuellem Verbrauch noch reicht.
+							</p>
+						</div>
 
-					<div class="field">
-						<label>Basal-Insulinbestand (U)</label>
-						<input
-							type="text"
-							inputmode="decimal"
-							bind:value={basalStock}
-							oninput={normalizeDecimal}
-							pattern="[0-9]*"
-							placeholder="1500"
-						/>
-						<p class="hint">
-							Aktueller Vorrat an langwirksamem Insulin in Einheiten. Das Dashboard zeigt dann, wie
-							viele Tage er bei aktuellem Verbrauch noch reicht.
-						</p>
-					</div>
+						<div class="field">
+							<label>Basal-Insulinbestand (U)</label>
+							<input
+								type="text"
+								inputmode="decimal"
+								bind:value={basalStock}
+								oninput={normalizeDecimal}
+								pattern="[0-9]*"
+								placeholder="1500"
+							/>
+							<p class="hint">
+								Aktueller Vorrat an langwirksamem Insulin in Einheiten. Das Dashboard zeigt dann,
+								wie viele Tage er bei aktuellem Verbrauch noch reicht.
+							</p>
+						</div>
 
-					<div class="field">
-						<label>Vorratswarnung nach verbleibenden Tagen</label>
-						<input
-							type="text"
-							inputmode="numeric"
-							bind:value={lowStockDays}
-							pattern="[0-9]*"
-							placeholder="14"
-						/>
+						<div class="field">
+							<label>Vorratswarnung nach verbleibenden Tagen</label>
+							<input
+								type="text"
+								inputmode="numeric"
+								bind:value={lowStockDays}
+								pattern="[0-9]*"
+								placeholder="14"
+							/>
+							<p class="hint">
+								Meldet als Smart-Alert, wenn der Vorrat weniger als diese Anzahl Tage reicht.
+							</p>
+						</div>
+					{/if}
+
+					{#if isPatient}
 						<p class="hint">
-							Meldet als Smart-Alert, wenn der Vorrat weniger als diese Anzahl Tage reicht.
+							Korrekturfaktor, Insulin-Wirkzeit und Insulinvorräte legt der Admin fest.
 						</p>
-					</div>
+					{/if}
 
 					<button class="submit-btn" onclick={saveTreatment}>Speichern</button>
 
-					<div class="field">
-						<label>LibreLinkUp Historische Daten</label>
-						<p class="hint">
-							Lade die letzten 12 Stunden historische Daten von LibreLinkUp um Lücken im Graph zu
-							füllen.
-						</p>
-						<button class="submit-btn" onclick={reloadLibreHistory} disabled={libreHistoryLoading}>
-							{libreHistoryLoading ? 'Lade...' : 'Historische Daten laden'}
-						</button>
-						{#if libreHistoryMessage}
-							<p class="success">{libreHistoryMessage}</p>
-						{/if}
-						{#if libreHistoryError}
-							<p class="error">{libreHistoryError}</p>
-						{/if}
-					</div>
+					{#if !isPatient}
+						<div class="field">
+							<label>LibreLinkUp Historische Daten</label>
+							<p class="hint">
+								Lade die letzten 12 Stunden historische Daten von LibreLinkUp um Lücken im Graph zu
+								füllen.
+							</p>
+							<button
+								class="submit-btn"
+								onclick={reloadLibreHistory}
+								disabled={libreHistoryLoading}
+							>
+								{libreHistoryLoading ? 'Lade...' : 'Historische Daten laden'}
+							</button>
+							{#if libreHistoryMessage}
+								<p class="success">{libreHistoryMessage}</p>
+							{/if}
+							{#if libreHistoryError}
+								<p class="error">{libreHistoryError}</p>
+							{/if}
+						</div>
+					{/if}
 				{:else if currentView === 'twilio'}
 					<div class="field">
 						<label>Telefonnummer (für eingehende Anrufe)</label>
@@ -1591,7 +1615,10 @@
 
 						<h3>Einstellungen</h3>
 						<ul>
-							<li><strong>Behandlung</strong>: KE-Faktor, Korrekturfaktor, Insulinwirkzeit</li>
+							<li>
+								<strong>Behandlung</strong>: KE-Faktor (Patient selbst oder Admin), Korrekturfaktor,
+								Insulinwirkzeit und Vorräte (Admin)
+							</li>
 							<li><strong>Schwellwerte</strong>: Alarmgrenzen pro Benutzer</li>
 							<li>
 								<strong>Benachrichtigungen</strong>: Profile, Push/Anruf, Nachtzeiten, Webhook

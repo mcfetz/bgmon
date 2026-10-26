@@ -246,12 +246,38 @@ def test_get_carb_factor_returns_current_factor(client, patient_user, auth_heade
     assert len(data["history"]) == 2
 
 
-def test_update_carb_factor_as_non_patient_forbidden(client, patient_user, auth_headers):
+def test_patient_can_update_own_carb_factor(client, patient_user, auth_headers, db_session):
     response = client.post(
         "/api/log/carb-factor",
         json={"factor": 12.0, "unit": "g/IE"},
         headers=auth_headers(patient_user),
     )
 
-    assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.get_json() == {"error": "forbidden"}
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.get_json() == {"factor": 12.0, "unit": "g/IE"}
+
+    entry = CarbFactorHistory.query.filter_by(user_id=patient_user.id).one()
+    assert entry.factor == 12.0
+    assert entry.unit == "g/IE"
+    assert entry.changed_by_id == patient_user.id
+
+    note = LogEntry.query.filter_by(
+        user_id=patient_user.id, entry_type=LogEntryType.NOTE
+    ).one()
+    assert note.notes == f"KE-Faktor auf 12.0 g/IE gesetzt. ({patient_user.display_name})"
+
+
+def test_admin_can_update_patient_carb_factor(
+    client, admin_user, patient_user, auth_headers
+):
+    response = client.post(
+        "/api/log/carb-factor",
+        json={"factor": 9.5, "unit": "g/IE"},
+        headers=auth_headers(admin_user),
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+
+    entry = CarbFactorHistory.query.filter_by(user_id=patient_user.id).one()
+    assert entry.factor == 9.5
+    assert entry.changed_by_id == admin_user.id
