@@ -1,6 +1,12 @@
 <script lang="ts">
-	import type { DayProtocol, GlucosePoint, LogMarker } from '#lib/api/report.js';
-	import { clampGlucose, glucoseTrace, timeOfDayMinutes, type GlucoseTrace } from './chart';
+	import type { DayProtocol, GlucosePoint, LogMarker, SettingChange } from '#lib/api/report.js';
+	import {
+		clampGlucose,
+		formatNumber,
+		glucoseTrace,
+		timeOfDayMinutes,
+		type GlucoseTrace
+	} from './chart';
 
 	let {
 		protocols,
@@ -11,8 +17,8 @@
 	} = $props();
 
 	const width = 850;
-	const height = 105;
-	const pad = { top: 14, right: 14, bottom: 21, left: 30 };
+	const height = 112;
+	const pad = { top: 14, right: 14, bottom: 28, left: 30 };
 	const chartWidth = width - pad.left - pad.right;
 	const chartHeight = height - pad.top - pad.bottom;
 
@@ -49,6 +55,7 @@
 	function markerColor(marker: LogMarker): string {
 		if (marker.kind === 'carbs') return '#b57600';
 		if (marker.kind === 'rapid_insulin') return '#176b87';
+		if (marker.kind === 'correction') return '#b3261e';
 		return '#5c4b8a';
 	}
 
@@ -58,7 +65,9 @@
 				? 'Kohlenhydrate'
 				: marker.kind === 'rapid_insulin'
 					? 'Schnellinsulin'
-					: 'Basalinsulin';
+					: marker.kind === 'correction'
+						? 'Korrekturinsulin (ohne KH im 15-Minuten-Fenster)'
+						: 'Basalinsulin';
 		const value = `${marker.value}${marker.unit}`;
 		return [marker.timestamp, kind, value, marker.notes?.trim()].filter(Boolean).join(' · ');
 	}
@@ -70,6 +79,7 @@
 	function markerSymbol(marker: LogMarker): string {
 		if (marker.kind === 'carbs') return 'KH';
 		if (marker.kind === 'rapid_insulin') return 'S';
+		if (marker.kind === 'correction') return 'K';
 		return 'B';
 	}
 
@@ -109,6 +119,49 @@
 		});
 	}
 
+	interface PlacedSettingChange {
+		change: SettingChange;
+		x: number;
+		y: number;
+		label: string;
+		anchor: 'start' | 'middle' | 'end';
+	}
+
+	const SETTING_LABEL_Y = [90, 97];
+	const SETTING_LABEL_CHAR_WIDTH = 3.2;
+	const SETTING_LABEL_GAP = 4;
+
+	function settingChangeColor(change: SettingChange): string {
+		return change.kind === 'carb_factor' ? '#b57600' : '#5c4b8a';
+	}
+
+	function settingChangeLabel(change: SettingChange): string {
+		const current = formatNumber(change.value);
+		const previous = change.previous === null ? null : formatNumber(change.previous);
+		if (change.kind === 'carb_factor') {
+			return previous === null ? `KE-Faktor ${current}` : `KE-Faktor ${previous} → ${current}`;
+		}
+		const unit = ` ${change.unit}`;
+		return previous === null ? `Basal ${current}${unit}` : `Basal ${previous} → ${current}${unit}`;
+	}
+
+	function layoutSettingChanges(changes: SettingChange[]): PlacedSettingChange[] {
+		const rowEnds = SETTING_LABEL_Y.map(() => Number.NEGATIVE_INFINITY);
+		return changes.map((change) => {
+			const x = xScale(timeOfDayMinutes(change.timestamp));
+			const label = settingChangeLabel(change);
+			const halfWidth = (label.length * SETTING_LABEL_CHAR_WIDTH) / 2;
+			let row = rowEnds.findIndex((end) => x - halfWidth - SETTING_LABEL_GAP >= end);
+			if (row === -1) {
+				row = rowEnds.indexOf(Math.min(...rowEnds));
+			}
+			rowEnds[row] = x + halfWidth;
+			const anchor: PlacedSettingChange['anchor'] =
+				x < pad.left + halfWidth ? 'start' : x > width - pad.right - halfWidth ? 'end' : 'middle';
+			return { change, x, y: SETTING_LABEL_Y[row], label, anchor };
+		});
+	}
+
 	function valueClass(value: number | null): string {
 		if (value === null) return 'empty';
 		if (value < 70 || value > 250) return 'outlier';
@@ -122,6 +175,7 @@
 		{@const readings = readingsByDate.get(protocol.date) ?? []}
 		{@const chart = trace(readings)}
 		{@const markerLayout = layoutMarkers(protocol.markers)}
+		{@const settingChanges = layoutSettingChanges(protocol.setting_changes)}
 		<article class="protocol-panel">
 			<header class="protocol-header">
 				<strong>{protocol.weekday.toUpperCase()} {shortDate(protocol.date)}</strong>
@@ -171,6 +225,16 @@
 						>
 					{/each}
 					<text x={pad.left} y={10} class="unit">mg/dL</text>
+					{#each settingChanges as placed}
+						<line
+							x1={placed.x}
+							y1={pad.top}
+							x2={placed.x}
+							y2={pad.top + chartHeight}
+							class="setting-line"
+							stroke={settingChangeColor(placed.change)}
+						/>
+					{/each}
 					{#each chart.segments as segment}
 						<path
 							d={segment.d}
@@ -218,6 +282,15 @@
 							>
 						</g>
 					{/each}
+					{#each settingChanges as placed}
+						<text
+							x={placed.x}
+							y={placed.y}
+							text-anchor={placed.anchor}
+							class="setting-label"
+							fill={settingChangeColor(placed.change)}>{placed.label}</text
+						>
+					{/each}
 				</svg>
 			</div>
 			<div class="ranges-scroll">
@@ -251,9 +324,11 @@
 <footer class="protocol-legend">
 	<span><i class="carbs"></i>KH</span>
 	<span><i class="rapid"></i>Schnellinsulin</span>
+	<span><i class="correction"></i>Korrekturinsulin</span>
 	<span><i class="basal"></i>Basalinsulin</span>
 	<span><i class="compression"></i>Möglicher Kompressionswert</span>
-	<span>Zahl am Marker: Menge in KE bzw. U</span>
+	<span><i class="change"></i>Einstellungsänderung</span>
+	<span>Zahl = Menge (KE bzw. U)</span>
 </footer>
 
 <style>
@@ -445,6 +520,17 @@
 		background: #5c4b8a;
 	}
 
+	.correction {
+		background: #b3261e;
+	}
+
+	.protocol-legend .change {
+		width: 0;
+		height: 0.46rem;
+		border-left: 1.3px dashed #596a72;
+		border-radius: 0;
+	}
+
 	.compression {
 		box-sizing: border-box;
 		background: #fff;
@@ -455,6 +541,21 @@
 		fill: #fff;
 		stroke: #66767c;
 		stroke-width: 1.4;
+	}
+
+	.setting-line {
+		stroke-width: 0.9;
+		stroke-dasharray: 2.5 2;
+		opacity: 0.85;
+	}
+
+	.setting-label {
+		font-size: 5.8px;
+		font-weight: 700;
+		paint-order: stroke;
+		stroke: #fff;
+		stroke-width: 2px;
+		stroke-linejoin: round;
 	}
 
 	@media print {

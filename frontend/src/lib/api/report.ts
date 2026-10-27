@@ -82,10 +82,18 @@ export interface IntervalMinMax {
 
 export interface LogMarker {
 	timestamp: string;
-	kind: 'carbs' | 'rapid_insulin' | 'basal';
+	kind: 'carbs' | 'rapid_insulin' | 'correction' | 'basal';
 	value: number;
 	unit: string;
 	notes: string | null;
+}
+
+export interface SettingChange {
+	timestamp: string;
+	kind: 'carb_factor' | 'basal';
+	value: number;
+	previous: number | null;
+	unit: string;
 }
 
 export interface DayProtocol {
@@ -95,6 +103,7 @@ export interface DayProtocol {
 	markers: LogMarker[];
 	marker_count: number;
 	markers_truncated: boolean;
+	setting_changes: SettingChange[];
 }
 
 export interface LowGlucoseEvent {

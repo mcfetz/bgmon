@@ -11,7 +11,15 @@ from flask_limiter.util import get_remote_address
 
 from bgmon_api.auth_utils import get_current_user
 from bgmon_api.extensions import db, limiter
-from bgmon_api.models import GlucoseReading, LogEntry, Session, User, UserRole
+from bgmon_api.models import (
+    CarbFactorHistory,
+    GlucoseReading,
+    LogEntry,
+    LogEntryType,
+    Session,
+    User,
+    UserRole,
+)
 
 report_bp = Blueprint("report", __name__)
 
@@ -137,6 +145,35 @@ def generate_report():  # noqa: ANN201
     if len(entries) > MAX_REPORT_LOG_ENTRIES:
         return jsonify({"error": "report_data_limit_exceeded"}), HTTPStatus.BAD_REQUEST
 
+    # Settings histories annotate the daily traces. The last row before the
+    # period supplies the previous value so unchanged saves are not drawn as
+    # changes.
+    previous_carb_factor = (
+        db.session.query(CarbFactorHistory)
+        .filter(CarbFactorHistory.user_id == patient.id)
+        .filter(CarbFactorHistory.changed_at < start_dt)
+        .order_by(CarbFactorHistory.changed_at.desc())
+        .first()
+    )
+    carb_factor_history = (
+        db.session.query(CarbFactorHistory)
+        .filter(CarbFactorHistory.user_id == patient.id)
+        .filter(CarbFactorHistory.changed_at >= start_dt)
+        .filter(CarbFactorHistory.changed_at < effective_end_dt)
+        .order_by(CarbFactorHistory.changed_at.asc())
+        .all()
+    )
+    if previous_carb_factor is not None:
+        carb_factor_history.insert(0, previous_carb_factor)
+    previous_basal = (
+        db.session.query(LogEntry)
+        .filter(LogEntry.user_id == patient.id)
+        .filter(LogEntry.entry_type == LogEntryType.BASAL)
+        .filter(LogEntry.created_at < start_dt)
+        .order_by(LogEntry.created_at.desc())
+        .first()
+    )
+
     report = compute_report_data(
         start_date,
         end_date,
@@ -145,6 +182,8 @@ def generate_report():  # noqa: ANN201
         patient_name=patient_name,
         predecessor=predecessor,
         effective_end=effective_end_dt,
+        carb_factor_history=carb_factor_history,
+        previous_basal=previous_basal,
     )
 
     # Serialize to JSON-friendly dict

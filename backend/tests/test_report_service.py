@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from bgmon_api.models import (
     MAX_LOG_ENTRY_VALUE,
+    CarbFactorHistory,
     GlucoseReading,
     LogEntry,
     LogEntryType,
@@ -138,12 +139,13 @@ def test_report_normalizes_logged_ke_to_carbohydrate_grams():
 def test_report_uses_berlin_dates_and_spines_all_daily_views():
     # 23:30 UTC on 1 January is 00:30 on 2 January in Europe/Berlin.
     reading = _reading(datetime(2026, 1, 1, 23, 30, tzinfo=UTC), 120)
+    carbs = _entry(datetime(2026, 1, 1, 23, 44, tzinfo=UTC), LogEntryType.CARBS, 3, unit="KE")
     rapid = _entry(datetime(2026, 1, 1, 23, 45, tzinfo=UTC), LogEntryType.INSULIN, 2.5)
     basal = _entry(datetime(2026, 1, 1, 23, 50, tzinfo=UTC), LogEntryType.BASAL, 10)
     note = _entry(datetime(2026, 1, 1, 23, 55, tzinfo=UTC), LogEntryType.NOTE, 0, notes="test")
 
     report = compute_report_data(
-        date(2026, 1, 1), date(2026, 1, 3), [reading], [rapid, basal, note]
+        date(2026, 1, 1), date(2026, 1, 3), [reading], [carbs, rapid, basal, note]
     )
 
     expected_dates = ["2026-01-01", "2026-01-02", "2026-01-03"]
@@ -162,6 +164,7 @@ def test_report_uses_berlin_dates_and_spines_all_daily_views():
     assert report.daily_profiles[2].avg is None
     assert len(report.daily_protocols[1].intervals) == 24
     assert [marker.kind for marker in report.daily_protocols[1].markers] == [
+        "carbs",
         "rapid_insulin",
         "basal",
     ]
@@ -194,6 +197,88 @@ def test_daily_protocol_caps_markers_and_long_notes():
     assert len(protocol.markers) == 50
     assert all(marker.notes is not None and len(marker.notes) == 240 for marker in protocol.markers)
     assert all((marker.notes or "").endswith("...") for marker in protocol.markers)
+
+
+def test_daily_protocol_separates_correction_bolus():
+    timestamp = datetime(2026, 1, 2, 9, 0, tzinfo=UTC)
+    entries = [
+        _entry(timestamp, LogEntryType.CARBS, 4, unit="KE"),
+        _entry(timestamp + timedelta(minutes=15), LogEntryType.INSULIN, 6),
+        _entry(timestamp + timedelta(minutes=16), LogEntryType.INSULIN, 1.5),
+        _entry(timestamp + timedelta(hours=2), LogEntryType.INSULIN, 2),
+    ]
+
+    report = compute_report_data(
+        date(2026, 1, 2), date(2026, 1, 2), [_reading(timestamp, 150)], entries
+    )
+
+    assert [marker.kind for marker in report.daily_protocols[0].markers] == [
+        "carbs",
+        "rapid_insulin",
+        "correction",
+        "correction",
+    ]
+
+
+def _carb_factor_change(
+    timestamp: datetime, factor: float, unit: str = "g/IE", user_id: int = 1
+) -> CarbFactorHistory:
+    return CarbFactorHistory(user_id=user_id, factor=factor, unit=unit, changed_at=timestamp)
+
+
+def test_daily_protocol_marks_carb_factor_changes():
+    timestamp = datetime(2026, 1, 2, 8, 0, tzinfo=UTC)
+    history = [
+        _carb_factor_change(datetime(2026, 1, 1, 20, 0, tzinfo=UTC), 1.5),
+        # Saving the unchanged value again must not look like a change.
+        _carb_factor_change(datetime(2026, 1, 2, 9, 0, tzinfo=UTC), 1.5),
+        _carb_factor_change(datetime(2026, 1, 2, 10, 30, tzinfo=UTC), 1.7),
+    ]
+
+    report = compute_report_data(
+        date(2026, 1, 2),
+        date(2026, 1, 2),
+        [_reading(timestamp, 120)],
+        [],
+        carb_factor_history=history,
+    )
+
+    changes = report.daily_protocols[0].setting_changes
+    assert len(changes) == 1
+    assert changes[0].kind == "carb_factor"
+    assert changes[0].timestamp == "2026-01-02T11:30:00+01:00"
+    assert changes[0].value == 1.7
+    assert changes[0].previous == 1.5
+    assert changes[0].unit == "g/IE"
+
+
+def test_daily_protocol_marks_basal_dose_changes_only():
+    timestamp = datetime(2026, 1, 2, 8, 0, tzinfo=UTC)
+    previous = _entry(datetime(2026, 1, 1, 18, 0, tzinfo=UTC), LogEntryType.BASAL, 27)
+    unchanged = _entry(datetime(2026, 1, 2, 18, 0, tzinfo=UTC), LogEntryType.BASAL, 27)
+
+    report = compute_report_data(
+        date(2026, 1, 2),
+        date(2026, 1, 2),
+        [_reading(timestamp, 120)],
+        [unchanged],
+        previous_basal=previous,
+    )
+    assert report.daily_protocols[0].setting_changes == []
+
+    changed = _entry(datetime(2026, 1, 2, 18, 0, tzinfo=UTC), LogEntryType.BASAL, 28)
+    report = compute_report_data(
+        date(2026, 1, 2),
+        date(2026, 1, 2),
+        [_reading(timestamp, 120)],
+        [changed],
+        previous_basal=previous,
+    )
+    changes = report.daily_protocols[0].setting_changes
+    assert [(change.kind, change.value, change.previous, change.unit) for change in changes] == [
+        ("basal", 28.0, 27.0, "U")
+    ]
+    assert changes[0].timestamp == "2026-01-02T19:00:00+01:00"
 
 
 def test_report_skips_non_finite_legacy_log_values():
@@ -730,6 +815,45 @@ def test_report_endpoint_scopes_logs_to_patient_and_uses_berlin_half_open_bounds
     assert day["readings"][0]["timestamp"] == "2026-01-10T00:00:00+01:00"
     assert day["carbs_total"] == 20.0
     assert day["rapid_insulin_total"] == 0.0
+
+
+def test_report_endpoint_annotates_setting_changes(
+    client, db_session, patient_user, observer_user, auth_headers
+):
+    patient = db_session.query(User).filter_by(email="patient@example.com").one()
+    day_start = datetime(2026, 1, 9, 23, 0, tzinfo=UTC)
+    db_session.add_all(
+        [
+            _reading(day_start, 120),
+            _entry(
+                datetime(2026, 1, 8, 17, 0, tzinfo=UTC),
+                LogEntryType.BASAL,
+                27,
+                user_id=patient.id,
+            ),
+            _entry(
+                datetime(2026, 1, 10, 17, 0, tzinfo=UTC),
+                LogEntryType.BASAL,
+                28,
+                user_id=patient.id,
+            ),
+            _carb_factor_change(datetime(2026, 1, 8, 20, 0, tzinfo=UTC), 1.5, user_id=patient.id),
+            _carb_factor_change(datetime(2026, 1, 10, 9, 0, tzinfo=UTC), 1.7, user_id=patient.id),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(
+        "/api/report?start=2026-01-10&end=2026-01-10",
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    changes = response.get_json()["daily_protocols"][0]["setting_changes"]
+    assert [(change["kind"], change["value"], change["previous"]) for change in changes] == [
+        ("carb_factor", 1.7, 1.5),
+        ("basal", 28.0, 27.0),
+    ]
 
 
 def test_report_endpoint_returns_404_when_no_patient(client, observer_user, auth_headers):

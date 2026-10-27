@@ -7,13 +7,21 @@ client are converted to Europe/Berlin.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from math import isfinite
 from zoneinfo import ZoneInfo
 
-from bgmon_api.models import MAX_LOG_ENTRY_VALUE, GlucoseReading, LogEntry, LogEntryType
+from bgmon_api.models import (
+    MAX_LOG_ENTRY_VALUE,
+    CarbFactorHistory,
+    GlucoseReading,
+    LogEntry,
+    LogEntryType,
+)
 
 LOCAL_TZ = ZoneInfo("Europe/Berlin")
 
@@ -55,6 +63,11 @@ _MAX_COVERAGE_CADENCE = timedelta(minutes=15)
 # JSON payloads for a busy 90-day report. Marker notes are shortened as well.
 _MAX_LOG_MARKERS_PER_DAY = 50
 _MAX_LOG_MARKER_NOTE_CHARS = 240
+
+# Rapid insulin without a carbohydrate entry in this window counts as a
+# correction bolus. The window matches the meal-bolus matching of the smart
+# alerts so a meal bolus logged a few minutes apart is not relabelled.
+_CORRECTION_CARB_WINDOW = timedelta(minutes=15)
 
 # Meal time blocks in local hours.  Night wraps from 22:00 through 04:00.
 _MEAL_BLOCKS = {
@@ -179,6 +192,17 @@ class LogMarker:
 
 
 @dataclass(frozen=True, slots=True)
+class SettingChange:
+    """A therapy setting change annotated on a daily glucose trace."""
+
+    timestamp: str
+    kind: str
+    value: float
+    previous: float | None
+    unit: str
+
+
+@dataclass(frozen=True, slots=True)
 class DayProtocol:
     """Hourly glucose ranges and log markers for one day."""
 
@@ -188,6 +212,7 @@ class DayProtocol:
     markers: list[LogMarker]
     marker_count: int
     markers_truncated: bool
+    setting_changes: list[SettingChange]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1174,20 +1199,80 @@ def _compute_monthly_overview(
     return overview
 
 
-def _marker_kind(entry: LogEntry) -> str | None:
+def _carb_timestamps(entries: Iterable[LogEntry]) -> list[datetime]:
+    """Return sorted UTC timestamps of all carbohydrate entries."""
+    return sorted(
+        _as_utc(entry.created_at) for entry in entries if entry.entry_type == LogEntryType.CARBS
+    )
+
+
+def _has_nearby_carbs(timestamp: datetime, carb_timestamps: Sequence[datetime]) -> bool:
+    """Report whether a carbohydrate entry lies within the correction window."""
+    position = bisect_left(carb_timestamps, timestamp)
+    for index in (position - 1, position):
+        if (
+            0 <= index < len(carb_timestamps)
+            and abs(carb_timestamps[index] - timestamp) <= _CORRECTION_CARB_WINDOW
+        ):
+            return True
+    return False
+
+
+def _marker_kind(entry: LogEntry, carb_timestamps: Sequence[datetime]) -> str | None:
     """Map stored log entry types to explicit report marker kinds."""
-    marker_kinds = {
-        LogEntryType.CARBS: "carbs",
-        LogEntryType.INSULIN: "rapid_insulin",
-        LogEntryType.BASAL: "basal",
-    }
-    return marker_kinds.get(entry.entry_type)
+    if entry.entry_type == LogEntryType.CARBS:
+        return "carbs"
+    if entry.entry_type == LogEntryType.BASAL:
+        return "basal"
+    if entry.entry_type == LogEntryType.INSULIN:
+        if _has_nearby_carbs(_as_utc(entry.created_at), carb_timestamps):
+            return "rapid_insulin"
+        return "correction"
+    return None
+
+
+def _setting_changes(
+    selected_date_keys: set[str],
+    start: datetime,
+    end: datetime,
+    series: Sequence[tuple[str, Sequence[tuple[datetime, float, str]]]],
+) -> dict[str, list[SettingChange]]:
+    """Collect real therapy setting changes per local day.
+
+    The log routes store a history row for every save, even when the value did
+    not change, so consecutive equal values are collapsed. Each series may start
+    with one pre-period row to establish the previous value.
+    """
+    changes: dict[str, list[SettingChange]] = {key: [] for key in selected_date_keys}
+    for kind, rows in series:
+        previous: float | None = None
+        for changed_at, value, unit in sorted(rows, key=lambda row: row[0]):
+            if previous is not None and value == previous:
+                continue
+            if start <= changed_at < end:
+                day_key = changed_at.astimezone(LOCAL_TZ).date().isoformat()
+                if day_key in changes:
+                    changes[day_key].append(
+                        SettingChange(
+                            timestamp=changed_at.astimezone(LOCAL_TZ).isoformat(timespec="seconds"),
+                            kind=kind,
+                            value=value,
+                            previous=previous,
+                            unit=unit,
+                        )
+                    )
+            previous = value
+    for day_changes in changes.values():
+        day_changes.sort(key=lambda change: change.timestamp)
+    return changes
 
 
 def _compute_daily_protocols(
     selected_days: list[date],
     readings_by_date: dict[str, list[_ReadingSample]],
     entries_by_date: dict[str, list[LogEntry]],
+    carb_timestamps: Sequence[datetime],
+    setting_changes_by_date: dict[str, list[SettingChange]],
 ) -> list[DayProtocol]:
     """Build 24 clinical hourly intervals and log markers for each day."""
     protocols: list[DayProtocol] = []
@@ -1216,7 +1301,7 @@ def _compute_daily_protocols(
             for entry in sorted(
                 entries_by_date.get(day_key, []), key=lambda entry: _as_utc(entry.created_at)
             )
-            if (kind := _marker_kind(entry)) is not None
+            if (kind := _marker_kind(entry, carb_timestamps)) is not None
         ]
         marker_count = len(marker_entries)
         markers = [
@@ -1241,6 +1326,7 @@ def _compute_daily_protocols(
                 markers=markers,
                 marker_count=marker_count,
                 markers_truncated=marker_count > len(markers),
+                setting_changes=setting_changes_by_date.get(day_key, []),
             )
         )
     return protocols
@@ -1462,6 +1548,8 @@ def compute_report_data(
     patient_name: str = "",
     predecessor: GlucoseReading | None = None,
     effective_end: datetime | None = None,
+    carb_factor_history: Sequence[CarbFactorHistory] = (),
+    previous_basal: LogEntry | None = None,
 ) -> ReportData:
     """Compute a complete report for an inclusive Europe/Berlin date range.
 
@@ -1478,6 +1566,32 @@ def compute_report_data(
         raise ValueError("report effective end must not precede its start")
     readings_local, entries_local, clinical_reading_count, readings_by_date, entries_by_date = (
         _collect_local(readings, entries, selected_date_keys, start_utc, end_utc)
+    )
+    basal_entries = [
+        entry for entry in entries_local if entry.entry_type == LogEntryType.BASAL
+    ]
+    if previous_basal is not None:
+        basal_entries.insert(0, previous_basal)
+    setting_changes_by_date = _setting_changes(
+        selected_date_keys,
+        start_utc,
+        end_utc,
+        (
+            (
+                "carb_factor",
+                [
+                    (_as_utc(row.changed_at), float(row.factor), row.unit or "g/IE")
+                    for row in carb_factor_history
+                ],
+            ),
+            (
+                "basal",
+                [
+                    (_as_utc(entry.created_at), float(entry.value), entry.unit or "U")
+                    for entry in basal_entries
+                ],
+            ),
+        ),
     )
     clinical_selected_readings = [
         reading for reading in readings_local if not reading.is_compression_low
@@ -1545,6 +1659,8 @@ def compute_report_data(
             selected_days,
             readings_by_date,
             entries_by_date,
+            _carb_timestamps(entries_local),
+            setting_changes_by_date,
         ),
         snapshot=_compute_snapshot(
             entries_local,
