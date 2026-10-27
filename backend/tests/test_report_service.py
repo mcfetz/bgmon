@@ -164,7 +164,6 @@ def test_report_uses_berlin_dates_and_spines_all_daily_views():
     assert [marker.kind for marker in report.daily_protocols[1].markers] == [
         "rapid_insulin",
         "basal",
-        "note",
     ]
     assert len(report.snapshot.coverage_profile) == 12
     assert "sensor_active_percent" not in asdict(report)["glucose_stats"]
@@ -176,8 +175,8 @@ def test_daily_protocol_caps_markers_and_long_notes():
     entries = [
         _entry(
             timestamp + timedelta(minutes=index),
-            LogEntryType.NOTE,
-            0,
+            LogEntryType.INSULIN,
+            1.5,
             notes="x" * 300,
         )
         for index in range(55)

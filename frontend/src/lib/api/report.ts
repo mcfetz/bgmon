@@ -82,7 +82,7 @@ export interface IntervalMinMax {
 
 export interface LogMarker {
 	timestamp: string;
-	kind: 'carbs' | 'rapid_insulin' | 'basal' | 'note';
+	kind: 'carbs' | 'rapid_insulin' | 'basal';
 	value: number;
 	unit: string;
 	notes: string | null;

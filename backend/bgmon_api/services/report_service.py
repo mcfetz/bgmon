@@ -1180,7 +1180,6 @@ def _marker_kind(entry: LogEntry) -> str | None:
         LogEntryType.CARBS: "carbs",
         LogEntryType.INSULIN: "rapid_insulin",
         LogEntryType.BASAL: "basal",
-        LogEntryType.NOTE: "note",
     }
     return marker_kinds.get(entry.entry_type)
 

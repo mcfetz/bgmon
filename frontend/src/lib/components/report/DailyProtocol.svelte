@@ -49,8 +49,7 @@
 	function markerColor(marker: LogMarker): string {
 		if (marker.kind === 'carbs') return '#b57600';
 		if (marker.kind === 'rapid_insulin') return '#176b87';
-		if (marker.kind === 'basal') return '#5c4b8a';
-		return '#596a72';
+		return '#5c4b8a';
 	}
 
 	function markerTitle(marker: LogMarker): string {
@@ -59,29 +58,55 @@
 				? 'Kohlenhydrate'
 				: marker.kind === 'rapid_insulin'
 					? 'Schnellinsulin'
-					: marker.kind === 'basal'
-						? 'Basalinsulin'
-						: 'Notiz';
+					: 'Basalinsulin';
 		const value = `${marker.value}${marker.unit}`;
 		return [marker.timestamp, kind, value, marker.notes?.trim()].filter(Boolean).join(' · ');
 	}
 
-	function truncate(value: string, maximumLength: number): string {
-		return value.length > maximumLength ? `${value.slice(0, maximumLength - 3)}...` : value;
-	}
-
-	function markerSummary(marker: LogMarker): string {
-		if (marker.kind === 'carbs') return `KH ${marker.value}${marker.unit}`;
-		if (marker.kind === 'rapid_insulin') return `Schnell ${marker.value}${marker.unit}`;
-		if (marker.kind === 'basal') return `Basal ${marker.value}${marker.unit}`;
-		return `Notiz ${truncate(marker.notes?.trim() || 'ohne Text', 26)}`;
+	function markerLabel(marker: LogMarker): string {
+		return `${marker.value}${marker.unit}`;
 	}
 
 	function markerSymbol(marker: LogMarker): string {
 		if (marker.kind === 'carbs') return 'KH';
 		if (marker.kind === 'rapid_insulin') return 'S';
-		if (marker.kind === 'basal') return 'B';
-		return 'N';
+		return 'B';
+	}
+
+	interface PlacedMarker {
+		marker: LogMarker;
+		x: number;
+		y: number;
+		label: string;
+		labelX: number;
+		anchor: 'start' | 'end';
+	}
+
+	const MARKER_LANE_Y = [0, 1, 2, 3].map((lane) => pad.top + 4 + lane * 8.6);
+	const MARKER_LABEL_OFFSET = 7;
+	const MARKER_LABEL_CHAR_WIDTH = 4.2;
+
+	function layoutMarkers(markers: LogMarker[]): PlacedMarker[] {
+		const laneEnds = MARKER_LANE_Y.map(() => Number.NEGATIVE_INFINITY);
+		return markers.map((marker) => {
+			const x = xScale(timeOfDayMinutes(marker.timestamp));
+			const label = markerLabel(marker);
+			const labelWidth = MARKER_LABEL_OFFSET + label.length * MARKER_LABEL_CHAR_WIDTH;
+			let lane = laneEnds.findIndex((end) => x - MARKER_LABEL_OFFSET >= end);
+			if (lane === -1) {
+				lane = laneEnds.indexOf(Math.min(...laneEnds));
+			}
+			laneEnds[lane] = x + labelWidth;
+			const anchor = x > width - pad.right - labelWidth ? 'end' : 'start';
+			return {
+				marker,
+				x,
+				y: MARKER_LANE_Y[lane],
+				label,
+				labelX: anchor === 'end' ? -MARKER_LABEL_OFFSET : MARKER_LABEL_OFFSET,
+				anchor
+			};
+		});
 	}
 
 	function valueClass(value: number | null): string {
@@ -96,8 +121,7 @@
 	{#each protocols as protocol}
 		{@const readings = readingsByDate.get(protocol.date) ?? []}
 		{@const chart = trace(readings)}
-		{@const markerSummaries = protocol.markers.slice(0, 4)}
-		{@const undisplayedMarkerCount = Math.max(0, protocol.marker_count - markerSummaries.length)}
+		{@const markerLayout = layoutMarkers(protocol.markers)}
 		<article class="protocol-panel">
 			<header class="protocol-header">
 				<strong>{protocol.weekday.toUpperCase()} {shortDate(protocol.date)}</strong>
@@ -178,13 +202,20 @@
 							<title>{cap.label}</title>
 						</path>
 					{/each}
-					{#each protocol.markers as marker}
-						<g
-							transform={`translate(${xScale(timeOfDayMinutes(marker.timestamp))} ${pad.top + 8})`}
-						>
-							<title>{markerTitle(marker)}</title>
-							<circle r="5.2" fill={markerColor(marker)} stroke="#fff" stroke-width="1" />
-							<text y="2.3" text-anchor="middle" class="marker-symbol">{markerSymbol(marker)}</text>
+					{#each markerLayout as placed}
+						<g transform={`translate(${placed.x} ${placed.y})`}>
+							<title>{markerTitle(placed.marker)}</title>
+							<circle r="3.9" fill={markerColor(placed.marker)} stroke="#fff" stroke-width="0.9" />
+							<text y="1.5" text-anchor="middle" class="marker-symbol"
+								>{markerSymbol(placed.marker)}</text
+							>
+							<text
+								x={placed.labelX}
+								y="2.2"
+								text-anchor={placed.anchor}
+								class="marker-value"
+								fill={markerColor(placed.marker)}>{placed.label}</text
+							>
 						</g>
 					{/each}
 				</svg>
@@ -208,22 +239,10 @@
 					</div>
 				</div>
 			</div>
-			{#if protocol.markers.length > 0}
-				<div class="marker-summary" aria-label={`Protokollierte Marker ${protocol.date}`}>
-					{#each markerSummaries as marker}
-						<span class="summary-marker" title={markerTitle(marker)}
-							><i style={`background: ${markerColor(marker)}`}></i>{markerSummary(marker)}</span
-						>
-					{/each}
-					{#if undisplayedMarkerCount > 0}
-						<span class="more-markers">+ {undisplayedMarkerCount} weitere</span>
-					{/if}
-					{#if protocol.markers_truncated}
-						<span class="more-markers" title="Marker-Darstellung wurde begrenzt"
-							>Darstellung begrenzt</span
-						>
-					{/if}
-				</div>
+			{#if protocol.markers_truncated}
+				<p class="marker-note">
+					Darstellung auf {protocol.markers.length} von {protocol.marker_count} Einträgen begrenzt.
+				</p>
 			{/if}
 		</article>
 	{/each}
@@ -233,9 +252,8 @@
 	<span><i class="carbs"></i>KH</span>
 	<span><i class="rapid"></i>Schnellinsulin</span>
 	<span><i class="basal"></i>Basalinsulin</span>
-	<span><i class="note"></i>Notiz</span>
 	<span><i class="compression"></i>Möglicher Kompressionswert</span>
-	<span>Marker zeigen nur protokollierte Einträge.</span>
+	<span>Zahl am Marker: Menge in KE bzw. U</span>
 </footer>
 
 <style>
@@ -313,9 +331,18 @@
 	}
 
 	.marker-symbol {
-		font-size: 5px;
+		font-size: 4.6px;
 		fill: #fff;
 		font-weight: 800;
+	}
+
+	.marker-value {
+		font-size: 6.3px;
+		font-weight: 700;
+		paint-order: stroke;
+		stroke: #fff;
+		stroke-width: 1.7px;
+		stroke-linejoin: round;
 	}
 
 	.ranges-scroll {
@@ -381,32 +408,10 @@
 		color: #536b75;
 	}
 
-	.marker-summary {
-		display: flex;
-		align-items: center;
-		gap: 0.12rem 0.4rem;
-		height: 0.78rem;
+	.marker-note {
 		margin: 0.16rem 0 0 2rem;
-		overflow: hidden;
 		font-size: 0.57rem;
-		line-height: 0.78rem;
 		color: #536b75;
-	}
-
-	.summary-marker {
-		display: inline-flex;
-		flex: 1 1 0;
-		min-width: 0;
-		align-items: center;
-		gap: 0.18rem;
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-
-	.more-markers {
-		flex: 0 0 auto;
-		white-space: nowrap;
 	}
 
 	.protocol-legend span {
@@ -415,7 +420,6 @@
 		gap: 0.18rem;
 	}
 
-	.marker-summary i,
 	.protocol-legend i {
 		display: inline-block;
 		width: 0.42rem;
@@ -439,10 +443,6 @@
 
 	.basal {
 		background: #5c4b8a;
-	}
-
-	.note {
-		background: #596a72;
 	}
 
 	.compression {
@@ -480,14 +480,9 @@
 			font-size: 4.7pt;
 		}
 
-		.marker-summary,
+		.marker-note,
 		.protocol-legend {
 			font-size: 5.2pt;
-		}
-
-		.marker-summary {
-			height: 2.8mm;
-			line-height: 2.8mm;
 		}
 
 		.protocol-legend {
