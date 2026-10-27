@@ -8,6 +8,19 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-10-28-agp-report-details',
+		versionPrefixes: ['0ac83c3', 'd2bbc1f'],
+		publishedAt: '2026-10-28',
+		title: 'AGP-Bericht: Mehr Details im Tagesprotokoll',
+		highlights: [
+			'💉 Mengen direkt im Diagramm: Insulin, Basal und Kohlenhydrate werden jetzt mit ihrer Menge direkt im Glukoseverlauf angezeigt; Notizen erscheinen nicht mehr als Marker.',
+			'🎯 Korrekturinsulin klar getrennt: Schnellinsulin ohne KH-Eintrag im 15-Minuten-Fenster wird rot als Korrekturinsulin markiert, Mahlzeiten-Bolus bleibt blau.',
+			'📈 Änderungen sichtbar: Gestrichelte vertikale Linien zeigen Änderungen von KE-Faktor (aus der Historie) und geänderter Basaldosis mit Vorher/Nachher-Wert.',
+			'🧩 Bessere Übersicht bei vielen Einträgen: Bis zu 4 übereinander gestapelte Marker-Spuren verhindern Überlappungen, auch bei mehreren Einträgen zur gleichen Zeit.',
+			'🖨️ Optimiert für A4-Druck: Legende und Hinweise angepasst, damit mehr Informationen im Tagesprotokoll lesbar bleiben.'
+		]
+	},
+	{
 		id: '2026-09-25-insulin-stock',
 		versionPrefixes: ['622dfa8', 'e32b8b8', '27d41b2', 'a1753e4'],
 		publishedAt: '2026-09-25',
