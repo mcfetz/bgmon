@@ -27,13 +27,15 @@
 ### AGP-Bericht (Druck/PDF)
 - **Ambulantes Glukoseprofil** nach FreeStyle-Libre-3-Format — klinischer Standard für Diabetologen
 - **Zehn Abschnitte**: Glukosestatistik, AGP-Kurve (Perzentil-Bänder), tägliche Profile, überlagerte Tagesverläufe, Monatskalender, Tagesprotokoll, Momentaufnahme, Mahlzeitenprofil, Wochenübersicht, Tagesmuster
+- **Tagesprotokoll mit Mengen**: Marker zeigen `7.5KE` / `11.5U` direkt im Verlauf (vier Spuren gegen Überlappung), Korrekturinsulin ohne Mahlzeit wird separat mit `K` geführt, KE-Faktor- und Basaldosis-Änderungen erscheinen als gestrichelte Linie mit Vorher-/Nachher-Wert
+- **Low Events nach Konsens**: Unterzuckerungen zählen ab 15 Minuten unter 70 mg/dL (AGP/ATTD), vergleichbar mit LibreView
 - **Drucken / PDF** mit einem Klick — A4-Seitenaufteilung mit automatischen Seitenumbrüchen
 - **Max. 90 Tage** Zeitraum, default letzte 14 Tage, Europe/Berlin-Zeitzone
 - Zugriff über `/report` (Navigation: "Bericht")
 
 ### Keine-Daten-Alarm
 - **Sensor-Timeout-Alarm**: Warnung wenn der CGM-Sensor keine neuen Werte liefert
-- **Konfigurierbar** in den Einstellungen (1–600 Minuten, Default: 15)
+- **Konfigurierbar** in den Einstellungen (1–1440 Minuten, Default: 15)
 - **Automatisches Auflösen** sobald frische Daten eingehen
 - **Push oder Anruf** je nach Notification-Profil — als eigener Schwellwert "Keine Daten" konfigurierbar
 
@@ -60,6 +62,11 @@
 - **⚠️ Einheitliche Badge-Leiste** unter dem Header und im BG-Modal
 - **Logbuch-Eintrag** als NOTE mit SmartAlert-Präfix für Audit-Trail
 - **Konfigurierbar** in `global_settings` (alle Schwellwerte anpassbar)
+
+### Vorrat
+- **Dashboard-Kachel „Vorrat"**: Resttage für Schnellinsulin, Basalinsulin, Spritzenköpfe und Sensoren
+- **Verbrauch aus echten Daten**: Insulin über den 14-Tage-Ø des Logbuchs (inkl. 1 Einheit pro Injektion), Spritzenköpfe über die Injektionen seit dem Zählen, Sensoren über die Zeit seit dem Zählen (14 Tage pro Sensor)
+- **Nachschub-Warnung** als eigener Smart-Alert, sobald der rechnerische Vorrat unter die konfigurierte Tage-Schwelle fällt
 
 ### Gamification
 - **Streak-Tracking** für konsequente Eintragungen
@@ -92,7 +99,11 @@ Walk-Forward-Cross-Validation auf den historischen Daten.
 
 **Aktivierung**: `BGMON_ML_ENABLED=true` in `.env`, dann einmalig `flask predictor train`
 ausführen. Training und Evaluierung sind auch über Einstellungen → ML im Frontend
-verfügbar (Admin-only, asynchron mit Status-Polling).
+verfügbar (Admin-only, asynchron mit Fortschrittsbalken, Phase, Laufzeit und Restzeit-Schätzung).
+
+**Bewertung**: Jede Modellversion wird gegen die Baseline „letzten Wert fortschreiben"
+gestellt — inklusive Anteil tatsächlich bewertbarer Punkte und Urteil zur Belastbarkeit.
+Versionen werden nur über den Zeitraum verglichen, in dem beide aktiv waren.
 
 **Anzeige**: Im Dashboard erscheinen farbige Prognose-Linien im GlucoseGraph
 (Blau = 30 min, Lila = 60 min, Orange = 120 min) mit Konfidenzbändern, sowie Prognose-Karten
@@ -111,8 +122,8 @@ zur Qualitätskontrolle („wie gut war die Vorhersage von vor 2 Stunden?").
 
 | Komponente  | Technologie                              |
 |-------------|------------------------------------------|
-| Backend     | Python 3.12+, Flask 3, SQLAlchemy 2      |
-| Frontend    | Svelte 5, Vite 8, TypeScript             |
+| Backend     | Python 3.14, Flask 3, SQLAlchemy 2      |
+| Frontend    | Svelte 5, SvelteKit 3, Vite 8, TypeScript |
 | Datenbank   | PostgreSQL 18                            |
 | Telefonie   | Twilio Voice API                         |
 | Push        | VAPID / Web-Push (`pywebpush`)           |
