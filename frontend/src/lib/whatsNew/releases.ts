@@ -9,7 +9,7 @@ export interface WhatsNewEntry {
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
 		id: '2026-10-29-supplies',
-		versionPrefixes: ['d7487443', ''],
+		versionPrefixes: ['d13f8e6', 'd7487443'],
 		publishedAt: '2026-10-29',
 		title: 'Vorrat: Insulin, Basal und Spritzenköpfe',
 		highlights: [
