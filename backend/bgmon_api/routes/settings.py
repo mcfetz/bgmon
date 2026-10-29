@@ -384,6 +384,7 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     compression_low_confidence_threshold = data.get("compression_low_confidence_threshold")
     insulin_stock = data.get("insulin_stock")
     basal_stock = data.get("basal_stock")
+    needle_stock = data.get("needle_stock")
     smart_alert_int_fields = {
         "compression_cooldown_minutes": (1, 1440),
         "postprandial_spike_cooldown_minutes": (1, 1440),
@@ -439,6 +440,18 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     ):
         return (
             jsonify({"error": "basal_stock must be positive number or null"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    if needle_stock is not None and (
+        isinstance(needle_stock, bool)
+        or not isinstance(needle_stock, int)
+        or isinstance(needle_stock, bool)
+        or not isinstance(needle_stock, (int,))
+        or needle_stock < 0
+    ):
+        return (
+            jsonify({"error": "needle_stock must be non-negative integer or null"}),
             HTTPStatus.BAD_REQUEST,
         )
 
@@ -508,6 +521,10 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
         value = data["basal_stock"]
         settings.basal_stock = float(value) if value is not None else None
         settings.basal_stock_set_at = datetime.now(UTC) if value is not None else None
+    if "needle_stock" in data:
+        value = data["needle_stock"]
+        settings.needle_stock = int(value) if value is not None else None
+        settings.needle_stock_set_at = datetime.now(UTC) if value is not None else None
 
     for field in smart_alert_int_fields | smart_alert_float_fields:
         if data.get(field) is not None:

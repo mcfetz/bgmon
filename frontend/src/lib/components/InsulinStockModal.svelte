@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { InsulinStockInfo, StatsData } from '#lib/api/dashboard.js';
+	import type { InsulinStockInfo, NeedleStockInfo, StatsData } from '#lib/api/dashboard.js';
 
 	let {
 		open = $bindable(false),
@@ -31,18 +31,22 @@
 	function formatUnits(value: number | null | undefined): string {
 		return value == null ? '—' : String(value);
 	}
+
+	function formatCount(value: number | null | undefined): string {
+		return value == null ? '—' : String(value);
+	}
 </script>
 
 {#if open}
 	<button class="sm-backdrop" type="button" onclick={close} aria-label="Schließen"></button>
 	<div class="sm-modal" role="dialog" aria-modal="true" aria-label="Insulin-Vorrat">
 		<header class="sm-header">
-			<h2>Insulin-Vorrat 📦</h2>
+			<h2>Vorrat 📦</h2>
 			<button class="close-btn" type="button" onclick={close} aria-label="Schließen">×</button>
 		</header>
 
 		<div class="sm-body">
-			{#if !info?.bolus?.configured && !info?.basal?.configured}
+			{#if !info?.bolus?.configured && !info?.basal?.configured && !info?.needles?.configured}
 				<p class="sm-empty">
 					Kein Bestand hinterlegt. Lege ihn unter <em>Einstellungen → Faktoren</em> an, um den Vorrat
 					zu verfolgen.
@@ -103,6 +107,62 @@
 						</section>
 					{/if}
 				{/each}
+
+				{#if info?.needles}
+					{@const needles = info.needles as NeedleStockInfo}
+					<section class="sm-section" class:low={needles.low_stock}>
+						<div class="sm-section-head">
+							<h3 class="sm-section-title">🧷 Spritzenköpfe</h3>
+							{#if needles.configured && needles.low_stock}
+								<span class="sm-low-badge">Nachschub besorgen</span>
+							{/if}
+						</div>
+
+						{#if needles.configured}
+							<div class="sm-value-row">
+								<span class="sm-value" class:low={needles.low_stock}
+									>{formatDays(needles.days_left)}</span
+								>
+								<span class="sm-unit">Tage</span>
+							</div>
+
+							<ul class="sm-details">
+								<li>
+									<span class="sm-detail-label">Rechnerisch verbleibend</span>
+									<span class="sm-detail-value">{formatCount(needles.effective_stock)} Stk.</span>
+								</li>
+								<li>
+									<span class="sm-detail-label">Gezählt (Bestand)</span>
+									<span class="sm-detail-value"
+										>{formatCount(needles.stock_units)} Stk. · {formatCountDate(
+											needles.stock_set_at
+										)}</span
+									>
+								</li>
+								<li>
+									<span class="sm-detail-label">Verbrauch seit Zählen</span>
+									<span class="sm-detail-value"
+										>{formatCount(needles.consumed_since_set_at)} Stk.</span
+									>
+								</li>
+								<li>
+									<span class="sm-detail-label">Verbrauch (14-Tage-Ø)</span>
+									<span class="sm-detail-value"
+										>~{formatCount(needles.avg_daily_injections)} Stk./Tag</span
+									>
+								</li>
+								<li>
+									<span class="sm-detail-label">Warnschwelle</span>
+									<span class="sm-detail-value">unter {needles.low_stock_days} Tagen</span>
+								</li>
+							</ul>
+						{:else}
+							<p class="sm-empty">
+								Bestand nicht konfiguriert — unter <em>Einstellungen → Faktoren</em> hinterlegen.
+							</p>
+						{/if}
+					</section>
+				{/if}
 			{/if}
 		</div>
 	</div>

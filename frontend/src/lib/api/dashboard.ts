@@ -51,6 +51,7 @@ export interface StatsData {
 		low_stock_days: number;
 		bolus: InsulinStockInfo;
 		basal: InsulinStockInfo;
+		needles?: NeedleStockInfo | null;
 	} | null;
 }
 
@@ -68,6 +69,19 @@ export interface InsulinStockInfo {
 	avg_daily_injections: number;
 	active_days: number;
 	lookback_days: number;
+}
+
+export interface NeedleStockInfo {
+	configured: boolean;
+	stock_units: number | null;
+	stock_set_at: string | null;
+	consumed_since_set_at: number;
+	effective_stock: number | null;
+	days_left: number | null;
+	low_stock_days: number;
+	low_stock: boolean;
+	avg_daily_injections: number;
+	usage_per_day: number;
 }
 
 export type TimeRange = 'today' | 'yesterday' | 'this_week' | 'last_week';

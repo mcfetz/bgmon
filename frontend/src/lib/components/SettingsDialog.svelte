@@ -143,6 +143,7 @@
 	let compressionLowEnabled: boolean = $state(true);
 	let insulinStock: number | string = $state('');
 	let basalStock: number | string = $state('');
+	let needleStock: number | string = $state('');
 	let lowStockDays: number | string = $state(14);
 
 	type NotificationArea = 'push' | 'call';
@@ -690,6 +691,7 @@
 				compressionLowEnabled = data.compression_low_enabled ?? true;
 				insulinStock = data.insulin_stock ?? '';
 				basalStock = data.basal_stock ?? '';
+				needleStock = data.needle_stock ?? '';
 				lowStockDays = data.low_stock_days ?? 14;
 			}
 
@@ -887,6 +889,7 @@
 						compression_low_enabled: compressionLowEnabled,
 						insulin_stock: insulinStock === '' ? null : Number(insulinStock),
 						basal_stock: basalStock === '' ? null : Number(basalStock),
+						needle_stock: needleStock === '' ? null : Number(needleStock),
 						low_stock_days: Number(lowStockDays)
 					})
 				})
@@ -1302,6 +1305,21 @@
 						</div>
 
 						<div class="field">
+							<label>Spritzenköpfe (Stück)</label>
+							<input
+								type="text"
+								inputmode="numeric"
+								bind:value={needleStock}
+								pattern="[0-9]*"
+								placeholder="100"
+							/>
+							<p class="hint">
+								Anzahl Spritzenköpfe aktuell im Vorrat. Der Verbrauch wird anhand der
+								Schnellinsulin-Injektionen der letzten 14 Tage geschätzt.
+							</p>
+						</div>
+
+						<div class="field">
 							<label>Vorratswarnung nach verbleibenden Tagen</label>
 							<input
 								type="text"
@@ -1317,9 +1335,7 @@
 					{/if}
 
 					{#if isPatient}
-						<p class="hint">
-							Korrekturfaktor, Insulin-Wirkzeit und Insulinvorräte legt der Admin fest.
-						</p>
+						<p class="hint">Korrekturfaktor, Insulin-Wirkzeit und Vorräte legt der Admin fest.</p>
 					{/if}
 
 					<button class="submit-btn" onclick={saveTreatment}>Speichern</button>

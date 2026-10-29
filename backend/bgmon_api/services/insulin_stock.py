@@ -39,6 +39,10 @@ TYPE_LABELS = {
     LogEntryType.BASAL: "Basalinsulin",
 }
 
+NEEDLE_STOCK_FIELD = "needle_stock"
+NEEDLE_STOCK_SET_AT_FIELD = "needle_stock_set_at"
+DEFAULT_LOW_NEEDLE_STOCK_DAYS = 14
+
 
 def _settings() -> GlobalSettings:
     s = GlobalSettings.query.first()
@@ -131,6 +135,54 @@ def days_left(stock: float | None, usage_per_day: float) -> float | None:
     return round(stock / usage_per_day, 1)
 
 
+def _count_injections_since(since: datetime | None) -> int:
+    if since is None:
+        return 0
+    patient_id = _get_patient_id()
+    if patient_id is None:
+        return 0
+    start = _utc(since)
+    return (
+        LogEntry.query.filter(
+            LogEntry.user_id == patient_id,
+            LogEntry.entry_type == LogEntryType.INSULIN,
+            LogEntry.created_at >= start,
+        ).count()
+    )
+
+
+def _needle_days_left(stock: int | None, daily_injections: float) -> float | None:
+    if stock is None or stock <= 0 or daily_injections <= 0:
+        return None
+    return round(stock / daily_injections, 1)
+
+
+def _build_needle_status(settings: GlobalSettings) -> dict:
+    usage = estimate_daily_usage(entry_type=LogEntryType.INSULIN)
+    daily_injections = usage.get("avg_daily_injections", 0.0)
+    stock = settings.needle_stock
+    set_at = settings.needle_stock_set_at
+    consumed = _count_injections_since(set_at)
+    effective_stock = stock - consumed if stock is not None else None
+    if effective_stock is not None and effective_stock <= 0:
+        remaining = 0.0
+    else:
+        remaining = _needle_days_left(effective_stock, daily_injections)
+    low_stock_days = settings.low_stock_days or DEFAULT_LOW_NEEDLE_STOCK_DAYS
+    return {
+        "configured": stock is not None,
+        "stock_units": stock,
+        "stock_set_at": set_at.isoformat() if set_at else None,
+        "consumed_since_set_at": consumed,
+        "effective_stock": effective_stock,
+        "days_left": remaining,
+        "low_stock_days": low_stock_days,
+        "low_stock": remaining is not None and remaining < low_stock_days,
+        "avg_daily_injections": round(daily_injections, 1),
+        "usage_per_day": daily_injections,
+    }
+
+
 def _build_status(
     entry_type: LogEntryType,
     stock: float | None,
@@ -184,6 +236,7 @@ def compute_status() -> dict:
             _set_at(SET_AT_FIELD[LogEntryType.BASAL]),
             low_stock_days,
         ),
+        "needles": _build_needle_status(settings),
     }
 
 

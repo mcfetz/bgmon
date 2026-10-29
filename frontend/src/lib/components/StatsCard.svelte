@@ -311,7 +311,7 @@
 				type="button"
 				onclick={() => (insulinStockModalOpen = true)}
 			>
-				<span class="label">Insulin-Vorrat 📦</span>
+				<span class="label">Vorrat 📦</span>
 				{#if stats?.insulin_stock}
 					{@const bolusDays = stats.insulin_stock.bolus?.configured
 						? stats.insulin_stock.bolus.days_left
@@ -349,8 +349,8 @@
 					type="button"
 					aria-pressed={visibleTiles.includes('insulin-stock')}
 					aria-label={visibleTiles.includes('insulin-stock')
-						? 'Insulin-Vorrat ausblenden'
-						: 'Insulin-Vorrat einblenden'}
+						? 'Vorrat ausblenden'
+						: 'Vorrat einblenden'}
 					onclick={() => onToggleTile('insulin-stock')}
 				>
 					<span>{visibleTiles.includes('insulin-stock') ? 'Aktiv' : 'Ausgeblendet'}</span>
