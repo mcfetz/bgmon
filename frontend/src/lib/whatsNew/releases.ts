@@ -11,11 +11,12 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 		id: '2026-10-29-supplies',
 		versionPrefixes: ['d13f8e6', 'd7487443'],
 		publishedAt: '2026-10-29',
-		title: 'Vorrat: Insulin, Basal und Spritzenköpfe',
+		title: 'Vorrat: Insulin, Basal, Spritzenköpfe & Sensoren',
 		highlights: [
-			'📦 Neuer Reiter „Vorrat“: Die Statistik-Kachel heißt jetzt „Vorrat“ und zeigt neben Insulin auch Spritzenköpfe.',
+			'📦 Neuer Reiter „Vorrat“: Die Statistik-Kachel heißt jetzt „Vorrat“ und zeigt neben Insulin auch Spritzenköpfe und Sensoren.',
 			'🧷 Spritzenköpfe zählen: Im Modal und in den Einstellungen kannst du jetzt den Bestand an Spritzenköpfen hinterlegen – der Verbrauch wird automatisch aus den Schnellinsulin-Injektionen der letzten 14 Tage geschätzt.',
-			'⚠️ Frühzeitige Warnung: Für Spritzenköpfe gilt die gleiche Vorratswarnung wie für Insulin – wenn der Bestand unter die eingestellte Tage-Anzahl fällt, erscheint ein Nachschub-Hinweis.',
+			'📡 Sensoren verfolgen: Bestand an Sensoren erfassen – der Verbrauch ergibt sich aus der Zeit seit dem Zählen (ca. 14 Tage pro Sensor), inklusive Anzeige der verbleibenden Tage.',
+			'⚠️ Frühzeitige Warnung: Für Spritzenköpfe und Sensoren gilt die gleiche Vorratswarnung wie für Insulin – wenn der Bestand unter die eingestellte Tage-Anzahl fällt, erscheint ein Nachschub-Hinweis.',
 			'📊 AGP-Bericht verfeinert: Mengen im Tagesprotokoll, separate Korrekturinsulin-Markierung und gestrichelte Linien für KE-Faktor- und Basaldosis-Änderungen.'
 		]
 	},

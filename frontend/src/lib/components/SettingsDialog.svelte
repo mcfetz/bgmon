@@ -144,6 +144,7 @@
 	let insulinStock: number | string = $state('');
 	let basalStock: number | string = $state('');
 	let needleStock: number | string = $state('');
+	let sensorStock: number | string = $state('');
 	let lowStockDays: number | string = $state(14);
 
 	type NotificationArea = 'push' | 'call';
@@ -692,6 +693,7 @@
 				insulinStock = data.insulin_stock ?? '';
 				basalStock = data.basal_stock ?? '';
 				needleStock = data.needle_stock ?? '';
+				sensorStock = data.sensor_stock ?? '';
 				lowStockDays = data.low_stock_days ?? 14;
 			}
 
@@ -890,6 +892,7 @@
 						insulin_stock: insulinStock === '' ? null : Number(insulinStock),
 						basal_stock: basalStock === '' ? null : Number(basalStock),
 						needle_stock: needleStock === '' ? null : Number(needleStock),
+						sensor_stock: sensorStock === '' ? null : Number(sensorStock),
 						low_stock_days: Number(lowStockDays)
 					})
 				})
@@ -1316,6 +1319,21 @@
 							<p class="hint">
 								Anzahl Spritzenköpfe aktuell im Vorrat. Der Verbrauch wird anhand der
 								Schnellinsulin-Injektionen der letzten 14 Tage geschätzt.
+							</p>
+						</div>
+
+						<div class="field">
+							<label>Sensoren (Stück)</label>
+							<input
+								type="text"
+								inputmode="numeric"
+								bind:value={sensorStock}
+								pattern="[0-9]*"
+								placeholder="10"
+							/>
+							<p class="hint">
+								Anzahl Sensoren aktuell im Vorrat. Ein Sensor hält ca. 14 Tage, der Verbrauch wird
+								aus der Zeit seit dem Zählen abgeleitet.
 							</p>
 						</div>
 

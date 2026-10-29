@@ -43,6 +43,11 @@ NEEDLE_STOCK_FIELD = "needle_stock"
 NEEDLE_STOCK_SET_AT_FIELD = "needle_stock_set_at"
 DEFAULT_LOW_NEEDLE_STOCK_DAYS = 14
 
+SENSOR_STOCK_FIELD = "sensor_stock"
+SENSOR_STOCK_SET_AT_FIELD = "sensor_stock_set_at"
+DEFAULT_LOW_SENSOR_STOCK_DAYS = 14
+SENSOR_LIFETIME_DAYS = 14.0
+
 
 def _settings() -> GlobalSettings:
     s = GlobalSettings.query.first()
@@ -183,6 +188,44 @@ def _build_needle_status(settings: GlobalSettings) -> dict:
     }
 
 
+def _build_sensor_status(settings: GlobalSettings) -> dict:
+    """Sensor stock: one sensor covers a fixed lifetime, so usage is time-based.
+
+    There is no reliable log event for a sensor change, so consumption is
+    derived from the elapsed time since the stock was counted instead of
+    counting log entries.
+    """
+    stock = settings.sensor_stock
+    set_at = settings.sensor_stock_set_at
+    elapsed_days = 0.0
+    if stock is not None and set_at is not None:
+        elapsed_days = max(0.0, (datetime.now(UTC) - _utc(set_at)).total_seconds() / 86_400)
+
+    if stock is None:
+        consumed = 0
+        effective_stock = None
+        days_left = None
+    else:
+        consumed = int(elapsed_days // SENSOR_LIFETIME_DAYS)
+        effective_stock = max(stock - consumed, 0)
+        days_left = max(round(stock * SENSOR_LIFETIME_DAYS - elapsed_days, 1), 0.0)
+
+    low_stock_days = settings.low_stock_days or DEFAULT_LOW_SENSOR_STOCK_DAYS
+    return {
+        "configured": stock is not None,
+        "stock_units": stock,
+        "stock_set_at": set_at.isoformat() if set_at else None,
+        "consumed_since_set_at": consumed,
+        "effective_stock": effective_stock,
+        "days_left": days_left,
+        "low_stock_days": low_stock_days,
+        "low_stock": days_left is not None and days_left < low_stock_days,
+        "lifetime_days": SENSOR_LIFETIME_DAYS,
+        "avg_daily_usage": round(1.0 / SENSOR_LIFETIME_DAYS, 3),
+        "usage_per_day": 1.0 / SENSOR_LIFETIME_DAYS,
+    }
+
+
 def _build_status(
     entry_type: LogEntryType,
     stock: float | None,
@@ -237,6 +280,7 @@ def compute_status() -> dict:
             low_stock_days,
         ),
         "needles": _build_needle_status(settings),
+        "sensors": _build_sensor_status(settings),
     }
 
 

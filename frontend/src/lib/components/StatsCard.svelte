@@ -319,12 +319,22 @@
 					{@const basalDays = stats.insulin_stock.basal?.configured
 						? stats.insulin_stock.basal.days_left
 						: null}
+					{@const needleDays = stats.insulin_stock.needles?.configured
+						? stats.insulin_stock.needles.days_left
+						: null}
+					{@const sensorDays = stats.insulin_stock.sensors?.configured
+						? stats.insulin_stock.sensors.days_left
+						: null}
 					{@const anyLow =
 						(stats.insulin_stock.bolus?.low_stock ?? false) ||
-						(stats.insulin_stock.basal?.low_stock ?? false)}
-					{#if bolusDays != null || basalDays != null}
+						(stats.insulin_stock.basal?.low_stock ?? false) ||
+						(stats.insulin_stock.needles?.low_stock ?? false) ||
+						(stats.insulin_stock.sensors?.low_stock ?? false)}
+					{#if bolusDays != null || basalDays != null || needleDays != null || sensorDays != null}
 						{@const minDays = Math.min(
-							...[bolusDays, basalDays].filter((d): d is number => d != null)
+							...[bolusDays, basalDays, needleDays, sensorDays].filter(
+								(d): d is number => d != null
+							)
 						)}
 						<span class="value" style="color: {anyLow ? '#ef4444' : 'inherit'}">
 							{minDays} <span class="unit">Tage</span>
@@ -333,6 +343,12 @@
 							{#if bolusDays != null}Schnell {bolusDays} Tage{:else}Schnell —{/if}
 							&nbsp;·&nbsp;
 							{#if basalDays != null}Basal {basalDays} Tage{:else}Basal —{/if}
+							{#if needleDays != null}
+								&nbsp;·&nbsp;Nadeln {needleDays} Tage
+							{/if}
+							{#if sensorDays != null}
+								&nbsp;·&nbsp;Sensoren {sensorDays} Tage
+							{/if}
 						</span>
 					{:else}
 						<span class="value">—</span>

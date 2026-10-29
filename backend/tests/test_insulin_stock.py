@@ -232,6 +232,65 @@ def test_compute_status_without_set_at_keeps_stock_unchanged(
     assert bolus["effective_stock"] == 100.0
 
 
+def test_compute_status_includes_sensor_stock(db_session, patient_user, global_settings):
+    global_settings.sensor_stock = 3
+    global_settings.sensor_stock_set_at = datetime.now(UTC)
+    db_session.commit()
+
+    sensors = compute_status()["sensors"]
+    assert sensors["configured"] is True
+    assert sensors["stock_units"] == 3
+    assert sensors["consumed_since_set_at"] == 0
+    assert sensors["effective_stock"] == 3
+    assert sensors["days_left"] == pytest.approx(42.0, abs=0.2)
+    assert sensors["low_stock"] is False
+
+
+def test_compute_status_sensor_consumes_over_time(db_session, global_settings):
+    global_settings.sensor_stock = 3
+    global_settings.sensor_stock_set_at = datetime.now(UTC) - timedelta(days=15)
+    global_settings.low_stock_days = 14
+    db_session.commit()
+
+    sensors = compute_status()["sensors"]
+    assert sensors["consumed_since_set_at"] == 1
+    assert sensors["effective_stock"] == 2
+    assert sensors["days_left"] == pytest.approx(27.0, abs=0.2)
+    assert sensors["low_stock"] is False
+
+
+def test_compute_status_sensor_floors_at_zero(db_session, global_settings):
+    global_settings.sensor_stock = 1
+    global_settings.sensor_stock_set_at = datetime.now(UTC) - timedelta(days=40)
+    global_settings.low_stock_days = 14
+    db_session.commit()
+
+    sensors = compute_status()["sensors"]
+    assert sensors["consumed_since_set_at"] == 2
+    assert sensors["effective_stock"] == 0
+    assert sensors["days_left"] == 0.0
+    assert sensors["low_stock"] is True
+
+
+def test_compute_status_sensor_not_configured(db_session, global_settings):
+    global_settings.sensor_stock = None
+    global_settings.sensor_stock_set_at = None
+    global_settings.insulin_stock = None
+    global_settings.basal_stock = None
+    db_session.commit()
+
+    sensors = compute_status()["sensors"]
+    assert sensors["configured"] is False
+    assert sensors["days_left"] is None
+    assert sensors["low_stock"] is False
+
+
+def test_to_dict_includes_sensor_stock_fields(global_settings):
+    data = global_settings.to_dict()
+    assert "sensor_stock" in data
+    assert "sensor_stock_set_at" in data
+
+
 def test_evaluate_low_stock_uses_effective_stock(
     db_session, patient_user, global_settings
 ):

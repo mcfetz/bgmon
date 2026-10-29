@@ -1,5 +1,10 @@
 <script lang="ts">
-	import type { InsulinStockInfo, NeedleStockInfo, StatsData } from '#lib/api/dashboard.js';
+	import type {
+		InsulinStockInfo,
+		NeedleStockInfo,
+		SensorStockInfo,
+		StatsData
+	} from '#lib/api/dashboard.js';
 
 	let {
 		open = $bindable(false),
@@ -46,7 +51,7 @@
 		</header>
 
 		<div class="sm-body">
-			{#if !info?.bolus?.configured && !info?.basal?.configured && !info?.needles?.configured}
+			{#if !info?.bolus?.configured && !info?.basal?.configured && !info?.needles?.configured && !info?.sensors?.configured}
 				<p class="sm-empty">
 					Kein Bestand hinterlegt. Lege ihn unter <em>Einstellungen → Faktoren</em> an, um den Vorrat
 					zu verfolgen.
@@ -154,6 +159,62 @@
 								<li>
 									<span class="sm-detail-label">Warnschwelle</span>
 									<span class="sm-detail-value">unter {needles.low_stock_days} Tagen</span>
+								</li>
+							</ul>
+						{:else}
+							<p class="sm-empty">
+								Bestand nicht konfiguriert — unter <em>Einstellungen → Faktoren</em> hinterlegen.
+							</p>
+						{/if}
+					</section>
+				{/if}
+
+				{#if info?.sensors}
+					{@const sensors = info.sensors as SensorStockInfo}
+					<section class="sm-section" class:low={sensors.low_stock}>
+						<div class="sm-section-head">
+							<h3 class="sm-section-title">📡 Sensoren</h3>
+							{#if sensors.configured && sensors.low_stock}
+								<span class="sm-low-badge">Nachschub besorgen</span>
+							{/if}
+						</div>
+
+						{#if sensors.configured}
+							<div class="sm-value-row">
+								<span class="sm-value" class:low={sensors.low_stock}
+									>{formatDays(sensors.days_left)}</span
+								>
+								<span class="sm-unit">Tage</span>
+							</div>
+
+							<ul class="sm-details">
+								<li>
+									<span class="sm-detail-label">Rechnerisch verbleibend</span>
+									<span class="sm-detail-value">{formatCount(sensors.effective_stock)} Stk.</span>
+								</li>
+								<li>
+									<span class="sm-detail-label">Gezählt (Bestand)</span>
+									<span class="sm-detail-value"
+										>{formatCount(sensors.stock_units)} Stk. · {formatCountDate(
+											sensors.stock_set_at
+										)}</span
+									>
+								</li>
+								<li>
+									<span class="sm-detail-label">Verbraucht seit Zählen</span>
+									<span class="sm-detail-value"
+										>{formatCount(sensors.consumed_since_set_at)} Stk.</span
+									>
+								</li>
+								<li>
+									<span class="sm-detail-label">Nutzungsdauer</span>
+									<span class="sm-detail-value"
+										>~{formatCount(sensors.lifetime_days ?? 14)} Tage/Sensor</span
+									>
+								</li>
+								<li>
+									<span class="sm-detail-label">Warnschwelle</span>
+									<span class="sm-detail-value">unter {sensors.low_stock_days} Tagen</span>
 								</li>
 							</ul>
 						{:else}

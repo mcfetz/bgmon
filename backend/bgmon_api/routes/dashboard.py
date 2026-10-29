@@ -1246,6 +1246,8 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
             "combined_overdose": "💉",
             "insulin_low_stock": "📦",
             "basal_low_stock": "🧴",
+            "sensor_low_stock": "📡",
+            "needle_low_stock": "🧷",
         }
         alerts.append({
             "id": alert_id,

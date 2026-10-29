@@ -52,6 +52,7 @@ export interface StatsData {
 		bolus: InsulinStockInfo;
 		basal: InsulinStockInfo;
 		needles?: NeedleStockInfo | null;
+		sensors?: SensorStockInfo | null;
 	} | null;
 }
 
@@ -81,6 +82,20 @@ export interface NeedleStockInfo {
 	low_stock_days: number;
 	low_stock: boolean;
 	avg_daily_injections: number;
+	usage_per_day: number;
+}
+
+export interface SensorStockInfo {
+	configured: boolean;
+	stock_units: number | null;
+	stock_set_at: string | null;
+	consumed_since_set_at: number;
+	effective_stock: number | null;
+	days_left: number | null;
+	low_stock_days: number;
+	low_stock: boolean;
+	lifetime_days?: number;
+	avg_daily_usage: number;
 	usage_per_day: number;
 }
 

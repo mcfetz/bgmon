@@ -538,6 +538,10 @@ class GlobalSettings(db.Model):
     needle_stock_set_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    sensor_stock: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sensor_stock_set_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     low_stock_days: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     insulin_low_stock_cooldown_minutes: Mapped[int] = mapped_column(
         Integer, default=1440, nullable=False
@@ -596,6 +600,10 @@ class GlobalSettings(db.Model):
             "needle_stock": self.needle_stock,
             "needle_stock_set_at": (
                 self.needle_stock_set_at.isoformat() if self.needle_stock_set_at else None
+            ),
+            "sensor_stock": self.sensor_stock,
+            "sensor_stock_set_at": (
+                self.sensor_stock_set_at.isoformat() if self.sensor_stock_set_at else None
             ),
             "low_stock_days": self.low_stock_days,
             "insulin_low_stock_cooldown_minutes": self.insulin_low_stock_cooldown_minutes,
