@@ -64,6 +64,10 @@
 		if (editMode) return true;
 		return visibleTiles.includes(tile);
 	}
+
+	function daysLabel(value: number | null | undefined): string {
+		return value == null ? '—' : String(Math.round(value));
+	}
 </script>
 
 <div class="stats-grid" class:editing={editMode}>
@@ -337,18 +341,12 @@
 							)
 						)}
 						<span class="value" style="color: {anyLow ? '#ef4444' : 'inherit'}">
-							{minDays} <span class="unit">Tage</span>
+							{daysLabel(minDays)} <span class="unit">Tage</span>
 						</span>
 						<span class="unit">
-							{#if bolusDays != null}Schnell {bolusDays} Tage{:else}Schnell —{/if}
-							&nbsp;·&nbsp;
-							{#if basalDays != null}Basal {basalDays} Tage{:else}Basal —{/if}
-							{#if needleDays != null}
-								&nbsp;·&nbsp;Nadeln {needleDays} Tage
-							{/if}
-							{#if sensorDays != null}
-								&nbsp;·&nbsp;Sensoren {sensorDays} Tage
-							{/if}
+							Tage: Schnell {daysLabel(bolusDays)}, Basal {daysLabel(basalDays)}, Nadeln {daysLabel(
+								needleDays
+							)}, Sensoren {daysLabel(sensorDays)}
 						</span>
 					{:else}
 						<span class="value">—</span>
