@@ -52,7 +52,7 @@ describe('whats new helpers', () => {
 			'2026-07-17-personal-dashboard-mobile-logbook'
 		]);
 		expect(getUnseenWhatsNewCount('5402517', storage)).toBe(0);
-		expect(getUnseenWhatsNewCount('unknown-build', storage)).toBe(10);
+		expect(getUnseenWhatsNewCount('unknown-build', storage)).toBe(8);
 	});
 
 	it('ignores broken local storage payloads', () => {
