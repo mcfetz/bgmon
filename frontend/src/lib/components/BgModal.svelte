@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { apiFetch } from '#lib/auth.js';
 	import SnoozeModal from './SnoozeModal.svelte';
+	import SmartAlertBadges from './SmartAlertBadges.svelte';
 
 	import type { PredictionPoint, SmartAlert } from '#lib/api/dashboard.js';
 
@@ -193,14 +194,7 @@
 			{/if}
 			<div class="bg-value" style="color: {color}">{sgv}</div>
 			{#if smartAlerts.length > 0}
-				<div class="smart-alerts-row">
-					{#each smartAlerts as alert}
-						<span class="smart-alert-badge" title={alert.recommendation}>
-							{alert.icon}
-							{alert.title}
-						</span>
-					{/each}
-				</div>
+				<SmartAlertBadges alerts={smartAlerts} />
 			{/if}
 			<div class="bg-info-row">
 				{#if delta !== null}
@@ -373,27 +367,6 @@
 		font-size: clamp(1.5rem, 4vw, 3rem);
 		color: var(--color-text-muted);
 		font-weight: 500;
-	}
-
-	.smart-alerts-row {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 4px;
-		margin: 2px 0;
-	}
-
-	.smart-alert-badge {
-		background: var(--color-warning);
-		color: #fff;
-		font-size: clamp(0.7rem, 1.5vw, 0.9rem);
-		padding: 2px 8px;
-		border-radius: 999px;
-		font-weight: 600;
-		cursor: help;
-		max-width: 90vw;
-		text-align: center;
-		line-height: 1.3;
 	}
 
 	.bg-trend {
