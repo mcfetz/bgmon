@@ -100,6 +100,72 @@ def test_post_global_settings_rejects_invalid_smart_alert_config(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
+def test_post_global_settings_updates_rebound_slope_config(
+    client, observer_user, auth_headers
+):
+    response = client.post(
+        "/api/settings/global",
+        json={
+            "rebound_slope_enabled": False,
+            "rebound_slope_threshold_mgdl_per_min": 2.2,
+            "rebound_slope_window_minutes": 45,
+            "rebound_rise_floor_mgdl": 90,
+            "rebound_max_age_after_low_minutes": 90,
+            "rebound_alert_with_carbs": False,
+        },
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.get_json()
+    assert data["rebound_slope_enabled"] is False
+    assert data["rebound_slope_threshold_mgdl_per_min"] == 2.2
+    assert data["rebound_slope_window_minutes"] == 45
+    assert data["rebound_rise_floor_mgdl"] == 90
+    assert data["rebound_max_age_after_low_minutes"] == 90
+    assert data["rebound_alert_with_carbs"] is False
+
+
+def test_get_global_settings_exposes_rebound_slope_defaults(
+    client, patient_user, auth_headers
+):
+    response = client.get("/api/settings/global", headers=auth_headers(patient_user))
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.get_json()
+    assert data["rebound_slope_enabled"] is True
+    assert data["rebound_slope_threshold_mgdl_per_min"] == 1.8
+    assert data["rebound_slope_window_minutes"] == 30
+    assert data["rebound_rise_floor_mgdl"] == 80
+    assert data["rebound_max_age_after_low_minutes"] == 120
+    assert data["rebound_alert_with_carbs"] is True
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"rebound_slope_threshold_mgdl_per_min": 0.1},
+        {"rebound_slope_threshold_mgdl_per_min": 9},
+        {"rebound_slope_window_minutes": 5},
+        {"rebound_slope_window_minutes": 120},
+        {"rebound_rise_floor_mgdl": 10},
+        {"rebound_max_age_after_low_minutes": 300},
+        {"rebound_slope_enabled": "yes"},
+        {"rebound_alert_with_carbs": 1},
+    ],
+)
+def test_post_global_settings_rejects_invalid_rebound_slope_config(
+    client, observer_user, auth_headers, payload
+):
+    response = client.post(
+        "/api/settings/global",
+        json=payload,
+        headers=auth_headers(observer_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
 def test_post_global_settings_updates_insulin_stock(client, observer_user, auth_headers):
     response = client.post(
         "/api/settings/global",

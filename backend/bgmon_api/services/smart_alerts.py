@@ -1,5 +1,6 @@
 """Smart alerts — pattern detection and actionable recommendations."""
 
+import bisect
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -341,36 +342,142 @@ def _detect_hypo_rebound(s: GlobalSettings) -> dict | None:
     # not be attributed to counter-regulation.
     onset_cutoff = hypo_end + timedelta(minutes=s.rebound_max_onset_minutes)
     onset_readings = [r for r in post_readings if r.timestamp <= onset_cutoff]
-    if len(onset_readings) < 3:
-        return None
 
     # Only readings before the onset cutoff may define the rebound peak —
     # anything after it is a separate excursion.
-    peak_bg = max(r.sgv for r in onset_readings)
-    rise = peak_bg - hypo_min
-    if rise <= s.rebound_rise_threshold_mgdl:
+    peak_bg = max((r.sgv for r in onset_readings), default=None)
+    rise = peak_bg - hypo_min if peak_bg is not None else 0
+    branch_a = len(onset_readings) >= 3 and rise > s.rebound_rise_threshold_mgdl
+
+    branch_b = None
+    if s.rebound_slope_enabled:
+        branch_b = _rebound_slope_hit(patient_id, readings, hypo_end, hypo_min, s)
+    if not branch_a and branch_b is None:
         return None
 
-    # A carb treatment anywhere in the rebound window explains the rise and is
-    # not a pure counter-regulation (e.g. breakfast carbs logged after a night
-    # hypo must suppress this alert).
-    if s.rebound_require_no_carbs and _has_carbs(patient_id, hypo_start, rebound_end):
-        return None
+    has_carbs = _has_carbs(patient_id, hypo_start, rebound_end)
+
+    if branch_a:
+        # Branch A keeps its old semantics: logged carbs suppress it.
+        if s.rebound_require_no_carbs and has_carbs:
+            return None
+        peak = peak_bg if peak_bg is not None else hypo_min
+        with_carbs_variant = False
+    else:
+        assert branch_b is not None
+        peak, _rise = branch_b
+        if has_carbs and not s.rebound_alert_with_carbs:
+            return None
+        with_carbs_variant = has_carbs
+
+    rise_value = peak - hypo_min
+    if with_carbs_variant:
+        title = (
+            f"Gegenregulation nach Unterzuckerung "
+            f"(+{rise_value} mg/dL, mit Kohlenhydraten)"
+        )
+        recommendation = (
+            "Kein Korrektur-Insulin auf diesen Anstieg! Hier kommen körpereigene "
+            "Gegenregulation und die geloggten Kohlenhydrate zusammen — deshalb fällt "
+            "der Anstieg höher aus als bei Kohlenhydraten allein (typisch "
+            "+40 bis +100 mg/dL aus den Kohlenhydraten). Wert nach 60 Minuten erneut "
+            "prüfen und auf die zweite Phase achten: endet die Gegenregulation und wirkt "
+            "noch Insulin, fällt der Wert erneut."
+        )
+    else:
+        title = f"Gegenregulation nach Unterzuckerung (+{rise_value} mg/dL)"
+        recommendation = (
+            "Kein Korrektur-Insulin auf diesen Anstieg! Das ist die körpereigene "
+            "Gegenregulation (Leber), nicht das Essen. Der Anstieg endet typischerweise "
+            "nach 1–2 Stunden — oft erst oberhalb von 200 mg/dL, das ist kein Zielwert. "
+            "Danach folgt häufig die zweite Phase: endet die Gegenregulation und wirkt "
+            "noch Insulin, fällt der Wert erneut. Wert nach 60 Minuten erneut prüfen und "
+            "Kohlenhydrate in Reichweite halten. Bei häufiger Wiederholung mit dem "
+            "Diabetes-Team besprechen."
+        )
 
     _log_alert(
         "hypo_rebound",
-        f"Gegenregulation nach Unterzuckerung (+{rise} mg/dL)",
-        "Kein Korrektur-Insulin spritzen! "
-        "Das ist die natürliche Reaktion des Körpers. "
-        "In 1–2 Stunden normalisiert sich das.",
-        f"von {hypo_min} auf {peak_bg}",
+        title,
+        recommendation,
+        f"von {hypo_min} auf {peak}",
     )
     return {
         "id": "hypo_rebound",
         "icon": "🔄",
-        "title": f"Gegenregulation nach Hypo (+{rise} mg/dL)",
-        "recommendation": "Kein Korrektur-Insulin spritzen! In 1–2 Stunden normalisiert sich das.",
+        "title": title,
+        "recommendation": recommendation,
     }
+
+
+def _is_meal_carbs(entry: LogEntry) -> bool:
+    """True when a CARBS entry has a meal bolus (no "Korrektur") within ±15 min."""
+    window_start = entry.created_at - timedelta(minutes=15)
+    window_end = entry.created_at + timedelta(minutes=15)
+    boluses = _insulin_entries(entry.user_id, window_start, window_end)
+    return any("Korrektur" not in (b.notes or "") for b in boluses)
+
+
+def _rebound_slope_hit(
+    patient_id: int,
+    readings: list[GlucoseReading],
+    hypo_end: datetime,
+    hypo_min: int,
+    s: GlobalSettings,
+) -> tuple[int, int] | None:
+    """Branch B — fire on a steep rise late in the rebound window.
+
+    Evaluates backwards from ``hypo_end`` in 5-minute steps: the first
+    timestamp whose 30-minute slope and rise-from-nadir both clear the
+    thresholds wins. A meal logged at that point defers to
+    ``postprandial_spike``; rescue carbs do not suppress the alert.
+    """
+    window_minutes = max(s.rebound_slope_window_minutes, 1)
+    horizon = hypo_end + timedelta(minutes=s.rebound_max_age_after_low_minutes)
+    if horizon <= hypo_end + timedelta(minutes=window_minutes):
+        return None
+
+    times = [r.timestamp for r in readings]
+    meals = list(
+        LogEntry.query
+        .filter(
+            LogEntry.user_id == patient_id,
+            LogEntry.entry_type == LogEntryType.CARBS,
+            LogEntry.created_at >= hypo_end - timedelta(minutes=window_minutes),
+            LogEntry.created_at <= horizon,
+        )
+        .order_by(LogEntry.created_at.asc())
+        .all()
+    )
+
+    def value_at(ts: datetime) -> int | None:
+        idx = bisect.bisect_left(times, ts)
+        return readings[idx].sgv if idx < len(readings) else None
+
+    cursor = hypo_end + timedelta(minutes=window_minutes)
+    while cursor <= horizon:
+        current = value_at(cursor)
+        earlier = value_at(cursor - timedelta(minutes=window_minutes))
+        if current is not None and earlier is not None:
+            slope = (current - earlier) / window_minutes
+            upto = [
+                r.sgv for r in readings if hypo_end <= r.timestamp <= cursor
+            ]
+            rise = max(upto) - hypo_min if upto else 0
+            steep = slope >= s.rebound_slope_threshold_mgdl_per_min
+            high_enough = rise >= s.rebound_rise_floor_mgdl
+            if steep and high_enough:
+                meal = any(
+                    _is_meal_carbs(entry)
+                    for entry in meals
+                    if cursor - timedelta(minutes=window_minutes)
+                    <= entry.created_at
+                    <= cursor
+                )
+                if not meal:
+                    return max(upto), rise
+        cursor += timedelta(minutes=5)
+    return None
 
 
 # ── 3. Insulin Stacking ────────────────────────────────────────────────
@@ -570,8 +677,9 @@ def _detect_combined_overdose(s: GlobalSettings) -> dict | None:
     _log_alert(
         "combined_overdose",
         f"Aktives Insulin: noch etwa {iob:.1f} IE",
-        "Bei fallendem Trend besteht in der nächsten Stunde "
-        "Unterzuckerungsgefahr. Nicht nachkorrigieren.",
+        "Bei fallendem Trend besteht in den nächsten 1–3 Stunden "
+        "Unterzuckerungsgefahr. Nicht nachkorrigieren, Wert im Blick behalten "
+        "und Kohlenhydrate in Reichweite halten.",
         "Vorab-Warnung nach Mahlzeit mit zusätzlicher Korrektur",
     )
     return {
