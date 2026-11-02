@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { deleteLog, fetchLogsRange, type LogEntry } from '#lib/api/log.js';
+	import { deleteLog, fetchLogsRange, updateLog, type LogEntry } from '#lib/api/log.js';
 	import { sortLogsByCreatedAtDesc, type PendingLogEntry } from '#lib/stores/pendingLogs.js';
 
 	let {
@@ -31,6 +31,98 @@
 	let deleteConfirmation = $state<LogEntry | null>(null);
 	let filterOpen = $state(false);
 	let historyExpanded = $state(true);
+
+	let editEntry = $state<LogEntry | null>(null);
+	let editValue = $state('');
+	let editNotes = $state('');
+	let editTime = $state('');
+	let editError = $state<string | null>(null);
+	let editSaving = $state(false);
+
+	const EDITABLE_TYPES = ['carbs', 'insulin', 'basal', 'note'];
+	const AUTO_NOTE_PREFIXES = [
+		'SmartAlert:',
+		'Kompressionstiefwert',
+		'Basalrate von',
+		'Basalrate auf',
+		'KE-Faktor von',
+		'KE-Faktor auf',
+		'🤖 ML-Training',
+		'Badge freigeschaltet',
+		'Neuer Rekord-Streak',
+		'Testanruf'
+	];
+
+	function canEdit(log: LogEntry): boolean {
+		if (isPendingLog(log)) return false;
+		if (!EDITABLE_TYPES.includes(log.entry_type)) return false;
+		if (log.entry_type !== 'note') return true;
+		const notes = log.notes ?? '';
+		return !AUTO_NOTE_PREFIXES.some((prefix) => notes.startsWith(prefix));
+	}
+
+	function openEdit(log: LogEntry): void {
+		const date = new Date(log.created_at);
+		editEntry = log;
+		editValue = String(log.value).replace('.', ',');
+		editNotes = log.notes ?? '';
+		editTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+		editError = null;
+	}
+
+	function closeEdit(): void {
+		editEntry = null;
+		editError = null;
+		editSaving = false;
+	}
+
+	function parseValue(raw: string): number | null {
+		const normalized = raw.trim().replace(',', '.');
+		if (normalized === '') return null;
+		const value = Number(normalized);
+		return Number.isFinite(value) ? value : null;
+	}
+
+	async function saveEdit(): Promise<void> {
+		if (!editEntry) return;
+		editError = null;
+
+		const changes: { value?: number; notes?: string | null; timestamp?: string } = {
+			notes: editNotes.trim() === '' ? null : editNotes.trim()
+		};
+
+		if (editEntry.entry_type !== 'note') {
+			const value = parseValue(editValue);
+			if (value === null || value < 0) {
+				editError = 'Bitte einen gültigen Wert eingeben.';
+				return;
+			}
+			changes.value = value;
+		}
+
+		if (editTime) {
+			const original = new Date(editEntry.created_at);
+			const [hours, minutes] = editTime.split(':').map(Number);
+			const moved = new Date(original);
+			moved.setHours(hours, minutes, 0, 0);
+			if (moved.getTime() !== original.getTime()) {
+				changes.timestamp = moved.toISOString();
+			}
+		}
+
+		editSaving = true;
+		const result = await updateLog(editEntry.id, changes);
+		editSaving = false;
+
+		if (!result.entry) {
+			editError = result.error ?? 'Speichern fehlgeschlagen.';
+			return;
+		}
+
+		const updated = result.entry;
+		logs = logs.map((log) => (log.id === updated.id ? updated : log));
+		closeEdit();
+	}
 
 	async function loadLogs() {
 		const startIso = windowStart.toISOString();
@@ -107,14 +199,19 @@
 		return icons[type] ?? '•';
 	}
 
+	function formatNumber(value: number): string {
+		return value.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+	}
+
 	function formatEntry(log: LogEntry): string {
+		const amount = formatNumber(log.value);
 		let text: string;
 		if (log.entry_type === 'carbs') {
-			text = `${log.value} ${log.unit} Kohlenhydrate gegessen.`;
+			text = `${amount} ${log.unit} Kohlenhydrate gegessen.`;
 		} else {
 			const unit = log.value === 1 ? 'Einheit' : 'Einheiten';
 			const label = log.entry_type === 'insulin' ? 'Insulin' : 'Basal';
-			text = `${log.value} ${unit} ${label} gespritzt.`;
+			text = `${amount} ${unit} ${label} gespritzt.`;
 		}
 		if (log.created_by) {
 			text += ` (${log.created_by})`;
@@ -215,8 +312,7 @@
 							class:active={highlightedTimestamp === log.created_at}
 							onmouseenter={() => onHighlight(log.created_at)}
 							onmouseleave={() => onHighlight(null)}
-							onclick={() =>
-								onHighlight(highlightedTimestamp === log.created_at ? null : log.created_at)}
+							onclick={() => onHighlight(log.created_at)}
 						>
 							<span class="icon">{typeIcon(log.entry_type)}</span>
 							<span class="time">{formatTime(log.created_at)}</span>
@@ -231,12 +327,26 @@
 									<span class="notes">— {log.notes}</span>
 								{/if}
 							{/if}
+							{#if log.updated_at}
+								<span class="edited-marker">bearbeitet</span>
+							{/if}
 							<span class="actions">
 								{#if isPendingLog(log)}
 									<span class="pending-text">Wird synchronisiert…</span>
-								{:else if highlightedTimestamp === log.created_at}
+								{:else}
+									{#if canEdit(log)}
+										<button
+											class="edit-btn"
+											aria-label="Eintrag bearbeiten"
+											onclick={(event) => {
+												event.stopPropagation();
+												openEdit(log);
+											}}>✎</button
+										>
+									{/if}
 									<button
 										class="delete-btn"
+										aria-label="Eintrag löschen"
 										onclick={(event) => {
 											event.stopPropagation();
 											deleteConfirmation = log;
@@ -250,6 +360,66 @@
 				{/each}
 			</ul>
 		{/if}
+	</div>
+{/if}
+
+{#if editEntry}
+	<div class="delete-modal-backdrop">
+		<button
+			class="edit-backdrop-btn"
+			type="button"
+			aria-label="Bearbeiten schließen"
+			onclick={closeEdit}
+		></button>
+		<div
+			class="delete-modal edit-modal"
+			role="dialog"
+			tabindex="-1"
+			aria-modal="true"
+			aria-labelledby="edit-modal-title"
+		>
+			<h3 id="edit-modal-title">{typeIcon(editEntry.entry_type)} Eintrag bearbeiten</h3>
+
+			{#if editEntry.entry_type !== 'note'}
+				<label class="edit-field">
+					<span class="edit-label">
+						{editEntry.entry_type === 'carbs' ? 'Kohlenhydrate' : 'Insulin'} ({editEntry.unit})
+					</span>
+					<input
+						class="edit-input"
+						type="text"
+						inputmode="decimal"
+						bind:value={editValue}
+						placeholder={editEntry.entry_type === 'carbs' ? 'z. B. 4,5' : 'z. B. 2,5'}
+					/>
+				</label>
+			{/if}
+
+			<label class="edit-field">
+				<span class="edit-label">Uhrzeit</span>
+				<input class="edit-input" type="time" bind:value={editTime} />
+			</label>
+
+			<label class="edit-field">
+				<span class="edit-label">Notiz</span>
+				<textarea
+					class="edit-input edit-textarea"
+					rows="3"
+					bind:value={editNotes}
+					placeholder="Optional"></textarea>
+			</label>
+
+			{#if editError}
+				<p class="edit-error">{editError}</p>
+			{/if}
+
+			<div class="delete-modal-actions">
+				<button class="delete-modal-cancel" type="button" onclick={closeEdit}>Abbrechen</button>
+				<button class="delete-modal-confirm" type="button" onclick={saveEdit} disabled={editSaving}>
+					{editSaving ? 'Speichern…' : 'Speichern'}
+				</button>
+			</div>
+		</div>
 	</div>
 {/if}
 
@@ -423,7 +593,7 @@
 		gap: var(--spacing-sm);
 		align-items: center;
 		font-size: 0.85rem;
-		padding: var(--spacing-xs) 44px var(--spacing-xs) 0;
+		padding: var(--spacing-xs) 92px var(--spacing-xs) 0;
 		border-bottom: 1px solid var(--color-border);
 		cursor: pointer;
 	}
@@ -506,8 +676,16 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		width: 44px;
+		width: 92px;
+		gap: 4px;
 		transform: translateY(-50%);
+		opacity: 0.45;
+		transition: opacity 120ms ease-out;
+	}
+
+	.history li:hover .actions,
+	.history li:focus-within .actions {
+		opacity: 1;
 	}
 
 	.pending-text {
@@ -534,6 +712,33 @@
 
 	.delete-btn:hover {
 		background: rgba(248, 113, 113, 0.15);
+	}
+
+	.edit-btn {
+		background: none;
+		border: none;
+		color: var(--color-primary);
+		font-size: 1.1rem;
+		cursor: pointer;
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius);
+		padding: 0;
+		line-height: 1;
+	}
+
+	.edit-btn:hover {
+		background: rgba(var(--color-primary-rgb), 0.15);
+	}
+
+	.edited-marker {
+		font-size: 0.68rem;
+		color: var(--color-text-muted);
+		font-style: italic;
+		white-space: nowrap;
 	}
 
 	.delete-modal-backdrop {
@@ -569,6 +774,69 @@
 		grid-template-columns: 1fr 1fr;
 		gap: var(--spacing-sm);
 		margin-top: var(--spacing-lg);
+	}
+
+	.edit-backdrop-btn,
+	.edit-backdrop-btn:hover:not(:disabled),
+	.edit-backdrop-btn:focus,
+	.edit-backdrop-btn:active {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		border: none;
+		background: transparent;
+		color: transparent;
+		cursor: pointer;
+	}
+
+	.edit-modal {
+		position: relative;
+		width: min(100%, 420px);
+		max-height: 90vh;
+		overflow-y: auto;
+	}
+
+	.edit-field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.edit-label {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+	}
+
+	.edit-input {
+		width: 100%;
+		min-height: 44px;
+		padding: 10px 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg);
+		color: var(--color-text);
+		font-size: 1rem;
+		font-family: inherit;
+	}
+
+	.edit-input:focus {
+		outline: none;
+		border-color: var(--color-primary);
+	}
+
+	.edit-textarea {
+		resize: vertical;
+		min-height: 72px;
+	}
+
+	.edit-error {
+		margin: 0 0 var(--spacing-sm);
+		color: var(--color-danger);
+		font-size: 0.85rem;
 	}
 
 	.delete-modal-actions button {

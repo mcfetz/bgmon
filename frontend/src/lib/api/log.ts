@@ -10,8 +10,16 @@ export interface LogEntry {
 	notes: string | null;
 	created_at: string;
 	created_by?: string | null;
+	updated_at?: string | null;
+	updated_by?: string | null;
 	sync_state?: 'pending' | 'syncing';
 	local_id?: string;
+}
+
+export interface LogEntryUpdate {
+	value?: number;
+	notes?: string | null;
+	timestamp?: string;
 }
 
 export interface BasalRate {
@@ -56,6 +64,22 @@ export async function createLog(
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
+	});
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		return { entry: null, error: body.error || `Fehler (${res.status})` };
+	}
+	return { entry: await res.json() };
+}
+
+export async function updateLog(
+	id: number,
+	changes: LogEntryUpdate
+): Promise<{ entry: LogEntry | null; error?: string }> {
+	const res = await apiFetch(`${BASE}/${id}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(changes)
 	});
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}));

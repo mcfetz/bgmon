@@ -400,9 +400,16 @@ class LogEntry(db.Model):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    updated_by_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     user: Mapped[User] = relationship(back_populates="log_entries", foreign_keys=[user_id])
     created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])
+    updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
 
     def to_dict(self) -> dict:
         return {
@@ -413,6 +420,8 @@ class LogEntry(db.Model):
             "notes": self.notes,
             "created_by": self.created_by.display_name if self.created_by else None,
             "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_by": self.updated_by.display_name if self.updated_by else None,
         }
 
 

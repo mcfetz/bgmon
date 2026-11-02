@@ -65,6 +65,135 @@ def delete_log(entry_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus
     return jsonify({"deleted": True}), HTTPStatus.OK
 
 
+EDITABLE_ENTRY_TYPES = frozenset(
+    {
+        LogEntryType.CARBS,
+        LogEntryType.INSULIN,
+        LogEntryType.BASAL,
+        LogEntryType.NOTE,
+    }
+)
+
+AUTO_NOTE_PREFIXES = (
+    "SmartAlert:",
+    "Kompressionstiefwert",
+    "Basalrate von",
+    "Basalrate auf",
+    "KE-Faktor von",
+    "KE-Faktor auf",
+    "🤖 ML-Training",
+    "Badge freigeschaltet",
+    "Neuer Rekord-Streak",
+    "Testanruf",
+)
+
+
+def _is_auto_note(entry: LogEntry) -> bool:
+    """True for notes the system writes itself (alerts, settings, training)."""
+    notes = entry.notes or ""
+    return any(notes.startswith(prefix) for prefix in AUTO_NOTE_PREFIXES)
+
+
+def _edit_block_reason(entry: LogEntry, patient: User) -> str | None:
+    if entry.user_id != patient.id:
+        return "entry belongs to another patient"
+    if entry.entry_type not in EDITABLE_ENTRY_TYPES:
+        return "this entry type cannot be edited"
+    if entry.entry_type == LogEntryType.NOTE and _is_auto_note(entry):
+        return "system notes cannot be edited"
+    return None
+
+
+@log_bp.route("/<int:entry_id>", methods=["PATCH"])
+def update_log(entry_id: int) -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
+    user = get_current_user()
+    if isinstance(user, tuple):
+        return jsonify(user[0]), user[1]
+
+    patient = _get_patient(user)
+    if not patient:
+        return jsonify({"error": "no patient found"}), HTTPStatus.NOT_FOUND
+
+    entry = LogEntry.query.get_or_404(entry_id)
+    reason = _edit_block_reason(entry, patient)
+    if reason is not None:
+        status = (
+            HTTPStatus.FORBIDDEN
+            if reason == "entry belongs to another patient"
+            else HTTPStatus.BAD_REQUEST
+        )
+        return jsonify({"error": reason}), status
+
+    data = request.get_json(silent=True) or {}
+
+    if "entry_type" in data and data["entry_type"] != entry.entry_type.value:
+        return (
+            jsonify({"error": "entry_type cannot be changed"}),
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    if "value" in data and entry.entry_type != LogEntryType.NOTE:
+        try:
+            value = float(data["value"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid value"}), HTTPStatus.BAD_REQUEST
+        if not isfinite(value) or abs(value) > MAX_LOG_ENTRY_VALUE or value < 0:
+            return jsonify({"error": "invalid value"}), HTTPStatus.BAD_REQUEST
+        entry.value = value
+
+    if "unit" in data:
+        unit = data["unit"]
+        if not isinstance(unit, str) or len(unit) > 20:
+            return jsonify({"error": "invalid unit"}), HTTPStatus.BAD_REQUEST
+        entry.unit = unit
+
+    if "notes" in data:
+        notes = data["notes"]
+        if notes is not None and (
+            not isinstance(notes, str) or len(notes) > MAX_LOG_ENTRY_NOTE_CHARS
+        ):
+            return jsonify({"error": "invalid notes"}), HTTPStatus.BAD_REQUEST
+        entry.notes = notes or None
+
+    if "timestamp" in data:
+        try:
+            new_ts = parse_iso_datetime(str(data["timestamp"]))
+        except ValueError:
+            return jsonify({"error": "invalid timestamp"}), HTTPStatus.BAD_REQUEST
+        if new_ts is None:
+            return jsonify({"error": "invalid timestamp"}), HTTPStatus.BAD_REQUEST
+        entry.created_at = new_ts
+
+    if entry.entry_type == LogEntryType.BASAL:
+        from datetime import timedelta
+        from zoneinfo import ZoneInfo
+
+        berlin = ZoneInfo("Europe/Berlin")
+        day_start = entry.created_at.astimezone(berlin).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        day_end = day_start + timedelta(days=1)
+        conflict = (
+            LogEntry.query
+            .filter_by(user_id=patient.id, entry_type=LogEntryType.BASAL)
+            .filter(LogEntry.id != entry.id)
+            .filter(LogEntry.created_at >= day_start)
+            .filter(LogEntry.created_at < day_end)
+            .first()
+        )
+        if conflict:
+            db.session.rollback()
+            return jsonify({"error": "basal already logged today"}), HTTPStatus.CONFLICT
+
+    from datetime import UTC, datetime
+
+    entry.updated_at = datetime.now(UTC)
+    entry.updated_by_id = user.id
+    with transactional_session():
+        pass  # commit handled by context manager
+    return jsonify(entry.to_dict()), HTTPStatus.OK
+
+
 @log_bp.route("/", methods=["POST"])
 def create_log() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
     user = get_current_user()
