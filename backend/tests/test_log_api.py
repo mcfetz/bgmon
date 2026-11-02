@@ -281,3 +281,182 @@ def test_admin_can_update_patient_carb_factor(
     entry = CarbFactorHistory.query.filter_by(user_id=patient_user.id).one()
     assert entry.factor == 9.5
     assert entry.changed_by_id == admin_user.id
+
+
+def _create(client, headers, **payload):
+    response = client.post("/api/log/", json=payload, headers=headers)
+    assert response.status_code == HTTPStatus.CREATED
+    return response.get_json()
+
+
+def test_update_entry_changes_value_and_notes(client, patient_user, auth_headers):
+    entry = _create(
+        client, auth_headers(patient_user), entry_type="carbs", value=30, notes="Lunch"
+    )
+
+    response = client.patch(
+        f"/api/log/{entry['id']}",
+        json={"value": 45, "notes": "Lunch (nachgetragen)"},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.get_json()
+    assert data["value"] == 45.0
+    assert data["notes"] == "Lunch (nachgetragen)"
+    assert data["entry_type"] == "carbs"
+    assert data["updated_at"] is not None
+    assert data["updated_by"] == patient_user.display_name
+
+
+def test_update_entry_moves_the_timestamp(client, patient_user, auth_headers):
+    entry = _create(client, auth_headers(patient_user), entry_type="insulin", value=2.5)
+    new_ts = (datetime.now(UTC) - timedelta(minutes=90)).replace(microsecond=0)
+
+    response = client.patch(
+        f"/api/log/{entry['id']}",
+        json={"timestamp": new_ts.isoformat()},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    stored = LogEntry.query.get(entry["id"])
+    assert stored.created_at.replace(microsecond=0) == new_ts
+
+
+def test_update_entry_clears_notes(client, patient_user, auth_headers):
+    entry = _create(
+        client, auth_headers(patient_user), entry_type="carbs", value=12,
+        notes="Tippfehler",
+    )
+
+    response = client.patch(
+        f"/api/log/{entry['id']}",
+        json={"notes": ""},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json()["notes"] is None
+
+
+def test_update_entry_rejects_negative_and_non_finite_values(
+    client, patient_user, auth_headers
+):
+    entry = _create(client, auth_headers(patient_user), entry_type="insulin", value=2.5)
+
+    for bad in (-1, MAX_LOG_ENTRY_VALUE + 1, "abc"):
+        response = client.patch(
+            f"/api/log/{entry['id']}",
+            json={"value": bad},
+            headers=auth_headers(patient_user),
+        )
+        assert response.status_code == HTTPStatus.BAD_REQUEST, bad
+
+
+def test_update_entry_rejects_oversized_notes(client, patient_user, auth_headers):
+    entry = _create(client, auth_headers(patient_user), entry_type="note", value=0, notes="ok")
+
+    response = client.patch(
+        f"/api/log/{entry['id']}",
+        json={"notes": "x" * (MAX_LOG_ENTRY_NOTE_CHARS + 1)},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
+def test_update_entry_rejects_entry_type_change(client, patient_user, auth_headers):
+    entry = _create(client, auth_headers(patient_user), entry_type="carbs", value=30)
+
+    response = client.patch(
+        f"/api/log/{entry['id']}",
+        json={"entry_type": "insulin", "value": 3},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert LogEntry.query.get(entry["id"]).entry_type == LogEntryType.CARBS
+
+
+def test_update_system_generated_entries_is_rejected(
+    client, patient_user, auth_headers, db_session
+):
+    for entry_type, notes in (
+        (LogEntryType.ALARM, "Alarm ausgelöst"),
+        (LogEntryType.SUCCESS, "Badge freigeschaltet: Gold-Streak (🥇)"),
+        (LogEntryType.NOTE, "SmartAlert:hypo_rebound: Gegenregulation"),
+        (LogEntryType.NOTE, "Kompressionstiefwert erkannt — Sensorposition prüfen."),
+    ):
+        entry = LogEntry(
+            user_id=patient_user.id,
+            entry_type=entry_type,
+            value=0,
+            unit="",
+            notes=notes,
+        )
+        db_session.add(entry)
+        db_session.commit()
+
+        response = client.patch(
+            f"/api/log/{entry.id}",
+            json={"notes": "geändert"},
+            headers=auth_headers(patient_user),
+        )
+
+        assert response.status_code == HTTPStatus.BAD_REQUEST, notes
+        assert LogEntry.query.get(entry.id).notes == notes
+
+
+def test_update_user_note_is_allowed(client, patient_user, auth_headers):
+    entry = _create(
+        client, auth_headers(patient_user), entry_type="note", value=0,
+        notes="Fühlt sich gut",
+    )
+
+    response = client.patch(
+        f"/api/log/{entry['id']}",
+        json={"notes": "Fühlt sich sehr gut"},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json()["notes"] == "Fühlt sich sehr gut"
+
+
+def test_update_basal_keeps_one_entry_per_day(client, patient_user, auth_headers):
+    first = _create(client, auth_headers(patient_user), entry_type="basal", value=20)
+    second_day = (datetime.now(UTC) - timedelta(days=1)).replace(microsecond=0)
+    second = _create(
+        client,
+        auth_headers(patient_user),
+        entry_type="basal",
+        value=18,
+        timestamp=second_day.isoformat(),
+    )
+
+    response = client.patch(
+        f"/api/log/{second['id']}",
+        json={"timestamp": datetime.now(UTC).isoformat()},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert LogEntry.query.get(first["id"]).value == 20
+    assert LogEntry.query.get(second["id"]).created_at.replace(microsecond=0) == second_day
+
+
+def test_update_missing_entry_returns_404(client, patient_user, auth_headers):
+    response = client.patch(
+        "/api/log/999999", json={"value": 1}, headers=auth_headers(patient_user)
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_update_entry_requires_authentication(client, patient_user, auth_headers):
+    entry = _create(client, auth_headers(patient_user), entry_type="carbs", value=30)
+
+    response = client.patch(f"/api/log/{entry['id']}", json={"value": 20})
+
+    assert response.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN)
