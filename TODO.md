@@ -25,7 +25,12 @@
 - [ ] Proxy-/Client-IP-Handling für `get_remote_address` vor Production prüfen
 - [ ] Migration-Downgrades auf Datenverlust prüfen
 
-### 5. Code-Qualität
+### 5. Smart Alerts — offene Kandidaten (aus der Rebound-Auswertung 02.11.2026)
+- [ ] **`combined_overdose`-Präzision prüfen**: traf in 3 von 10 Fällen (23./24./25.10. → 52/53/41 mg/dL), die übrigen 7 ohne Absturz. Eigener Ticket-Kandidat, siehe `~/workspace/bgmon-smart-alert-rebound-2026-11-02.md` §12.
+- [ ] **Warnung für die „zweite Phase"** (Absturz nach Ende der Gegenregulation): aktuell nur teilweise durch `combined_overdose` abgedeckt. Vor Umsetzung fehlt eine saubere Trennung der Fälle.
+- Notiz: `rebound_slope_enabled = false` in `global_settings` schaltet den neuen Steigungs-Trigger (Branch B) ab und stellt das Verhalten vom 02.11.2026 wieder her.
+
+### 6. Code-Qualität
 - [ ] Pre-existing Test-Typing/LSP-Rauschen in `backend/tests/conftest.py` bereinigen
 - [ ] `redundant-cast` Warning in `backend/bgmon_api/app.py` bereinigen
 - [ ] Debug-Code aus alarm_evaluator.py entfernen

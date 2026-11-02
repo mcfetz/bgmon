@@ -6,6 +6,7 @@ from bgmon_api.models import GlobalSettings, GlucoseReading, LogEntry, LogEntryT
 from bgmon_api.services.smart_alerts import (
     _detect_combined_overdose,
     _detect_hypo_rebound,
+    _detect_insulin_stacking,
     _detect_postprandial_spike,
     _settings,
     _was_alerted,
@@ -358,6 +359,39 @@ def test_postprandial_spike_is_not_re_reported_after_the_peak_window(
     db_session.commit()
 
     assert _detect_postprandial_spike(_settings()) is None
+
+
+def test_insulin_stacking_states_that_it_reports_after_the_second_dose(
+    db_session, patient_user,
+):
+    _configure(db_session, stacking_warning_hours=3.0)
+    assert patient_user.id is not None
+    _log(
+        db_session, patient_user.id, LogEntryType.INSULIN, 60, 2.5,
+        notes="Korrektur: BG 210",
+    )
+    _log(
+        db_session, patient_user.id, LogEntryType.INSULIN, 6, 2.0,
+        notes="Korrektur: BG 220",
+    )
+    db_session.commit()
+
+    result = _detect_insulin_stacking(_settings())
+    assert result is not None
+    assert result["id"] == "insulin_stacking"
+    assert "IOB:" in result["recommendation"]
+    assert "nach der zweiten Gabe" in result["recommendation"]
+    assert "Wirkdauer" in result["recommendation"]
+
+    note = (
+        LogEntry.query
+        .filter_by(user_id=patient_user.id, entry_type=LogEntryType.NOTE)
+        .order_by(LogEntry.id.desc())
+        .first()
+    )
+    assert note is not None
+    assert "nach der zweiten Gabe" in (note.notes or "")
+    assert "(2 Korrekturen" in (note.notes or "")
 
 
 def _seed_combined_meal(

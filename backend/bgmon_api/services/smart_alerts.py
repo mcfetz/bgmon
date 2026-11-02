@@ -523,17 +523,25 @@ def _detect_insulin_stacking(s: GlobalSettings) -> dict | None:
         for c in corrections
     )
 
+    # The interval to the last dose is only judgeable after the action time,
+    # and this detector cannot warn before the second correction exists.
+    recommendation = (
+        f"Warte {int(remaining)} Min. IOB: {iob:.1f} IE. "
+        "Diese Rückmeldung kommt nach der zweiten Gabe — die Wirkung der letzten "
+        "Dosis ist erst nach Ablauf der Wirkdauer beurteilbar."
+    )
+
     _log_alert(
         "insulin_stacking",
         f"Mehrere Korrektur-Gaben in {int(minutes_between)} Min",
-        f"Warte {int(remaining)} Min. IOB: {iob:.1f} IE.",
+        recommendation,
         f"{len(corrections)} Korrekturen, {total_insulin:.1f} IE gesamt",
     )
     return {
         "id": "insulin_stacking",
         "icon": "💉",
         "title": f"Insulin-Stacking ({len(corrections)} Korrekturen in {int(minutes_between)} Min)",
-        "recommendation": f"Warte {int(remaining)} Min. IOB: {iob:.1f} IE.",
+        "recommendation": recommendation,
     }
 
 
