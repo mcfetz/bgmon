@@ -8,6 +8,20 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
 	{
+		id: '2026-11-02-logbook-and-alerts',
+		versionPrefixes: [],
+		publishedAt: '2026-11-02',
+		title: 'Logbuch bearbeiten & verständlichere Alarme',
+		highlights: [
+			'✏️ Einträge bearbeiten: Jede Zeile im Logbuch hat jetzt einen Stift. Damit korrigierst du Wert, Uhrzeit und Notiz nachträglich — ohne löschen und neu anlegen.',
+			'🕒 Falsche Uhrzeit? Der Eintrag lässt sich auf den richtigen Zeitpunkt verschieben; bearbeitete Einträge sind mit „bearbeitet" gekennzeichnet.',
+			'💬 Alarme sagen jetzt, was sie meinen: Der Rebound-Hinweis erklärt die zweite Phase nach der Gegenregulation, statt „normalisiert sich" zu versprechen, und die Überdosierungs-Warnung nennt das gemessene 1–3-Stunden-Fenster.',
+			'🔄 Rebound-Alarm greift auch bei spätem Anstieg: Bisher blieb er stumm, wenn der steile Teil erst nach dem 40-Minuten-Fenster begann — der größte Rebound der letzten Wochen wurde so verpasst. Rettungs-Kohlenhydrate schalten den Hinweis nicht mehr ab, sondern bekommen eine eigene Formulierung.',
+			'📱 Smart-Alert-Hinweise sind antippbar: Ein Tipp öffnet Titel, Uhrzeit und die vollständige Empfehlung direkt darunter — der Tooltip war auf dem Handy unsichtbar.',
+			'📋 Bearbeiten und Löschen im Logbuch sind auf dem Handy jetzt erreichbar (vorher verschwanden die Schaltflächen beim Antippen sofort wieder).'
+		]
+	},
+	{
 		id: '2026-10-29-supplies',
 		versionPrefixes: ['d13f8e6', 'd7487443'],
 		publishedAt: '2026-10-29',
