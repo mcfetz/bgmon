@@ -140,3 +140,68 @@ def test_logs(client, db_session, patient_user, observer_user, auth_headers):
     assert response.status_code == HTTPStatus.OK
     assert [entry["notes"] for entry in data] == ["Juice", "Felt better"]
     assert [entry["entry_type"] for entry in data] == ["carbs", "note"]
+
+
+def _add_smart_alert_note(db_session, user_id: int, notes: str) -> None:
+    db_session.add(
+        LogEntry(
+            user_id=user_id,
+            entry_type=LogEntryType.NOTE,
+            value=0,
+            unit="",
+            notes=notes,
+            created_at=datetime.now(UTC) - timedelta(minutes=5),
+        )
+    )
+    db_session.commit()
+
+
+def test_smart_alerts_keeps_parentheses_inside_the_recommendation(
+    client, db_session, patient_user, global_settings, auth_headers
+):
+    """Only the trailing "(details)" group is stripped, not the first " (".
+
+    The rebound text contains "(Leber)"; cutting at the first parenthesis
+    truncated the recommendation to half a sentence.
+    """
+    _add_smart_alert_note(
+        db_session=db_session,
+        user_id=patient_user.id,
+        notes=(
+            "SmartAlert:hypo_rebound: Gegenregulation nach Unterzuckerung "
+            "(+120 mg/dL). Empfehlung: Kein Korrektur-Insulin! Das ist die "
+            "körpereigene Gegenregulation (Leber), nicht das Essen. "
+            "(von 60 auf 180)"
+        ),
+    )
+
+    response = client.get("/api/dashboard/smart-alerts", headers=auth_headers(patient_user))
+
+    assert response.status_code == HTTPStatus.OK
+    alerts = response.get_json()["alerts"]
+    rebound = next(a for a in alerts if a["id"] == "hypo_rebound")
+    assert rebound["title"] == "Gegenregulation nach Unterzuckerung (+120 mg/dL)"
+    assert "(Leber)" in rebound["recommendation"]
+    assert "von 60 auf 180" not in rebound["recommendation"]
+
+
+def test_smart_alerts_parses_the_stored_note_id(
+    client, db_session, patient_user, global_settings, auth_headers
+):
+    """The id sits directly behind "SmartAlert:", the title after the next ": "."""
+    _add_smart_alert_note(
+        db_session=db_session,
+        user_id=patient_user.id,
+        notes=(
+            "SmartAlert:insulin_stacking: Mehrere Korrektur-Gaben in 139 Min. "
+            "Empfehlung: Warte 41 Min. IOB: 3.3 IE. (2 Korrekturen, 4.0 IE gesamt)"
+        ),
+    )
+
+    response = client.get("/api/dashboard/smart-alerts", headers=auth_headers(patient_user))
+
+    assert response.status_code == HTTPStatus.OK
+    alert = next(a for a in response.get_json()["alerts"] if a["id"] == "insulin_stacking")
+    assert alert["title"] == "Mehrere Korrektur-Gaben in 139 Min"
+    assert alert["recommendation"] == "Warte 41 Min. IOB: 3.3 IE."
+    assert alert["icon"] == "💉"

@@ -1222,20 +1222,27 @@ def smart_alerts() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]:
 
     alerts = []
     for e in entries:
-        if not e.notes:
+        # Stored format: "SmartAlert:{id}: {title}. Empfehlung: {text} ({details})".
+        # The id follows "SmartAlert:" directly, so split on that prefix — not on
+        # the first ": ", which sits between the id and the title.
+        prefix = "SmartAlert:"
+        if not e.notes or not e.notes.startswith(prefix):
             continue
-        parts = e.notes.split(": ", 2)
-        if len(parts) < 3:
+        alert_id, separator, body = e.notes[len(prefix):].lstrip().partition(": ")
+        if not separator or not body:
             continue
-        alert_id = parts[1]
         cooldown_field = COOLDOWN_FIELDS.get(alert_id)
         cooldown = getattr(settings, cooldown_field) if cooldown_field and settings else 30
         if not e.created_at or e.created_at < now - timedelta(minutes=cooldown):
             continue
-        title = parts[2].split(". Empfehlung: ")[0]
+        title = body.split(". Empfehlung: ")[0]
         recommendation = ""
-        if ". Empfehlung: " in parts[2]:
-            recommendation = parts[2].split(". Empfehlung: ")[1].split(" (")[0]
+        if ". Empfehlung: " in body:
+            recommendation = body.split(". Empfehlung: ", 1)[1]
+            # Drop the trailing "(details)" group only — recommendation texts may
+            # contain their own parentheses, e.g. "(Leber)".
+            if recommendation.endswith(")") and " (" in recommendation:
+                recommendation = recommendation.rsplit(" (", 1)[0]
 
         icons = {
             "postprandial_spike": "🚀",
