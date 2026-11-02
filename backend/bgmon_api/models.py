@@ -486,6 +486,16 @@ class GlobalSettings(db.Model):
     rebound_rise_threshold_mgdl: Mapped[int] = mapped_column(Integer, default=80, nullable=False)
     rebound_window_minutes: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
     rebound_max_onset_minutes: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
+    rebound_slope_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    rebound_slope_threshold_mgdl_per_min: Mapped[float] = mapped_column(
+        Float, default=1.8, nullable=False
+    )
+    rebound_slope_window_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    rebound_rise_floor_mgdl: Mapped[int] = mapped_column(Integer, default=80, nullable=False)
+    rebound_max_age_after_low_minutes: Mapped[int] = mapped_column(
+        Integer, default=120, nullable=False
+    )
+    rebound_alert_with_carbs: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     stacking_warning_hours: Mapped[float] = mapped_column(Float, default=3.0, nullable=False)
     dawn_start_hour_utc: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
     dawn_end_hour_utc: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
@@ -567,6 +577,12 @@ class GlobalSettings(db.Model):
             "rebound_rise_threshold_mgdl": self.rebound_rise_threshold_mgdl,
             "rebound_window_minutes": self.rebound_window_minutes,
             "rebound_max_onset_minutes": self.rebound_max_onset_minutes,
+            "rebound_slope_enabled": self.rebound_slope_enabled,
+            "rebound_slope_threshold_mgdl_per_min": self.rebound_slope_threshold_mgdl_per_min,
+            "rebound_slope_window_minutes": self.rebound_slope_window_minutes,
+            "rebound_rise_floor_mgdl": self.rebound_rise_floor_mgdl,
+            "rebound_max_age_after_low_minutes": self.rebound_max_age_after_low_minutes,
+            "rebound_alert_with_carbs": self.rebound_alert_with_carbs,
             "stacking_warning_hours": self.stacking_warning_hours,
             "dawn_start_hour_utc": self.dawn_start_hour_utc,
             "dawn_end_hour_utc": self.dawn_end_hour_utc,

@@ -397,6 +397,9 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
         "combined_overdose_crash_threshold_mgdl": (40, 150),
         "combined_overdose_fall_rate_mgdl_per_5min": (1, 100),
         "rebound_max_onset_minutes": (5, 120),
+        "rebound_slope_window_minutes": (10, 60),
+        "rebound_rise_floor_mgdl": (30, 200),
+        "rebound_max_age_after_low_minutes": (30, 240),
         "insulin_low_stock_cooldown_minutes": (1, 10080),
         "basal_low_stock_cooldown_minutes": (1, 10080),
         "low_stock_days": (1, 365),
@@ -405,8 +408,13 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
         "combined_overdose_crash_window_hours": (1.0, 12.0),
         "combined_overdose_iob_warning_threshold": (0.1, 20.0),
         "combined_overdose_meal_age_hours": (0.1, 12.0),
+        "rebound_slope_threshold_mgdl_per_min": (0.5, 5.0),
     }
-    smart_alert_bool_fields = {"rebound_require_no_carbs"}
+    smart_alert_bool_fields = {
+        "rebound_require_no_carbs",
+        "rebound_slope_enabled",
+        "rebound_alert_with_carbs",
+    }
 
     if insulin_hours is not None and (
         not isinstance(insulin_hours, (int, float)) or insulin_hours <= 0
