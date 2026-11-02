@@ -9,6 +9,7 @@
 	import ProfileSelector from '#lib/components/ProfileSelector.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import SnoozeIndicator from '#lib/components/SnoozeIndicator.svelte';
+	import SmartAlertBadges from '#lib/components/SmartAlertBadges.svelte';
 	import BgModal from '#lib/components/BgModal.svelte';
 	import StatsCard from '#lib/components/StatsCard.svelte';
 	import {
@@ -553,16 +554,7 @@
 		<SnoozeIndicator />
 	</div>
 
-	{#if smartAlerts.length > 0}
-		<div class="smart-alerts-bar">
-			{#each smartAlerts as alert}
-				<span class="smart-alert-badge" title={alert.recommendation}>
-					{alert.icon}
-					{alert.title}
-				</span>
-			{/each}
-		</div>
-	{/if}
+	<SmartAlertBadges alerts={smartAlerts} />
 </div>
 
 <BgModal
@@ -802,27 +794,6 @@
 		display: flex;
 		justify-content: center;
 		padding: 0 var(--spacing-md) var(--spacing-sm);
-	}
-
-	.smart-alerts-bar {
-		display: flex;
-		justify-content: center;
-		gap: 8px;
-		padding: 0 var(--spacing-md) var(--spacing-sm);
-		flex-wrap: wrap;
-	}
-
-	.smart-alert-badge {
-		background: var(--color-warning);
-		color: #fff;
-		font-size: 0.7rem;
-		padding: 3px 8px;
-		border-radius: 999px;
-		font-weight: 600;
-		cursor: help;
-		max-width: 280px;
-		text-align: center;
-		line-height: 1.3;
 	}
 
 	.header-pill {
