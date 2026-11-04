@@ -522,3 +522,76 @@ def test_test_twilio_call_failure_does_not_leak_exception(
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.get_json() == {"error": "Testanruf fehlgeschlagen"}
     assert "secret-detail" not in response.get_data(as_text=True)
+
+
+def _stock_snapshot(response_json: dict, field: str) -> tuple:
+    return (response_json[field], response_json[f"{field}_set_at"])
+
+
+def test_resaving_an_unchanged_stock_keeps_the_counting_period(
+    client, observer_user, global_settings, auth_headers
+):
+    """Re-saving the form must not restart the consumption counter."""
+    first = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 3000, "basal_stock": 1500, "needle_stock": 100},
+        headers=auth_headers(observer_user),
+    ).get_json()
+
+    same = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 3000, "basal_stock": 1500, "needle_stock": 100},
+        headers=auth_headers(observer_user),
+    ).get_json()
+
+    assert _stock_snapshot(same, "insulin_stock") == _stock_snapshot(first, "insulin_stock")
+    assert _stock_snapshot(same, "basal_stock") == _stock_snapshot(first, "basal_stock")
+    assert _stock_snapshot(same, "needle_stock") == _stock_snapshot(first, "needle_stock")
+
+
+def test_changing_a_stock_starts_a_new_counting_period(
+    client, observer_user, global_settings, auth_headers
+):
+    first = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 3000, "needle_stock": 100, "sensor_stock": 5},
+        headers=auth_headers(observer_user),
+    ).get_json()
+
+    second = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 5742.5, "needle_stock": 100, "sensor_stock": 8},
+        headers=auth_headers(observer_user),
+    ).get_json()
+
+    assert second["insulin_stock"] == 5742.5
+    assert second["insulin_stock_set_at"] != first["insulin_stock_set_at"]
+    assert second["sensor_stock_set_at"] != first["sensor_stock_set_at"]
+    # The untouched needle stock keeps its old timestamp.
+    assert second["needle_stock_set_at"] == first["needle_stock_set_at"]
+
+
+def test_clearing_and_restoring_a_stock_resets_the_period(
+    client, observer_user, global_settings, auth_headers
+):
+    first = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 3000},
+        headers=auth_headers(observer_user),
+    ).get_json()
+
+    cleared = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": None},
+        headers=auth_headers(observer_user),
+    ).get_json()
+    assert cleared["insulin_stock"] is None
+    assert cleared["insulin_stock_set_at"] is None
+
+    restored = client.post(
+        "/api/settings/global",
+        json={"insulin_stock": 3000},
+        headers=auth_headers(observer_user),
+    ).get_json()
+    assert restored["insulin_stock_set_at"] is not None
+    assert restored["insulin_stock_set_at"] != first["insulin_stock_set_at"]
