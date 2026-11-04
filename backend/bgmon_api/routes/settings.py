@@ -529,23 +529,30 @@ def update_global_settings() -> FlaskResponse | tuple[FlaskResponse, HTTPStatus]
     if compression_low_confidence_threshold is not None:
         settings.compression_low_confidence_threshold = int(compression_low_confidence_threshold)
 
+    # A stock field only starts a new counting period when its value actually
+    # changes. Re-saving the form must not hand back inventory that was
+    # already consumed.
     if "insulin_stock" in data:
-        value = data["insulin_stock"]
-        settings.insulin_stock = float(value) if value is not None else None
-        settings.insulin_stock_set_at = datetime.now(UTC) if value is not None else None
+        value = float(data["insulin_stock"]) if data["insulin_stock"] is not None else None
+        if value != settings.insulin_stock:
+            settings.insulin_stock = value
+            settings.insulin_stock_set_at = datetime.now(UTC) if value is not None else None
 
     if "basal_stock" in data:
-        value = data["basal_stock"]
-        settings.basal_stock = float(value) if value is not None else None
-        settings.basal_stock_set_at = datetime.now(UTC) if value is not None else None
+        value = float(data["basal_stock"]) if data["basal_stock"] is not None else None
+        if value != settings.basal_stock:
+            settings.basal_stock = value
+            settings.basal_stock_set_at = datetime.now(UTC) if value is not None else None
     if "needle_stock" in data:
-        value = data["needle_stock"]
-        settings.needle_stock = int(value) if value is not None else None
-        settings.needle_stock_set_at = datetime.now(UTC) if value is not None else None
+        value = int(data["needle_stock"]) if data["needle_stock"] is not None else None
+        if value != settings.needle_stock:
+            settings.needle_stock = value
+            settings.needle_stock_set_at = datetime.now(UTC) if value is not None else None
     if "sensor_stock" in data:
-        value = data["sensor_stock"]
-        settings.sensor_stock = int(value) if value is not None else None
-        settings.sensor_stock_set_at = datetime.now(UTC) if value is not None else None
+        value = int(data["sensor_stock"]) if data["sensor_stock"] is not None else None
+        if value != settings.sensor_stock:
+            settings.sensor_stock = value
+            settings.sensor_stock_set_at = datetime.now(UTC) if value is not None else None
 
     for field in smart_alert_int_fields | smart_alert_float_fields:
         if data.get(field) is not None:

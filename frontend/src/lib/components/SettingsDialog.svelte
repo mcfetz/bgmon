@@ -7,6 +7,7 @@
 	import { getVisibleWhatsNewEntries, type WhatsNewEntry } from '#lib/whatsNew/releases.js';
 	import { getUnseenWhatsNewCount, markVisibleWhatsNewSeen } from '#lib/whatsNew/state.js';
 	import MlProgressBar from '#lib/components/MlProgressBar.svelte';
+	import { diffGlobalSettings, type GlobalSettingsValues } from '#lib/globalSettings.js';
 	import {
 		fmtDateTime,
 		fmtDuration,
@@ -146,6 +147,7 @@
 	let needleStock: number | string = $state('');
 	let sensorStock: number | string = $state('');
 	let lowStockDays: number | string = $state(14);
+	let loadedGlobal = $state<GlobalSettingsValues | null>(null);
 
 	type NotificationArea = 'push' | 'call';
 	type NotificationThreshold = 'critical_low' | 'low' | 'high' | 'critical_high' | 'no_data';
@@ -695,6 +697,16 @@
 				needleStock = data.needle_stock ?? '';
 				sensorStock = data.sensor_stock ?? '';
 				lowStockDays = data.low_stock_days ?? 14;
+				loadedGlobal = {
+					insulin_action_hours: data.insulin_action_hours ?? 4,
+					correction_factor: data.correction_factor ?? 50,
+					compression_low_enabled: data.compression_low_enabled ?? true,
+					insulin_stock: data.insulin_stock ?? null,
+					basal_stock: data.basal_stock ?? null,
+					needle_stock: data.needle_stock ?? null,
+					sensor_stock: data.sensor_stock ?? null,
+					low_stock_days: data.low_stock_days ?? 14
+				};
 			}
 
 			if (thresholdsRes.ok) {
@@ -880,23 +892,30 @@
 			})
 		];
 
+		let submitted: GlobalSettingsValues | null = null;
+
 		if (!isPatient) {
-			requests.push(
-				apiFetch('/api/settings/global', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						insulin_action_hours: Number(insulinActionHours),
-						correction_factor: Number(correctionFactor),
-						compression_low_enabled: compressionLowEnabled,
-						insulin_stock: insulinStock === '' ? null : Number(insulinStock),
-						basal_stock: basalStock === '' ? null : Number(basalStock),
-						needle_stock: needleStock === '' ? null : Number(needleStock),
-						sensor_stock: sensorStock === '' ? null : Number(sensorStock),
-						low_stock_days: Number(lowStockDays)
+			submitted = {
+				insulin_action_hours: Number(insulinActionHours),
+				correction_factor: Number(correctionFactor),
+				compression_low_enabled: compressionLowEnabled,
+				insulin_stock: insulinStock === '' ? null : Number(insulinStock),
+				basal_stock: basalStock === '' ? null : Number(basalStock),
+				needle_stock: needleStock === '' ? null : Number(needleStock),
+				sensor_stock: sensorStock === '' ? null : Number(sensorStock),
+				low_stock_days: Number(lowStockDays)
+			};
+
+			const changes = diffGlobalSettings(submitted, loadedGlobal);
+			if (Object.keys(changes).length > 0) {
+				requests.push(
+					apiFetch('/api/settings/global', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(changes)
 					})
-				})
-			);
+				);
+			}
 		}
 
 		const responses = await Promise.all(requests);
@@ -905,6 +924,8 @@
 			error = 'Behandlungs-Einstellungen konnten nicht gespeichert werden';
 			return;
 		}
+
+		if (submitted) loadedGlobal = submitted;
 
 		message = 'Behandlungs-Einstellungen gespeichert';
 	}
