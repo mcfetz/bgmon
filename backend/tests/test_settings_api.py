@@ -273,6 +273,7 @@ def test_get_thresholds_returns_defaults(client, patient_user, auth_headers):
         "high": 180.0,
         "critical_high": 250.0,
         "no_data_after_minutes": 15,
+        "basal_reminder_time": None,
     }
 
 
@@ -595,3 +596,52 @@ def test_clearing_and_restoring_a_stock_resets_the_period(
     ).get_json()
     assert restored["insulin_stock_set_at"] is not None
     assert restored["insulin_stock_set_at"] != first["insulin_stock_set_at"]
+
+
+def test_post_thresholds_updates_basal_reminder_time(
+    client, patient_user, auth_headers
+):
+    response = client.post(
+        "/api/settings/thresholds",
+        json={"basal_reminder_time": "08:15"},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json()["basal_reminder_time"] == "08:15"
+
+    reloaded = client.get("/api/settings/thresholds", headers=auth_headers(patient_user))
+    assert reloaded.get_json()["basal_reminder_time"] == "08:15"
+
+
+def test_post_thresholds_clears_basal_reminder_time(
+    client, patient_user, auth_headers
+):
+    client.post(
+        "/api/settings/thresholds",
+        json={"basal_reminder_time": "08:15"},
+        headers=auth_headers(patient_user),
+    )
+    response = client.post(
+        "/api/settings/thresholds",
+        json={"basal_reminder_time": None},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json()["basal_reminder_time"] is None
+
+
+@pytest.mark.parametrize("value", ["8:15", "24:00", "12:60", "0815", "ab:cd", 815])
+def test_post_thresholds_rejects_invalid_basal_reminder_time(
+    client, patient_user, auth_headers, db_session, value
+):
+    response = client.post(
+        "/api/settings/thresholds",
+        json={"basal_reminder_time": value},
+        headers=auth_headers(patient_user),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.get_json() == {"error": "basal_reminder_time must be HH:MM or null"}
+    db_session.rollback()

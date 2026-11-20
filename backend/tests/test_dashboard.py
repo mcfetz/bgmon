@@ -106,6 +106,7 @@ def test_thresholds(client, patient_user, thresholds, auth_headers):
         "high": thresholds.high,
         "critical_high": thresholds.critical_high,
         "no_data_after_minutes": thresholds.no_data_after_minutes,
+        "basal_reminder_time": thresholds.basal_reminder_time,
     }
 
 
