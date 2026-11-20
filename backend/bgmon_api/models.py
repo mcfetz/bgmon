@@ -45,6 +45,7 @@ class AlarmType(enum.StrEnum):
     HIGH = "high"
     CRITICAL_HIGH = "critical_high"
     NO_DATA = "no_data"
+    NO_BASAL = "no_basal"
 
 
 class LogEntryType(enum.StrEnum):
@@ -182,6 +183,7 @@ class Threshold(db.Model):
     high: Mapped[float] = mapped_column(Float, default=180.0, nullable=False)
     critical_high: Mapped[float] = mapped_column(Float, default=250.0, nullable=False)
     no_data_after_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    basal_reminder_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -198,6 +200,7 @@ class Threshold(db.Model):
             "high": self.high,
             "critical_high": self.critical_high,
             "no_data_after_minutes": self.no_data_after_minutes,
+            "basal_reminder_time": self.basal_reminder_time,
         }
 
 
@@ -722,6 +725,7 @@ class NotificationThreshold(enum.StrEnum):
     HIGH = "high"
     CRITICAL_HIGH = "critical_high"
     NO_DATA = "no_data"
+    NO_BASAL = "no_basal"
 
 
 class NotificationProfile(db.Model):

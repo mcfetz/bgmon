@@ -151,6 +151,7 @@ export interface Thresholds {
 	high: number;
 	critical_high: number;
 	no_data_after_minutes?: number;
+	basal_reminder_time?: string | null;
 }
 
 export async function fetchThresholds(): Promise<Thresholds | null> {

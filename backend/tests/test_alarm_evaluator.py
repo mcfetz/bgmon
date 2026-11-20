@@ -363,3 +363,252 @@ def test_night_profile_adjusts_thresholds(
     mock_push.assert_not_called()
     mock_call.assert_not_called()
     assert Alarm.query.filter_by(user_id=patient_user.id).count() == 0
+
+
+def _evaluate_at(app, local_now):
+    with (
+        app.app_context(),
+        patch("bgmon_api.services.alarm_evaluator.send_push_to_user") as mock_push,
+        patch("bgmon_api.services.alarm_evaluator.place_call") as mock_call,
+        patch(
+            "bgmon_api.services.alarm_evaluator._local_now",
+            return_value=local_now,
+        ),
+    ):
+        evaluate_alarms()
+    return mock_push, mock_call
+
+
+def _basal_alarms(patient_id: int) -> list[Alarm]:
+    return (
+        Alarm.query
+        .filter_by(user_id=patient_id, alarm_type=AlarmType.NO_BASAL)
+        .order_by(Alarm.id)
+        .all()
+    )
+
+
+def _set_reminder(db_session, threshold, value: str | None) -> None:
+    threshold.basal_reminder_time = value
+    db_session.commit()
+
+
+def test_basal_reminder_fires_when_no_basal_logged(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    from bgmon_api.models import LogEntry, LogEntryType
+
+    _set_reminder(db_session, thresholds, "08:00")
+    # Profile must route the new threshold.
+    profile = NotificationProfile.query.filter_by(user_id=patient_user.id).one()
+    db_session.add(
+        NotificationAssignment(
+            profile_id=profile.id,
+            threshold=NotificationThreshold.NO_BASAL,
+            area=NotificationArea.PUSH,
+        )
+    )
+    db_session.commit()
+
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+    # Yesterday's basal entry must not satisfy today's reminder.
+    db_session.add(
+        LogEntry(
+            user_id=patient_user.id,
+            entry_type=LogEntryType.BASAL,
+            value=18,
+            unit="U",
+            created_at=local_now.astimezone(UTC) - timedelta(days=1),
+        )
+    )
+    db_session.commit()
+    _insert_reading(db_session, 120)
+
+    mock_push, _ = _evaluate_at(app, local_now)
+
+    alarms = _basal_alarms(patient_user.id)
+    assert len(alarms) == 1
+    assert "Basal nicht geloggt" in [c.args[1] for c in mock_push.call_args_list][0]
+
+
+def test_basal_reminder_waits_for_the_configured_time(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    _set_reminder(db_session, thresholds, "18:00")
+    _insert_reading(db_session, 120)
+
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=17, minute=30, second=0, microsecond=0
+    )
+    mock_push, _ = _evaluate_at(app, local_now)
+
+    assert _basal_alarms(patient_user.id) == []
+    assert all("Basal" not in str(c.args) for c in mock_push.call_args_list)
+
+
+def test_basal_reminder_silent_when_basal_already_logged(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    from bgmon_api.models import LogEntry, LogEntryType
+
+    _set_reminder(db_session, thresholds, "08:00")
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+    db_session.add(
+        LogEntry(
+            user_id=patient_user.id,
+            entry_type=LogEntryType.BASAL,
+            value=18,
+            unit="U",
+            created_at=local_now.astimezone(UTC),
+        )
+    )
+    db_session.commit()
+    _insert_reading(db_session, 120)
+
+    _evaluate_at(app, local_now)
+
+    assert _basal_alarms(patient_user.id) == []
+
+
+def test_basal_reminder_resolves_after_the_dose_is_logged(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    from bgmon_api.models import LogEntry, LogEntryType
+
+    _set_reminder(db_session, thresholds, "08:00")
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+    _insert_reading(db_session, 120)
+    _evaluate_at(app, local_now)
+    assert _basal_alarms(patient_user.id)[0].acknowledged_at is None
+
+    db_session.add(
+        LogEntry(
+            user_id=patient_user.id,
+            entry_type=LogEntryType.BASAL,
+            value=18,
+            unit="U",
+            created_at=local_now.astimezone(UTC),
+        )
+    )
+    db_session.commit()
+    _evaluate_at(app, local_now)
+
+    assert _basal_alarms(patient_user.id)[0].acknowledged_at is not None
+
+
+def test_basal_reminder_fires_once_per_day(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    from bgmon_api.models import UserSnooze
+
+    _set_reminder(db_session, thresholds, "08:00")
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+    _insert_reading(db_session, 120)
+    _evaluate_at(app, local_now)
+    # Drop the snooze so only the once-per-day guard can prevent a repeat.
+    UserSnooze.query.filter_by(user_id=patient_user.id).delete()
+    db_session.commit()
+    _evaluate_at(app, local_now)
+
+    assert len(_basal_alarms(patient_user.id)) == 1
+
+
+def test_basal_reminder_rolls_over_to_the_next_day(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    from bgmon_api.models import UserSnooze
+
+    _set_reminder(db_session, thresholds, "08:00")
+    yesterday = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    ) - timedelta(days=1)
+    _insert_reading(db_session, 120)
+    _evaluate_at(app, yesterday)
+    UserSnooze.query.filter_by(user_id=patient_user.id).delete()
+    # The row is stamped by the DB clock, so backdate it to yesterday.
+    _basal_alarms(patient_user.id)[0].created_at = yesterday.astimezone(UTC)
+    db_session.commit()
+
+    today = yesterday + timedelta(days=1)
+    _evaluate_at(app, today)
+
+    alarms = _basal_alarms(patient_user.id)
+    assert len(alarms) == 2
+    assert alarms[0].acknowledged_at is not None
+    assert alarms[1].acknowledged_at is None
+
+
+def test_basal_reminder_disabled_without_time(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    _set_reminder(db_session, thresholds, None)
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=23, minute=0, second=0, microsecond=0
+    )
+    _insert_reading(db_session, 120)
+
+    _evaluate_at(app, local_now)
+
+    assert _basal_alarms(patient_user.id) == []
+
+
+def test_basal_reminder_routes_to_call_when_profile_says_so(
+    app, db_session, patient_user, observer_user, thresholds
+):
+    from zoneinfo import ZoneInfo
+
+    _insert_reading(db_session, 120)
+    _set_reminder(db_session, thresholds, "08:00")
+    observer_user.phone_number = "+4915112345678"
+    db_session.commit()
+    # The reminder runs for the profile owner, so give the observer a profile.
+    from bgmon_api.models import Threshold as ThresholdModel
+
+    db_session.add(ThresholdModel(user_id=observer_user.id, basal_reminder_time="08:00"))
+    db_session.commit()
+    _create_profile(db_session, observer_user.id, {"no_basal": "call"})
+
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+    mock_push, mock_call = _evaluate_at(app, local_now)
+
+    titles = [c.args[2] for c in mock_call.call_args_list]
+    assert "Basal nicht geloggt" in titles
+
+
+def test_basal_alarm_not_resolved_by_normal_glucose(
+    app, db_session, patient_user, thresholds, notification_profile_with_assignments
+):
+    from zoneinfo import ZoneInfo
+
+    _set_reminder(db_session, thresholds, "08:00")
+    local_now = datetime.now(UTC).astimezone(ZoneInfo("Europe/Berlin")).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+    _insert_reading(db_session, 120)
+    _evaluate_at(app, local_now)
+
+    assert _basal_alarms(patient_user.id)[0].acknowledged_at is None

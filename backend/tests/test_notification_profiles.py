@@ -20,6 +20,18 @@ class TestProfileCRUD:
         assert data["name"] == "Test Profile"
         assert len(data["assignments"]) == 4
 
+    def test_create_profile_assigns_the_basal_reminder(self, client, patient_user):
+        resp = client.post("/api/notifications/profiles", json={
+            "name": "Mit Basal-Erinnerung",
+            "assignments": [
+                {"area": "push", "threshold": "low"},
+                {"area": "call", "threshold": "no_basal"},
+            ],
+        }, headers={"Authorization": f"Bearer {patient_user._session.token}"})
+        assert resp.status_code == HTTPStatus.CREATED
+        assignments = {a["threshold"]: a["area"] for a in resp.get_json()["assignments"]}
+        assert assignments["no_basal"] == "call"
+
     def test_create_profile_no_name(self, client, patient_user):
         resp = client.post("/api/notifications/profiles", json={}, headers={
             "Authorization": f"Bearer {patient_user._session.token}",

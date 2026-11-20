@@ -39,6 +39,12 @@
 - **Automatisches Auflösen** sobald frische Daten eingehen
 - **Push oder Anruf** je nach Notification-Profil — als eigener Schwellwert "Keine Daten" konfigurierbar
 
+### Basal-Erinnerung
+- **Einmalige Erinnerung pro Tag**, wenn bis zur eingestellten Uhrzeit kein Basalinsulin geloggt wurde
+- **Uhrzeit in den Schwellwerten** (Europe/Berlin), leeres Feld schaltet die Erinnerung aus
+- **Push oder Anruf** je nach Notification-Profil — als eigener Schwellwert "Basal fehlt" konfigurierbar
+- **Löst sich selbst auf**, sobald die Basaldosis eingetragen ist; eine überfällige Erinnerung vom Vortag wird beim Tageswechsel geschlossen
+
 ### Pflege & Übergabe
 - **Schicht-Management** für Nachtdienste
 - **Familie-Dashboard** mit eigenem Zugriffstoken (read-only, öffentlich teilbar)

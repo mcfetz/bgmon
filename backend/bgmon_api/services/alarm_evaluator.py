@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -267,6 +268,7 @@ def evaluate_alarms() -> None:
     any_stale = False
     for active in active_profiles:
         try:
+            _evaluate_basal_reminder(active.user_id)
             stale = _evaluate_for_user(active.user_id, sgv, minutes_since_reading, compression_low)
             any_stale = any_stale or stale
         except Exception:
@@ -369,6 +371,117 @@ def _resolve_no_data_alarms() -> None:
         logger.info("Resolved %d open no-data alarms", len(open_alarms))
 
 
+BERLIN_TZ = "Europe/Berlin"
+
+
+def _local_now() -> datetime:
+    return datetime.now(UTC).astimezone(ZoneInfo(BERLIN_TZ))
+
+
+def _basal_day_bounds(local_now: datetime) -> tuple[datetime, datetime]:
+    """Start and end of the current calendar day (Europe/Berlin) in UTC."""
+    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return day_start.astimezone(UTC), (day_start + timedelta(days=1)).astimezone(UTC)
+
+
+def _basal_reminder_time(threshold) -> str | None:
+    value = getattr(threshold, "basal_reminder_time", None)
+    if not isinstance(value, str) or len(value) != 5 or value[2] != ":":
+        return None
+    hours, minutes = value[:2], value[3:]
+    if not (hours.isdigit() and minutes.isdigit()):
+        return None
+    if int(hours) > 23 or int(minutes) > 59:
+        return None
+    return value
+
+
+def _has_basal_today(patient_id: int, day_start: datetime, day_end: datetime) -> bool:
+    m = _models()
+    return (
+        m["LogEntry"].query
+        .filter(
+            m["LogEntry"].user_id == patient_id,
+            m["LogEntry"].entry_type == m["LogEntryType"].BASAL,
+            m["LogEntry"].created_at >= day_start,
+            m["LogEntry"].created_at < day_end,
+        )
+        .count()
+        > 0
+    )
+
+
+def _evaluate_basal_reminder(user_id: int) -> None:
+    """Remind once per day when no basal dose was logged by the configured time.
+
+    The reminder is per user: time in that user's thresholds, routing in that
+    user's active notification profile. It fires at most once per local day and
+    closes itself when the basal dose is logged or the day is over.
+    """
+    m = _models()
+
+    threshold = m["Threshold"].query.filter_by(user_id=user_id).first()
+    if threshold is None:
+        return
+    reminder = _basal_reminder_time(threshold)
+    if reminder is None:
+        return
+
+    now = datetime.now(UTC)
+    local_now = _local_now()
+    if local_now.strftime("%H:%M") < reminder:
+        return
+
+    patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
+    if patient is None:
+        return
+
+    day_start, day_end = _basal_day_bounds(local_now)
+    basal_logged = _has_basal_today(patient.id, day_start, day_end)
+
+    reminded_today = (
+        m["Alarm"].query
+        .filter(
+            m["Alarm"].user_id == patient.id,
+            m["Alarm"].alarm_type == m["AlarmType"].NO_BASAL,
+            m["Alarm"].created_at >= day_start,
+        )
+        .count()
+        > 0
+    )
+
+    open_alarms = m["Alarm"].query.filter_by(
+        user_id=patient.id,
+        alarm_type=m["AlarmType"].NO_BASAL,
+        acknowledged_at=None,
+    ).all()
+
+    changed = False
+    for alarm in open_alarms:
+        created = alarm.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=UTC)
+        if basal_logged or created < day_start:
+            alarm.acknowledged_at = now
+            changed = True
+    if changed:
+        with transactional_session():
+            pass  # auto-commit
+        logger.info("Closed basal reminders for user %d", user_id)
+
+    if basal_logged or reminded_today:
+        return
+
+    alarm = m["Alarm"](user_id=patient.id, alarm_type=m["AlarmType"].NO_BASAL, sgv=None)
+    db.session.add(alarm)
+    with transactional_session():
+        pass  # auto-commit
+
+    reason = f"Basalinsulin für heute noch nicht geloggt (Erinnerung {reminder})"
+    _dispatch_to_user(user_id, m["NotificationThreshold"].NO_BASAL, None, reason=reason)
+    logger.info("Basal reminder raised for user %d at %s", user_id, reminder)
+
+
 def check_profile_schedules() -> None:
     """Auto-activate profiles whose start_time matches the current minute."""
     from datetime import UTC
@@ -431,7 +544,9 @@ def _resolve_open_alarms(user_id: int) -> None:
     open_alarms = m["Alarm"].query.filter(
         m["Alarm"].user_id == user_id,
         m["Alarm"].acknowledged_at.is_(None),
-        m["Alarm"].alarm_type != m["AlarmType"].NO_DATA,
+        m["Alarm"].alarm_type.notin_(
+            [m["AlarmType"].NO_DATA, m["AlarmType"].NO_BASAL]
+        ),
     ).all()
     for alarm in open_alarms:
         alarm.acknowledged_at = datetime.now(UTC)
@@ -529,7 +644,7 @@ def _dispatch_to_user(
 
     dispatched = False
     if area == "call":
-        dispatched = _dispatch_call(user, title, sgv, compression_low)
+        dispatched = _dispatch_call(user, title, sgv, compression_low, reason=reason)
     elif area == "push":
         dispatched = _dispatch_push(user, title, sgv, compression_low, reason=reason)
 
@@ -537,13 +652,16 @@ def _dispatch_to_user(
         _set_snooze(user_id, reason=f"alarm:{threshold.value}")
 
 
-def _dispatch_call(user: User, title: str, sgv: int | None, compression_low: bool = False) -> bool:
+def _dispatch_call(
+    user: User, title: str, sgv: int | None, compression_low: bool = False,
+    reason: str | None = None,
+) -> bool:
     if not user.phone_number:
         logger.warning("User %d has no phone_number, cannot call", user.id)
         return False
     try:
         place_call(user, sgv, title, compression_low=compression_low)
-        _log_notification(user, title, sgv)
+        _log_notification(user, title, sgv, detail=reason)
         return True
     except Exception as exc:
         logger.exception("Failed to place call for user %d: %s", user.id, exc)
@@ -562,7 +680,7 @@ def _dispatch_push(
     body = " — ".join(parts) if parts else (reason or "")
     try:
         send_push_to_user(user.id, title, body)
-        _log_notification(user, title, sgv)
+        _log_notification(user, title, sgv, detail=reason)
         return True
     except Exception:
         return False
@@ -583,12 +701,14 @@ def _set_snooze(user_id: int, reason: str | None = None) -> None:
     logger.info("User %d snoozed until %s", user_id, snooze.snooze_until)
 
 
-def _log_notification(user: User, title: str, sgv: int | None) -> None:
+def _log_notification(
+    user: User, title: str, sgv: int | None, detail: str | None = None
+) -> None:
     m = _models()
     patient = m["User"].query.filter_by(role=m["UserRole"].PATIENT).first()
     if not patient:
         return
-    sgv_str = f"{sgv} mg/dL" if sgv is not None else "keine Daten"
+    sgv_str = f"{sgv} mg/dL" if sgv is not None else (detail or "keine Daten")
     note = f"Push an {user.display_name}. Alarm: {title}. {sgv_str}."
     entry = m["LogEntry"](
         user_id=patient.id,
@@ -610,6 +730,7 @@ def _threshold_to_alarm_type(threshold) -> AlarmType:
         threshold.HIGH: m["AlarmType"].HIGH,
         threshold.CRITICAL_HIGH: m["AlarmType"].CRITICAL_HIGH,
         threshold.NO_DATA: m["AlarmType"].NO_DATA,
+        threshold.NO_BASAL: m["AlarmType"].NO_BASAL,
     }
     return mapping[threshold]
 
@@ -621,6 +742,7 @@ def _alarm_title_for(threshold, _sgv: int | None) -> str:
         threshold.HIGH: "Hoch",
         threshold.CRITICAL_HIGH: "Kritisch hoch",
         threshold.NO_DATA: "Keine Daten",
+        threshold.NO_BASAL: "Basal nicht geloggt",
     }[threshold]
 
 

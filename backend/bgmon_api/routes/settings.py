@@ -617,6 +617,26 @@ def update_thresholds() -> FlaskResponse | tuple[FlaskResponse, int]:
             )
         threshold.no_data_after_minutes = int(val)
 
+    if "basal_reminder_time" in data:
+        val = data["basal_reminder_time"]
+        if val in (None, ""):
+            threshold.basal_reminder_time = None
+        elif (
+            not isinstance(val, str)
+            or len(val) != 5
+            or val[2] != ":"
+            or not val[:2].isdigit()
+            or not val[3:].isdigit()
+            or int(val[:2]) > 23
+            or int(val[3:]) > 59
+        ):
+            return (
+                jsonify({"error": "basal_reminder_time must be HH:MM or null"}),
+                HTTPStatus.BAD_REQUEST,
+            )
+        else:
+            threshold.basal_reminder_time = val
+
     if threshold.critical_low >= threshold.low:
         return jsonify({"error": "critical_low must be < low"}), HTTPStatus.BAD_REQUEST
     if threshold.low >= threshold.high:

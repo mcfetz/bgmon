@@ -137,6 +137,7 @@
 	let high = $state(180);
 	let criticalHigh = $state(250);
 	let noDataAlertMinutes = $state(15);
+	let basalReminderTime = $state('');
 
 	let insulinActionHours: number | string = $state(4);
 	let correctionFactor: number | string = $state(50);
@@ -150,14 +151,16 @@
 	let loadedGlobal = $state<GlobalSettingsValues | null>(null);
 
 	type NotificationArea = 'push' | 'call';
-	type NotificationThreshold = 'critical_low' | 'low' | 'high' | 'critical_high' | 'no_data';
+	type NotificationThreshold =
+		'critical_low' | 'low' | 'high' | 'critical_high' | 'no_data' | 'no_basal';
 	const NOTIFICATION_AREAS: NotificationArea[] = ['push', 'call'];
 	const NOTIFICATION_THRESHOLDS: NotificationThreshold[] = [
 		'critical_low',
 		'low',
 		'high',
 		'critical_high',
-		'no_data'
+		'no_data',
+		'no_basal'
 	];
 	const NOTIFICATION_AREA_LABELS: Record<NotificationArea, string> = {
 		push: 'Push',
@@ -168,7 +171,8 @@
 		low: 'Low',
 		high: 'High',
 		critical_high: 'Critical High',
-		no_data: 'Keine Daten'
+		no_data: 'Keine Daten',
+		no_basal: 'Basal fehlt'
 	};
 
 	interface NotificationAssignment {
@@ -716,6 +720,7 @@
 				high = data.high ?? 180;
 				criticalHigh = data.critical_high ?? 250;
 				noDataAlertMinutes = data.no_data_after_minutes ?? 15;
+				basalReminderTime = data.basal_reminder_time ?? '';
 			}
 
 			if (carbRes.ok) {
@@ -859,7 +864,8 @@
 				low,
 				high,
 				critical_high: criticalHigh,
-				no_data_after_minutes: noDataAlertMinutes
+				no_data_after_minutes: noDataAlertMinutes,
+				basal_reminder_time: basalReminderTime === '' ? null : basalReminderTime
 			})
 		});
 
@@ -1235,6 +1241,15 @@
 						<p class="hint">
 							Alarm wenn länger keine Blutzuckerwerte einlaufen. Was passieren soll („Keine Daten"
 							im Profil) stellst du unter Profile ein.
+						</p>
+					</div>
+
+					<div class="field">
+						<label for="basal-reminder-time">Erinnerung Basalinsulin</label>
+						<input id="basal-reminder-time" type="time" bind:value={basalReminderTime} />
+						<p class="hint">
+							Ist bis zu dieser Uhrzeit kein Basalinsulin für den Tag geloggt, geht einmalig ein
+							Alarm raus („Basal fehlt" im Profil). Feld leer lassen schaltet die Erinnerung aus.
 						</p>
 					</div>
 
@@ -1647,8 +1662,8 @@
 							<li>Telefonanruf (Twilio): Automatischer Anruf mit Sprachansage</li>
 							<li>15-Min-Snooze nach jedem Alarm</li>
 							<li>
-								Notification-Profile: Profile für Tag/Nacht, je Schwellwert (inkl. „Keine Daten")
-								Push/Anruf wählbar
+								Notification-Profile: Profile für Tag/Nacht, je Schwellwert (inkl. „Keine Daten" und
+								„Basal fehlt") Push/Anruf wählbar
 							</li>
 						</ul>
 
